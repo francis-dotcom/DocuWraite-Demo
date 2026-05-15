@@ -1,0 +1,189 @@
+5/11/26, 5:20 PM
+
+Region
+
+Middle
+
+Middle
+
+Middle
+
+Middle
+
+Middle
+
+Middle
+
+Middle
+
+Funding Source
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+Service(s)
+
+$9470-U1-TS -
+NUTRITION 1
+($9470 - U1-
+TS) (Billable)
+
+$9470-U1-TS -
+NUTRITION 14
+($9470 - U1-
+TS) (Billable)
+
+$9470-U1-TS -
+NUTRITION 1
+($9470 - U1-
+TS) (Billable)
+
+$9470-U1-TS -
+NUTRITION 1
+($9470 - U1-
+TS) (Billable)
+
+$9470-U1-TS -
+NUTRITION 1
+($9470 - U1-
+TS) (Billable)
+
+G0153-U4-GN -
+SPEECH LANG
+HEARING 1
+(G0153 - U4 -
+GN) (Billable)
+
+G0153-U4-GN -
+SPEECH LANG
+HEARING 1
+(G0153 - U4 -
+GN) (Billable)
+
+Therap :: Individual Plan
+
+Status
+
+Approved
+
+Approved
+
+Approved
+
+Approved
+
+Approved
+
+Approved
+
+Approved
+
+Service
+Provider
+
+GREGORY-
+TN-MIDDLE -
+MARY EVA
+GREGORY -
+MIDDLE
+
+GREGORY-
+TN-MIDDLE -
+MARY EVA
+GREGORY -
+MIDDLE
+
+GREGORY-
+TN-MIDDLE -
+MARY EVA
+GREGORY -
+MIDDLE
+
+GREGORY-
+TN-MIDDLE -
+MARY EVA
+GREGORY -
+MIDDLE
+
+GREGORY-
+TN-MIDDLE -
+MARY EVA
+GREGORY -
+MIDDLE
+
+SPPS-TN-
+MIDDLE -
+SPEECH
+PATHOLOGY
+SPECIALIST,
+LLC-MIDDLE
+
+SPPS-TN-
+MIDDLE -
+SPEECH
+PATHOLOGY
+SPECIALIST,
+LLC-MIDDLE
+
+Service
+Date From
+
+04/01/2026
+
+06/01/2026
+
+08/01/2026
+
+10/01/2026
+
+12/01/2026
+
+02/01/2026
+
+03/01/2026
+
+Service
+Date To
+
+04/30/2026
+
+06/30/2026
+
+08/31/2026
+
+10/31/2026
+
+12/31/2026
+
+02/28/2026
+
+03/31/2026
+
+https://secure.therapservices.net/ma/ip/plan?formld=OISP-DIDDTN-PBA4WELDTLGC&backType=1 &backLink=%2fih %2fplans %3findividualld%3d1..
+
+11/28

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Therap Dashboard Replica</title>
+  <style>
+    :root {
+      --bg: #f3f5f7;
+      --panel: #ffffff;
+      --border: #bbd7e5;
+      --header-blue: #cfe8f3;
+      --top-yellow: #f2bc00;
+      --text: #2b3a48;
+      --muted: #4b6b86;
+      --link: #4c7aa2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .page {
+      max-width: 1760px;
+      margin: 0 auto;
+      padding: 24px 30px;
+    }
+    .topbar {
+      height: 60px;
+      background: var(--top-yellow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      margin-bottom: 14px;
+    }
+    .top-left, .top-right { display: flex; align-items: center; gap: 22px; }
+    .logo { font-size: 42px; font-style: italic; font-weight: 700; color: #0057b8; }
+    .home-label { font-size: 28px; }
+    .top-right { gap: 24px; font-size: 20px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 380px 1fr 250px;
+      gap: 26px;
+      min-height: 1000px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .card-h {
+      height: 44px;
+      background: var(--header-blue);
+      color: #2c5d7e;
+      font-size: 30px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+    }
+    .card-b { padding: 12px 14px 14px; }
+
+    .left-col { display: flex; flex-direction: column; gap: 16px; }
+    .avatar {
+      width: 90px;
+      height: 90px;
+      border: 1px solid #d5dde5;
+      background: #fff;
+      border-radius: 4px;
+      display: grid;
+      place-items: center;
+      font-size: 42px;
+      color: #d97706;
+    }
+    .module-list, .pdf-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .pdf-list { gap: 14px; font-weight: 500; }
+
+    .main-col { display: flex; flex-direction: column; gap: 16px; }
+    .profile-head { display: flex; flex-direction: column; gap: 10px; }
+    .name-row { display: flex; justify-content: space-between; align-items: center; }
+    .name { font-size: 42px; font-weight: 700; }
+    .admitted { color: #2f7a2f; font-size: 13px; font-weight: 700; }
+    .switch {
+      width: 360px;
+      height: 38px;
+      border: 1px solid #d7dee5;
+      border-radius: 4px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      color: #a1a9b2;
+      font-size: 13px;
+    }
+    .tabs {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      padding: 8px 0;
+      color: var(--link);
+      font-size: 15px;
+    }
+    .tab-active {
+      padding: 10px 14px;
+      border: 1px solid #d7dee5;
+      border-radius: 4px;
+      background: #fff;
+      color: #4b5563;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      color: #4b5563;
+    }
+    thead th {
+      text-align: left;
+      color: #5b7187;
+      font-weight: 700;
+      padding: 8px 6px;
+      border-bottom: 1px solid #e5edf4;
+    }
+    tbody td {
+      padding: 8px 6px;
+      border-bottom: 1px solid #eef3f7;
+    }
+    .filter {
+      width: 240px;
+      height: 28px;
+      border: 1px solid #d9e0e7;
+      border-radius: 3px;
+      padding: 0 10px;
+      color: #9aa3ae;
+      margin-bottom: 10px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      background: #fff;
+    }
+    .count-note { margin-top: 10px; font-size: 13px; color: #4b5563; }
+
+    .right-col { display: flex; flex-direction: column; gap: 16px; }
+    .tiny-box .card-b { min-height: 52px; }
+
+    .footer {
+      margin-top: 18px;
+      font-size: 12px;
+      color: #6b7280;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="top-left">
+        <div class="logo">Therap</div>
+        <div class="home-label">HomePage</div>
+      </div>
+      <div class="top-right">
+        <div>Brian (DEMOTRAIN-NC)</div>
+        <div>Logout</div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="left-col">
+        <div class="avatar">👩</div>
+
+        <div class="card">
+          <div class="card-h">Modules</div>
+          <div class="card-b module-list">
+            <div>▸ Assessment &amp; Screening</div>
+            <div>▸ Attendance</div>
+            <div>▸ Behavior Data</div>
+            <div>▸ Behavior Plan</div>
+            <div>▸ Care Plan</div>
+            <div>▸ Case Note</div>
+            <div>▸ Document Storage</div>
+            <div>▸ ISP Program</div>
+            <div>▸ MAR Data</div>
+            <div>▸ Medication History</div>
+            <div>▸ Time Tracking</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span>Go To</span><span>▾</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span>View PDFs</span><span>📄</span></div>
+          <div class="card-b pdf-list">
+            <div>Emergency Data Form ↗</div>
+            <div>Face Sheet ↗</div>
+            <div>Medical Information ↗</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-col">
+        <div class="profile-head">
+          <div class="name-row">
+            <div class="name">Brittany Adams</div>
+            <div class="switch">Switch Individual</div>
+          </div>
+          <div class="admitted">Admitted</div>
+          <div class="tabs">
+            <span class="tab-active">Home</span>
+            <span>Profile</span>
+            <span>Plans</span>
+            <span>Case Status</span>
+            <span>About Me</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">ISP Programs</div>
+          <div class="card-b">
+            <div class="filter">Filter</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th><th>Start Date</th><th>End Date</th><th>Frequency</th><th>Schedule</th><th>ISP Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Cooking Skills (1st Street)</td><td>06/01/2024</td><td></td><td>3</td><td>Weekly</td><td>New</td></tr>
+                <tr><td>Daily Documentation &amp; Goals</td><td>05/01/2024</td><td></td><td>1</td><td>Daily</td><td>New</td></tr>
+                <tr><td>Daily Documentation and Goals</td><td>04/01/2021</td><td>06/30/2026</td><td>1</td><td>Daily</td><td>EVV Only</td></tr>
+              </tbody>
+            </table>
+            <div class="count-note">Showing 1 to 3 of 3 entries</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">Service Authorizations (Professional Claim)</div>
+          <div class="card-b">
+            <div class="filter">Filter</div>
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Date Range</th><th>New</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>H2016 - Residential</td><td>06/01/2022 - 05/31/2028</td><td></td></tr>
+              </tbody>
+            </table>
+            <div class="count-note">Showing 1 to 1 of 1 entry</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">Service Authorizations (Institutional Claim)</div>
+          <div class="card-b">No service authorizations found to display</div>
+        </div>
+      </div>
+
+      <div class="right-col">
+        <div class="card tiny-box"><div class="card-h">Counts</div><div class="card-b"></div></div>
+        <div class="card tiny-box"><div class="card-h">Overdue</div><div class="card-b"></div></div>
+        <div class="card tiny-box"><div class="card-h">Upcoming</div><div class="card-b"></div></div>
+      </div>
+    </div>
+
+    <div class="footer">ogigrid</div>
+  </div>
+</body>
+</html>

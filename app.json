@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Therap Dashboard Replica",
+    "slug": "therap-dashboard-replica",
+    "version": "1.0.0",
+    "orientation": "default",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "userInterfaceStyle": "light"
+  }
+}

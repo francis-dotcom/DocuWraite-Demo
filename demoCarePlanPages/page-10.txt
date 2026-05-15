@@ -1,0 +1,161 @@
+5/11/26, 5:20 PM
+
+Region
+
+Middle
+
+Middle
+
+Middle
+
+Middle
+
+Middle
+
+Middle
+
+Funding Source
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+CAC -
+COMPREHENSIVE
+AGGREGATE CAP
+
+Service(s)
+
+72021-U5 -
+INTERMITTENT
+EMP & COMM
+PART
+WRAPAROUND
+(LEVEL 4)
+(72021 - U5)
+(Billable)
+
+72021-U5 -
+INTERMITTENT
+EMP & COMM
+PART
+WRAPAROUND
+(LEVEL 4)
+(T2021 - U5)
+(Billable)
+
+72033-U4-UN -
+SUPPORTED
+LIVING LEVEL 4
+- 2 PEOPLE
+(T2033 - U4 -
+UN) (Billable)
+
+72033-U4-UN -
+SUPPORTED
+LIVING LEVEL 4
+-2 PEOPLE
+(T2033 - U4 -
+UN) (Billable)
+
+72033-U4-UN -
+SUPPORTED
+LIVING LEVEL 4
+-2 PEOPLE
+(T2033 - U4 -
+UN) (Billable)
+
+$9470-U1-TS -
+NUTRITION 4
+($9470 - U1-
+TS) (Billable)
+
+Therap :: Individual Plan
+
+Status
+
+Approved
+
+Approved
+
+Approved
+
+Approved
+
+Approved
+
+Approved
+
+Service
+Provider
+
+KHARIS-TN-
+MIDDLE -
+KHARIS
+CARE LLC-
+MIDDLE
+
+KHARIS-TN-
+MIDDLE -
+KHARIS
+CARE LLC-
+MIDDLE
+
+KHARIS-TN-
+MIDDLE -
+KHARIS
+CARE LLC-
+MIDDLE
+
+KHARIS-TN-
+MIDDLE -
+KHARIS
+CARE LLC-
+MIDDLE
+
+KHARIS-TN-
+MIDDLE -
+KHARIS
+CARE LLC-
+MIDDLE
+
+GREGORY-
+TN-MIDDLE -
+MARY EVA
+GREGORY -
+MIDDLE
+
+Service Service
+Date From Date To
+
+07/01/2026 12/31/2026
+
+01/01/2027 01/16/2027
+
+01/17/2026 06/30/2026
+
+07/01/2026 12/31/2026
+
+01/01/2027 01/16/2027
+
+02/01/2026 02/28/2026
+
+https://secure.therapservices.net/ma/ip/plan?formld=OISP-DIDDTN-PBA4WELDTLGC&backType=1 &backLink=%2fih %2fplans %3findividualld%3d1..
+
+10/28

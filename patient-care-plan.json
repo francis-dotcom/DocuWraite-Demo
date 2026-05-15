@@ -1,0 +1,226 @@
+{
+  "patient": {
+    "displayName": "Mary Bet",
+    "fullName": "Mary Bet Phagan",
+    "dateOfBirth": "1947-01-22",
+    "medicaidId": "1D510568555",
+    "oversightId": "0000010468 (DIDD-TN)",
+    "guardian": "Elena Vargas"
+  },
+  "plan": {
+    "status": "Approved",
+    "editionType": "Annual",
+    "meetingDate": "2025-11-18",
+    "startDate": "2026-01-17",
+    "endDate": "2027-01-16"
+  },
+  "aboutMe": {
+    "whatPeopleAdmire": "Mary Bet is very loveable, friendly, affectionate, and social. She loves to give hugs, wear jewelry, carry a purse from her collection, laugh with people, and help others. She often remembers personal details about others and enjoys playful conversation.",
+    "whatIsImportant": "At home, Mary Bet values looking pretty, receiving compliments, keeping her stuffed animals nearby, having personal space respected, and being able to rest. In the community, she values shopping, talking with others, going out to eat, getting sweet tea, and having the flexibility to come home and rest when tired.",
+    "howBestToSupport": "Support Mary Bet with calm redirection, close fall supervision, hearing-aid reminders, oxygen monitoring, dietary guidance, and flexible rest breaks. Staff should stay attentive to her changing energy, mobility, and communication needs while preserving choice and dignity."
+  },
+  "risks": [
+    {
+      "title": "Falls",
+      "severity": "High",
+      "notes": "Mary Bet has had several falls and continues to report or indicate falls, even while seated. Vision decline, balance problems, and gait instability increase risk.",
+      "guidance": "Maintain line-of-sight supervision, follow ambulation instructions, keep assistive equipment available, and document fall-prevention observations."
+    },
+    {
+      "title": "Aspiration / Choking",
+      "severity": "High",
+      "notes": "Mary Bet is at increased risk of choking due to eating pace, talking during meals, loss of food or fluid from the mouth, dentures, and swallowing concerns.",
+      "guidance": "Use teaspoon-size bites, clear mouth before next bite, offer liquids every 2-3 bites, and avoid conversation during active swallowing."
+    },
+    {
+      "title": "Inability to communicate basic needs",
+      "severity": "Medium",
+      "notes": "Mary Bet may have difficulty expressing pain, illness, hunger, or thirst clearly and may sometimes use pain complaints for attention seeking.",
+      "guidance": "Treat discomfort reports seriously, watch body language, check medication and diet compliance, and escalate for medical evaluation if confusion or unusual behavior appears."
+    },
+    {
+      "title": "Medical procedure intolerance",
+      "severity": "Medium",
+      "notes": "Mary Bet may need IV sedation or hospital-level anesthesia for stressful medical or dental procedures because of anxiety and tolerance issues.",
+      "guidance": "Coordinate with PCP before procedures, verify sedation plans, and document PRN supports and anesthesia requirements clearly."
+    },
+    {
+      "title": "Elopement / self-injury / aggression",
+      "severity": "Low",
+      "notes": "Risk history includes elopement awareness, past self-harm such as biting, and minor aggression or throwing items.",
+      "guidance": "Use trained redirection approaches, keep behavior supports available, and document triggers and de-escalation outcomes."
+    }
+  ],
+  "supports": {
+    "home": "Mary Bet lives in a single-family home in LaVergne, TN with a longtime male housemate. The home includes safety modifications such as bathroom holding bars and wheelchair-accessible ramps. Staff support includes hearing-aid reminders, oxygen checks at 12:00 A.M., 4:00 A.M., and 7:00 A.M., soiled-brief changes as needed, and total assistance with safety in dangerous situations.",
+    "community": "Mary Bet receives community participation and intermittent wraparound supports. Staff assist with ambulation, wheelchair access for longer distances, safe purchases, appropriate social boundaries, and return-home transitions when fatigue, weather, or hygiene needs make continuing unsafe or impractical.",
+    "adlsAndHouseholdChores": "Mary Bet now requires total staff assistance with showering, toileting, dressing, oral hygiene, household chores, laundry, room cleaning, dusting, and vacuuming. She benefits from both verbal and physical prompts and needs balance support during transfers and hygiene routines.",
+    "communicationStyle": "Mary Bet verbally communicates wants and needs. When ill she may appear sad, have a blank stare, or slurred speech. When upset she becomes quieter and may be harder to understand. Staff should monitor body language, encourage calm conversation, and ensure hearing aids are available and functioning."
+  },
+  "services": [
+    {
+      "title": "Independent Support Coordination",
+      "provider": "BGC INC - Middle",
+      "funding": "CAC - Comprehensive Aggregate Cap",
+      "status": "Approved",
+      "dateRange": "2026-01-17 to 2027-01-16",
+      "detail": "Monthly coordination contact cadence; care plan oversight and waiver coordination."
+    },
+    {
+      "title": "Community Participation Supports",
+      "provider": "Kharis Care LLC - Middle",
+      "funding": "CAC - Comprehensive Aggregate Cap",
+      "status": "Approved",
+      "dateRange": "2026-01-17 to 2027-01-16",
+      "detail": "Level 4 community participation with flexible rest and return-home support."
+    },
+    {
+      "title": "Intermittent Employment & Community Wraparound",
+      "provider": "Kharis Care LLC - Middle",
+      "funding": "CAC - Comprehensive Aggregate Cap",
+      "status": "Approved",
+      "dateRange": "2026-01-17 to 2027-01-16",
+      "detail": "Wraparound coverage for fatigue, weather, meals, clothing changes, and transition support."
+    },
+    {
+      "title": "Supported Living Level 4",
+      "provider": "Kharis Care LLC - Middle",
+      "funding": "CAC - Comprehensive Aggregate Cap",
+      "status": "Approved",
+      "dateRange": "2026-01-17 to 2027-01-16",
+      "detail": "Two-person supported living structure with strong safety and ADL supervision."
+    },
+    {
+      "title": "Nutrition Services",
+      "provider": "Mary Eva Gregory - Middle",
+      "funding": "CAC - Comprehensive Aggregate Cap",
+      "status": "Approved",
+      "dateRange": "2026-02-01 to 2026-12-31",
+      "detail": "PKU, GERD, constipation, and cholesterol nutrition management."
+    },
+    {
+      "title": "Speech / Hearing Services",
+      "provider": "Speech Pathology Specialist, LLC - Middle",
+      "funding": "CAC - Comprehensive Aggregate Cap",
+      "status": "Approved",
+      "dateRange": "2026-02-01 to 2027-01-16",
+      "detail": "Safe eating strategies, auditory comprehension, and hearing-aid use support."
+    }
+  ],
+  "rights": [
+    {
+      "title": "Decision Making & Rights",
+      "body": "Mary Bet likes to make day-to-day choices about what to wear and where to go. Michael Dunn Center is the court-appointed limited conservator for specified responsibilities, but Mary Bet still retains personal choice in daily routine and many ordinary preferences."
+    },
+    {
+      "title": "Consumer Direction / ANE Education",
+      "body": "Mary Bet and the coordinator discussed consumer direction and abuse, neglect, and exploitation education on 2025-11-18. She is not using consumer direction and no current ANE concerns are documented."
+    },
+    {
+      "title": "Advanced Directives / Burial Plans",
+      "body": "No advanced directive or declaration for mental health treatment is documented. Burial support planning references DIDD burial-program procedures if needed."
+    }
+  ],
+  "activities": {
+    "currentCommunityActivities": "Mary Bet often prefers staying home, but enjoys shopping, getting her hair done, going out for food or sweet tea, and choosing community outings when given options.",
+    "supportsNeededForIndependence": "Staff assist with hearing devices, dentures, wheelchair access, stair safety, meal-plan compliance, money handling, community transitions, and reminders about appropriate social boundaries."
+  },
+  "actionPlans": [
+    {
+      "title": "Action Plan 1",
+      "desiredOutcome": "Mary Bet follows prescribed meal plan daily for PKU to improve health, sleep, mood, GI stability, and reduce GERD complications.",
+      "needIssue": "Mary Bet has a history of PKU, GERD, chronic constipation, and high cholesterol.",
+      "steps": [
+        {
+          "description": "Mary Bet follows the prescribed heart healthy meal plan with low sodium, low saturated fat, low cholesterol, and high fiber.",
+          "responsible": [
+            "Home: Mary Bet and RD",
+            "Other: Mary Bet and RD"
+          ],
+          "frequency": "Daily",
+          "whereToRecord": "Monthly notes",
+          "notes": "Avoid high PHE foods, give supplements daily, track intake logs, monitor labs, promote fluids, fiber, GERD-safe habits, upright posture after meals, and tolerated activity."
+        },
+        {
+          "description": "Mary Bet eats safely with total assistance, teaspoon-size bites, mouth clearing before next bite, liquids every 2-3 bites, and no talking during meals.",
+          "responsible": [
+            "Home: Mary Bet and SLP",
+            "Other: Mary Bet and SLP"
+          ],
+          "frequency": "Daily",
+          "whereToRecord": "Monthly notes",
+          "notes": "Staff provide close mealtime oversight and follow the modified safe-eating plan exactly as ordered."
+        }
+      ]
+    },
+    {
+      "title": "Action Plan 2",
+      "desiredOutcome": "Mary Bet wants to communicate effectively with others.",
+      "needIssue": "Mary Bet is hard of hearing and previously lost her hearing aids.",
+      "steps": [
+        {
+          "description": "Mary Bet receives hearing aids and uses them during communication supports.",
+          "responsible": [
+            "Home: Mary Bet and SLP",
+            "Other: Mary Bet and SLP"
+          ],
+          "frequency": "Daily",
+          "whereToRecord": "Monthly notes",
+          "notes": "Staff verify hearing aids are present, functioning, and safely stored when not in use."
+        },
+        {
+          "description": "Mary Bet tells staff when hearing aids are not working.",
+          "responsible": [
+            "Home: Mary Bet and SLP",
+            "Other: Mary Bet and SLP"
+          ],
+          "frequency": "Daily",
+          "whereToRecord": "Daily documentation",
+          "notes": "Prompt Mary Bet to report hearing problems early so devices can be checked or replaced."
+        },
+        {
+          "description": "Mary Bet completes 1-2 step instructions and verbalizes needs and concerns.",
+          "responsible": [
+            "Home: Mary Bet and SLP",
+            "Other: Mary Bet and SLP"
+          ],
+          "frequency": "Daily",
+          "whereToRecord": "Monthly documentation",
+          "notes": "Use repeat-back prompts, slower pacing, and teletherapy or home or community supports as needed."
+        }
+      ]
+    },
+    {
+      "title": "Action Plan 3",
+      "desiredOutcome": "Mary Bet does much for herself to increase her independence.",
+      "needIssue": "Due to declining health, Mary Bet cannot perform previous activities such as household chores and some ADLs without support.",
+      "steps": [
+        {
+          "description": "Mary Bet chooses to participate in community activities at least once per week.",
+          "responsible": [
+            "Home: Mary Bet, SL, and CP",
+            "Other: Mary Bet, CP, and SL"
+          ],
+          "frequency": "Daily tracking",
+          "whereToRecord": "Monthly documentation",
+          "notes": "Offer choices, support decision making, monitor fatigue, and document successful engagement and barriers."
+        }
+      ]
+    }
+  ],
+  "source": {
+    "summaryDerivedFrom": [
+      "App.js",
+      "carePlanText.js"
+    ],
+    "documentName": "Person Centered Support Plan",
+    "curatedPageNumbers": [
+      2,
+      3,
+      6,
+      7,
+      19,
+      20
+    ]
+  }
+}
