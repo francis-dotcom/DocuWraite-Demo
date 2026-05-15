@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   SafeAreaView,
@@ -49,11 +50,11 @@ const colors = {
 };
 
 const handoverVitalFields = [
-  { key: "temperature", label: "Temperature" },
-  { key: "bloodPressure", label: "Blood Pressure" },
-  { key: "pulse", label: "Pulse" },
-  { key: "respiration", label: "Respiration" },
-  { key: "oxygenSaturation", label: "O2 Saturation" },
+  { key: "temperature", label: "Temperature", placeholder: "98.6 F" },
+  { key: "bloodPressure", label: "Blood Pressure", placeholder: "120/80" },
+  { key: "pulse", label: "Pulse", placeholder: "72 bpm" },
+  { key: "respiration", label: "Respiration", placeholder: "16/min" },
+  { key: "oxygenSaturation", label: "O2 Saturation", placeholder: "98%" },
 ];
 
 const modules = [
@@ -1466,6 +1467,14 @@ function createDocumentationSession({ title, program, sessionType = "isp", clien
         }),
         {}
       ),
+      vitalValues: handoverVitalFields.reduce(
+        (accumulator, field) => ({
+          ...accumulator,
+          [field.key]: "",
+        }),
+        {}
+      ),
+      otherVitals: "",
       generatedAt: "",
     },
     rows: rows.map((item) => ({
@@ -1529,12 +1538,16 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
   const finalNote = String(session.shiftSummary || "").trim() || "No final shift note entered.";
   const additionalNotes = String(session.handover?.additionalNotes || "").trim() || "No additional handover notes entered.";
   const selectedVitals = handoverVitalFields.filter((field) => session.handover?.vitalSigns?.[field.key]);
+  const vitalValues = session.handover?.vitalValues || {};
   const vitalMarkup = handoverVitalFields
     .map(
       (field) =>
-        `<li>${session.handover?.vitalSigns?.[field.key] ? "☑" : "☐"} ${escapeHtml(field.label)}</li>`
+        `<li>${session.handover?.vitalSigns?.[field.key] ? "☑" : "☐"} ${escapeHtml(field.label)}${
+          vitalValues[field.key] ? `: ${escapeHtml(vitalValues[field.key])}` : ""
+        }</li>`
     )
     .join("");
+  const otherVitals = String(session.handover?.otherVitals || "").trim();
 
   const printWindow = window.open("", "_blank", "width=900,height=1200");
   if (!printWindow) {
@@ -1578,6 +1591,7 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
       <h2>Vital Signs Reviewed</h2>
       <ul>${vitalMarkup}</ul>
       <p><strong>Selected:</strong> ${escapeHtml(selectedVitals.map((field) => field.label).join(", ") || "None selected")}</p>
+      ${otherVitals ? `<p><strong>Other vitals:</strong> ${escapeHtml(otherVitals).replace(/\n/g, "<br />")}</p>` : ""}
     </div>
   </body>
 </html>`;
@@ -2224,9 +2238,12 @@ function DocuWraiteGuidedWorkflowPanel({
     return (
       <View style={styles.docuWraiteWorkflowCard}>
         <Text style={styles.docuWraiteWorkflowEyebrow}>{workflowEyebrow}</Text>
-        <Text style={styles.docuWraiteWorkflowLoading}>
-          DocuWraite is preparing the next care-plan question...
-        </Text>
+        <View style={styles.docuWraiteWorkflowLoadingRow}>
+          <ActivityIndicator size="small" color="#7c3aed" />
+          <Text style={styles.docuWraiteWorkflowLoading}>
+            Generating note...
+          </Text>
+        </View>
       </View>
     );
   }
@@ -2292,7 +2309,11 @@ function DocuWraiteGuidedWorkflowPanel({
                       [stepKey]: suggestion,
                       [`${stepKey}Custom`]: "",
                     },
-                    stepMeta.optionalNarration ? {} : { advance: true }
+                    stepMeta.manualContinue
+                      ? {}
+                      : stepMeta.advanceOnSelect || !stepMeta.optionalNarration
+                        ? { advance: true }
+                        : {}
                   );
                 }
               }}
@@ -2345,6 +2366,14 @@ function DocuWraiteGuidedWorkflowPanel({
           <Text style={styles.docuWraiteWorkflowNextText}>Continue</Text>
         </Pressable>
       ) : null}
+      {!multiSelect &&
+      stepMeta.manualContinue &&
+      answers[stepKey] &&
+      answers[stepKey] !== "Other..." ? (
+        <Pressable style={styles.docuWraiteWorkflowNext} onPress={() => onAnswer({}, { advance: true })}>
+          <Text style={styles.docuWraiteWorkflowNextText}>Continue</Text>
+        </Pressable>
+      ) : null}
       {multiSelect &&
       selectedSuggestions.length > 0 &&
       (!hasSelectedOther || answers[`${stepKey}Custom`]?.trim()) ? (
@@ -2379,11 +2408,12 @@ function DocuWraiteGuidedWorkflowPanel({
       ) : null}
       {aiError ? <Text style={styles.docuWraiteWorkflowAiNotice}>{aiError}</Text> : null}
       {aiLoading ? (
-        <Text style={styles.docuWraiteWorkflowLoading}>
-          {upcomingStepKey === "draft" || upcomingStepKey === "decline"
-            ? "DocuWraite is writing the note..."
-            : "Loading the next question..."}
-        </Text>
+        <View style={styles.docuWraiteWorkflowLoadingRow}>
+          <ActivityIndicator size="small" color="#7c3aed" />
+          <Text style={styles.docuWraiteWorkflowLoading}>
+            Generating note...
+          </Text>
+        </View>
       ) : null}
       <Text style={styles.docuWraiteWorkflowQuestion}>{stepMeta.question}</Text>
 
@@ -3755,6 +3785,19 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
     });
   };
 
+  const updateHandoverVitalValue = (key, value) => {
+    patchHandover({
+      vitalSigns: {
+        ...(session.handover?.vitalSigns || {}),
+        [key]: true,
+      },
+      vitalValues: {
+        ...(session.handover?.vitalValues || {}),
+        [key]: value,
+      },
+    });
+  };
+
   const openHandoverNote = () => {
     const generatedAt = "05/14/2026 1:06 AM";
     const nextSession = {
@@ -4087,6 +4130,33 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
                   </Pressable>
                 ))}
               </View>
+              {handoverVitalFields.some((field) => session.handover?.vitalSigns?.[field.key]) ? (
+                <View style={styles.docHandoverVitalValues}>
+                  {handoverVitalFields
+                    .filter((field) => session.handover?.vitalSigns?.[field.key])
+                    .map((field) => (
+                      <View key={`${field.key}-value`} style={styles.docHandoverVitalValueRow}>
+                        <Text style={styles.docHandoverVitalValueLabel}>{field.label}</Text>
+                        <TextInput
+                          value={session.handover?.vitalValues?.[field.key] || ""}
+                          onChangeText={(value) => updateHandoverVitalValue(field.key, value)}
+                          placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                          placeholderTextColor="#888888"
+                          style={styles.docHandoverVitalValueInput}
+                        />
+                      </View>
+                    ))}
+                </View>
+              ) : null}
+              <Text style={styles.docReviewInputLabel}>Other vitals or readings</Text>
+              <TextInput
+                value={session.handover?.otherVitals || ""}
+                onChangeText={(otherVitals) => patchHandover({ otherVitals })}
+                placeholder="Add glucose, weight, pain score, or any other reading"
+                placeholderTextColor="#888888"
+                multiline
+                style={styles.docHandoverOtherVitalsInput}
+              />
               <View style={styles.docHandoverActions}>
                 <Pressable style={[styles.docActionButton, styles.docActionPrimary]} onPress={openHandoverNote}>
                   <Text style={styles.docActionPrimaryText}>Open Handover Note</Text>
@@ -4119,11 +4189,11 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
           <Pressable style={[styles.docActionButton, styles.docActionSecondary]} onPress={saveDraft}>
             <Text style={styles.docActionSecondaryText}>Save Draft</Text>
           </Pressable>
-          <Pressable style={[styles.docActionButton, styles.docActionPrimary]} onPress={submitDocumentation}>
-            <Text style={styles.docActionPrimaryText}>Submit Documentation</Text>
-          </Pressable>
           <Pressable style={[styles.docActionButton, styles.docActionOutline]} onPress={validateDocumentation}>
             <Text style={styles.docActionOutlineText}>Validate</Text>
+          </Pressable>
+          <Pressable style={[styles.docActionButton, styles.docActionPrimary]} onPress={submitDocumentation}>
+            <Text style={styles.docActionPrimaryText}>Submit Documentation</Text>
           </Pressable>
           <Pressable style={[styles.docActionButton, styles.docActionOutline]} onPress={onCancel}>
             <Text style={styles.docActionOutlineText}>Cancel</Text>
@@ -6354,11 +6424,17 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginBottom: 4,
   },
+  docuWraiteWorkflowLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+    marginBottom: 8,
+  },
   docuWraiteWorkflowLoading: {
     fontSize: 12,
-    color: "#6b4fa1",
+    color: "#7c3aed",
+    fontWeight: "700",
     lineHeight: 18,
-    marginBottom: 8,
   },
   docuWraiteWorkflowAiNotice: {
     fontSize: 11,
@@ -6843,6 +6919,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    marginBottom: 12,
+  },
+  docHandoverVitalValues: {
+    rowGap: 10,
+    marginBottom: 12,
+  },
+  docHandoverVitalValueRow: {
+    rowGap: 6,
+  },
+  docHandoverVitalValueLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#444444",
+  },
+  docHandoverVitalValueInput: {
+    minHeight: 38,
+    borderWidth: 1,
+    borderColor: "#cccccc",
+    borderRadius: 4,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: "#111111",
+  },
+  docHandoverOtherVitalsInput: {
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: "#cccccc",
+    borderRadius: 4,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#111111",
+    textAlignVertical: "top",
     marginBottom: 12,
   },
   docHandoverVitalChip: {
