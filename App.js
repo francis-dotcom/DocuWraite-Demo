@@ -738,7 +738,7 @@ function buildScheduleBlockLabel(startHour = 7, endHour = 8) {
 }
 
 function buildScheduleBlockId(startHour = 7, endHour = 8, index = 0) {
-  return `${startHour}-${endHour}-${index}`;
+  return `block-${startHour}-${endHour}-${index}`;
 }
 
 function getTimeBlockPrompt(blockLabel, clientProfile = null) {
@@ -4780,13 +4780,16 @@ function DecisionEngineScreen({
   const [newRowDescription, setNewRowDescription] = useState("");
   const [newRowWorkflowId, setNewRowWorkflowId] = useState("behavior-support");
   const [rowBuilderHint, setRowBuilderHint] = useState("");
+  const [rowPromptSuggestions, setRowPromptSuggestions] = useState([]);
+  const [rowPromptLoading, setRowPromptLoading] = useState(false);
+  const [rowPromptError, setRowPromptError] = useState("");
   const workflowOptions = [
-    { workflowId: "behavior-support", label: "Behavior", theme: "behavior" },
-    { workflowId: "morning-adl", label: "ADL", theme: "hygiene" },
-    { workflowId: "feeding-support", label: "Meal", theme: "meal" },
-    { workflowId: "communication-support", label: "Communication", theme: "communication" },
-    { workflowId: "community-outing", label: "Community", theme: "outing" },
-    { workflowId: "medication-support", label: "Medication", theme: "medication" },
+    { workflowId: "behavior-support", label: "Behavior", theme: "behavior", promptCategory: "behavior" },
+    { workflowId: "morning-adl", label: "ADL", theme: "hygiene", promptCategory: "adl" },
+    { workflowId: "feeding-support", label: "Meal", theme: "meal", promptCategory: "meal" },
+    { workflowId: "communication-support", label: "Communication", theme: "communication", promptCategory: "communication" },
+    { workflowId: "community-outing", label: "Community", theme: "outing", promptCategory: "community" },
+    { workflowId: "medication-support", label: "Medication", theme: "medication", promptCategory: "medication" },
   ];
   const assignmentTargets = [
     ...timeBlocks.map((block) => ({
@@ -4830,6 +4833,44 @@ function DecisionEngineScreen({
 
     return () => clearTimeout(timeoutId);
   }, [rowBuilderHint]);
+
+  useEffect(() => {
+    const selectedWorkflow = workflowOptions.find((option) => option.workflowId === newRowWorkflowId);
+    const categoryKey = selectedWorkflow?.promptCategory;
+
+    if (!categoryKey) {
+      setRowPromptSuggestions([]);
+      setRowPromptError("");
+      setRowPromptLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setRowPromptLoading(true);
+    setRowPromptError("");
+
+    fetch(`${docuWraiteApiBaseUrl}/api/row-prompts/${categoryKey}`)
+      .then((response) => response.json())
+      .then((payload) => {
+        if (cancelled) {
+          return;
+        }
+        setRowPromptSuggestions(Array.isArray(payload?.prompts) ? payload.prompts : []);
+        setRowPromptLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setRowPromptSuggestions([]);
+        setRowPromptError("Suggestions unavailable right now.");
+        setRowPromptLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [newRowWorkflowId]);
 
   const selectedLibraryData =
     decisionNodes.libraries.find((lib) => lib.library === selectedLibrary) ??
@@ -4933,8 +4974,17 @@ function DecisionEngineScreen({
       return;
     }
 
+    let nextIndex = timeBlocks.length;
+    let nextId = buildScheduleBlockId(newBlockStartHour, newBlockEndHour, nextIndex);
+    const existingIds = new Set(timeBlocks.map((block) => block.id));
+
+    while (existingIds.has(nextId)) {
+      nextIndex += 1;
+      nextId = buildScheduleBlockId(newBlockStartHour, newBlockEndHour, nextIndex);
+    }
+
     const nextBlock = {
-      id: buildScheduleBlockId(newBlockStartHour, newBlockEndHour, timeBlocks.length),
+      id: nextId,
       label: buildScheduleBlockLabel(newBlockStartHour, newBlockEndHour),
     };
     onScheduleChange?.([...timeBlocks, nextBlock]);
@@ -4973,12 +5023,23 @@ function DecisionEngineScreen({
   };
 
   const handleWorkflowOptionPress = (workflowId) => {
+    setNewRowWorkflowId(workflowId);
     if (!String(newRowDescription).trim()) {
-      setRowBuilderHint("Type the row description first.");
+      setRowBuilderHint("Pick a suggestion below or type your own row description.");
+    } else {
+      setRowBuilderHint("");
+    }
+  };
+
+  const applyRowPromptSuggestion = (promptText) => {
+    if (!String(promptText).trim()) {
       return;
     }
 
-    setNewRowWorkflowId(workflowId);
+    setNewRowDescription((prev) => {
+      const current = String(prev || "").trim();
+      return current ? `${current} ${promptText}` : promptText;
+    });
     setRowBuilderHint("");
   };
 
@@ -5103,6 +5164,25 @@ function DecisionEngineScreen({
           <Pressable style={[styles.decisionAssignButton, styles.decisionWorkflowAddRowButton]} onPress={addRowTarget}>
             <Text style={styles.decisionAssignButtonText}>Add Row</Text>
           </Pressable>
+        </View>
+        <View style={styles.rowPromptPanel}>
+          <Text style={styles.rowPromptTitle}>Suggested prompts</Text>
+          <Text style={styles.rowPromptLead}>Tap a suggestion to insert it, or keep typing your own custom row.</Text>
+          {rowPromptLoading ? <Text style={styles.rowPromptStatus}>Loading suggestions...</Text> : null}
+          {!rowPromptLoading && rowPromptError ? <Text style={styles.rowPromptStatus}>{rowPromptError}</Text> : null}
+          {!rowPromptLoading && !rowPromptError && rowPromptSuggestions.length ? (
+            <View style={styles.rowPromptSuggestionList}>
+              {rowPromptSuggestions.map((prompt) => (
+                <Pressable
+                  key={prompt.id || prompt.prompt_key || prompt.prompt_text}
+                  onPress={() => applyRowPromptSuggestion(prompt.prompt_text)}
+                  style={styles.rowPromptSuggestionCard}
+                >
+                  <Text style={styles.rowPromptSuggestionText}>{prompt.prompt_text}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
         </View>
         <Text style={styles.decisionBuilderListLabel}>Case-note rows</Text>
         <View style={styles.decisionScheduleChipRow}>
@@ -6805,6 +6885,46 @@ const styles = StyleSheet.create({
     gap: 10,
     alignItems: "center",
     marginBottom: 14,
+  },
+  rowPromptPanel: {
+    marginBottom: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+  },
+  rowPromptTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.headerText,
+    marginBottom: 4,
+  },
+  rowPromptLead: {
+    fontSize: 12,
+    color: colors.muted,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  rowPromptStatus: {
+    fontSize: 12,
+    color: colors.muted,
+  },
+  rowPromptSuggestionList: {
+    gap: 8,
+  },
+  rowPromptSuggestionCard: {
+    borderWidth: 1,
+    borderColor: colors.rowBorder,
+    borderRadius: 10,
+    backgroundColor: "#fcfbff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  rowPromptSuggestionText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.text,
   },
   decisionWorkflowAddRowButton: {
     marginLeft: "auto",

@@ -769,6 +769,71 @@ function seedRowPromptCatalog() {
     { key: "medication", label: "Medication" },
   ];
 
+  const behaviorTemplates = [
+    "Document the behavior observed, what happened before it, staff response, and the person's outcome.",
+    "Document verbal escalation, redirection used, and whether the person returned to baseline.",
+    "Document physical aggression or threatening behavior, safety intervention used, and follow-up action.",
+    "Document self-injurious behavior, staff protection steps, and observed recovery.",
+    "Document property destruction, environmental trigger, staff intervention, and resolution.",
+    "Document elopement risk or exit-seeking behavior, supervision response, and current status.",
+    "Document inappropriate social behavior, teaching or redirection provided, and response.",
+    "Document refusal behavior, staff prompting sequence, and final outcome.",
+    "Document agitation during transition, calming support provided, and whether the person re-engaged.",
+    "Document repeated behavioral pattern, suspected trigger, and support strategy used.",
+  ];
+
+  const adlTemplates = [
+    "Document toileting support provided, prompt level required, and observed response.",
+    "Document showering or bathing support, safety assistance used, and how the person tolerated the task.",
+    "Document dressing support, balance assistance provided, and level of independence observed.",
+    "Document grooming or hygiene support, verbal or physical prompts used, and completion status.",
+    "Document oral care support provided and the person's participation or tolerance.",
+    "Document incontinence care completed, skin concerns observed, and follow-up action taken.",
+    "Document transfer or ambulation support during ADLs and any fall-prevention measures used.",
+    "Document bedtime or wake-up ADL routine, cues provided, and response.",
+    "Document laundry or household chore participation, support level, and observed outcome.",
+    "Document refusal or difficulty with ADL task, staff intervention, and final status.",
+  ];
+
+  const mealTemplates = [
+    "Document meal support provided, intake observed, and the person's response during the meal.",
+    "Document diet-plan compliance, prompts given, and whether the meal was completed safely.",
+    "Document feeding assistance level, adaptive support used, and tolerance of the meal.",
+    "Document food refusal, encouragement provided, and final intake outcome.",
+    "Document hydration support, fluids offered, and amount accepted if known.",
+    "Document choking precaution or swallowing support used during meal service.",
+    "Document meal-related behavior, redirection used, and outcome.",
+    "Document community meal support, staff assistance provided, and diet adherence observed.",
+    "Document snack or supplemental nutrition support and the person's participation.",
+    "Document nausea, poor appetite, or other meal concern and who was notified.",
+  ];
+
+  const communicationTemplates = [
+    "Document communication support provided, prompts used, and how the person expressed needs or choices.",
+    "Document use of visual supports, gestures, or adaptive communication tools during the interaction.",
+    "Document staff interpretation or clarification support needed for the person's communication.",
+    "Document difficulty understanding directions, teaching strategy used, and response.",
+    "Document successful choice-making support and the communication method used.",
+    "Document refusal or shutdown in communication, staff approach, and outcome.",
+    "Document social conversation support and how the person engaged with others.",
+    "Document communication during medical or community interaction and support provided.",
+    "Document misunderstanding or conflict related to communication and how it was resolved.",
+    "Document expressive or receptive communication change observed during the shift.",
+  ];
+
+  const communityTemplates = [
+    "Document community outing support provided, participation level, and the person's response.",
+    "Document transportation support, safety supervision, and transition into or out of the community setting.",
+    "Document shopping or purchase support, prompts provided, and outcome.",
+    "Document social engagement in the community and how the person interacted with others.",
+    "Document fatigue, overstimulation, or request to return home during outing and staff response.",
+    "Document mobility support used in the community, including wheelchair or gait assistance.",
+    "Document community choice-making support and activity selected by the person.",
+    "Document behavioral concern in the community, redirection provided, and resolution.",
+    "Document dining-out support, diet adherence, and staff assistance given.",
+    "Document community safety issue or risk observed and the follow-up action taken.",
+  ];
+
   const medicationTemplates = [
     "Document that all medications were administered as ordered and note the person's response.",
     "Document any refused medication, staff response, and follow-up action.",
@@ -798,6 +863,56 @@ function seedRowPromptCatalog() {
         now
       ).id;
       categoryIds.set(category.key, categoryId);
+    });
+
+    behaviorTemplates.forEach((promptText, index) => {
+      upsertRowPromptTemplateStatement.run(
+        categoryIds.get("behavior"),
+        `behavior-${index + 1}`,
+        promptText,
+        index,
+        now
+      );
+    });
+
+    adlTemplates.forEach((promptText, index) => {
+      upsertRowPromptTemplateStatement.run(
+        categoryIds.get("adl"),
+        `adl-${index + 1}`,
+        promptText,
+        index,
+        now
+      );
+    });
+
+    mealTemplates.forEach((promptText, index) => {
+      upsertRowPromptTemplateStatement.run(
+        categoryIds.get("meal"),
+        `meal-${index + 1}`,
+        promptText,
+        index,
+        now
+      );
+    });
+
+    communicationTemplates.forEach((promptText, index) => {
+      upsertRowPromptTemplateStatement.run(
+        categoryIds.get("communication"),
+        `communication-${index + 1}`,
+        promptText,
+        index,
+        now
+      );
+    });
+
+    communityTemplates.forEach((promptText, index) => {
+      upsertRowPromptTemplateStatement.run(
+        categoryIds.get("community"),
+        `community-${index + 1}`,
+        promptText,
+        index,
+        now
+      );
     });
 
     medicationTemplates.forEach((promptText, index) => {
