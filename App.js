@@ -4777,9 +4777,11 @@ function DecisionEngineScreen({
   const [includeInFinalMap, setIncludeInFinalMap] = useState(initialSelectionState?.includeInFinalMap || {});
   const [newBlockStartHour, setNewBlockStartHour] = useState(7);
   const [newBlockEndHour, setNewBlockEndHour] = useState(8);
+  const [scheduleBuilderHint, setScheduleBuilderHint] = useState("");
   const [newRowDescription, setNewRowDescription] = useState("");
   const [newRowWorkflowId, setNewRowWorkflowId] = useState("behavior-support");
   const [rowBuilderHint, setRowBuilderHint] = useState("");
+  const [rowPromptPopoverVisible, setRowPromptPopoverVisible] = useState(false);
   const [rowPromptSuggestions, setRowPromptSuggestions] = useState([]);
   const [rowPromptLoading, setRowPromptLoading] = useState(false);
   const [rowPromptError, setRowPromptError] = useState("");
@@ -4823,6 +4825,18 @@ function DecisionEngineScreen({
   }, [newBlockStartHour, newBlockEndHour]);
 
   useEffect(() => {
+    if (!scheduleBuilderHint) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setScheduleBuilderHint("");
+    }, 2200);
+
+    return () => clearTimeout(timeoutId);
+  }, [scheduleBuilderHint]);
+
+  useEffect(() => {
     if (!rowBuilderHint) {
       return undefined;
     }
@@ -4833,6 +4847,24 @@ function DecisionEngineScreen({
 
     return () => clearTimeout(timeoutId);
   }, [rowBuilderHint]);
+
+  useEffect(() => {
+    const uniqueBlocks = [];
+    const seenLabels = new Set();
+
+    timeBlocks.forEach((block) => {
+      const key = String(block?.label || "");
+      if (seenLabels.has(key)) {
+        return;
+      }
+      seenLabels.add(key);
+      uniqueBlocks.push(block);
+    });
+
+    if (uniqueBlocks.length !== timeBlocks.length) {
+      onScheduleChange?.(uniqueBlocks);
+    }
+  }, [onScheduleChange, timeBlocks]);
 
   useEffect(() => {
     const selectedWorkflow = workflowOptions.find((option) => option.workflowId === newRowWorkflowId);
@@ -4882,6 +4914,14 @@ function DecisionEngineScreen({
   const libraryDropdownOptions = decisionNodes.libraries.map((lib) => ({
     value: lib.library,
     label: lib.library,
+  }));
+  const startHourDropdownOptions = SCHEDULE_START_HOUR_OPTIONS.map((hour) => ({
+    value: String(hour),
+    label: formatScheduleHourLabel(hour),
+  }));
+  const endHourDropdownOptions = SCHEDULE_HOUR_OPTIONS.filter((hour) => hour > newBlockStartHour).map((hour) => ({
+    value: String(hour),
+    label: formatScheduleHourLabel(hour),
   }));
   const targetDropdownOptions = scopedTargets.map((target) => ({
     value: target.key,
@@ -4974,6 +5014,12 @@ function DecisionEngineScreen({
       return;
     }
 
+    const nextLabel = buildScheduleBlockLabel(newBlockStartHour, newBlockEndHour);
+    if (timeBlocks.some((block) => block.label === nextLabel)) {
+      setScheduleBuilderHint("That timeline block already exists.");
+      return;
+    }
+
     let nextIndex = timeBlocks.length;
     let nextId = buildScheduleBlockId(newBlockStartHour, newBlockEndHour, nextIndex);
     const existingIds = new Set(timeBlocks.map((block) => block.id));
@@ -4985,10 +5031,11 @@ function DecisionEngineScreen({
 
     const nextBlock = {
       id: nextId,
-      label: buildScheduleBlockLabel(newBlockStartHour, newBlockEndHour),
+      label: nextLabel,
     };
     onScheduleChange?.([...timeBlocks, nextBlock]);
     setSelectedTargetKey(`time:${nextBlock.id}`);
+    setScheduleBuilderHint("");
   };
 
   const removeScheduleBlock = (blockId) => {
@@ -5062,7 +5109,12 @@ function DecisionEngineScreen({
 
   return (
     <Card title="Decision Engine Library" containerStyle={styles.decisionCard} bodyStyle={styles.decisionCardBody}>
-      <View style={styles.decisionScheduleEditor}>
+      <View
+        style={[
+          styles.decisionScheduleEditor,
+          rowPromptPopoverVisible && styles.decisionScheduleEditorOverlayActive,
+        ]}
+      >
         <Text style={styles.decisionScheduleTitle}>Schedule Builder</Text>
         <Text style={styles.decisionScheduleLead}>
           Define the case-note timeline here, then assign questions to each block.
@@ -5070,56 +5122,35 @@ function DecisionEngineScreen({
         <View style={[styles.decisionScheduleBuilderRow, isPhone && styles.decisionToolbarPhone]}>
           <View style={styles.decisionToolbarGroup}>
             <Text style={styles.decisionToolbarLabel}>Start</Text>
-            <View style={styles.decisionOptionRow}>
-              {SCHEDULE_START_HOUR_OPTIONS.map((hour) => (
-                <Pressable
-                  key={`start-${hour}`}
-                  onPress={() => setNewBlockStartHour(hour)}
-                  style={[
-                    styles.decisionOptionButton,
-                    newBlockStartHour === hour && styles.decisionOptionButtonActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.decisionOptionText,
-                      newBlockStartHour === hour && styles.decisionOptionTextActive,
-                    ]}
-                  >
-                    {formatScheduleHourLabel(hour)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <DecisionDropdown
+              value={formatScheduleHourLabel(newBlockStartHour)}
+              options={startHourDropdownOptions}
+              placeholder="Select start"
+              dropdownId="schedule-start-hour"
+              activeDropdown={activeDecisionDropdown}
+              onToggleDropdown={setActiveDecisionDropdown}
+              onChange={(value) => setNewBlockStartHour(Number(value))}
+              fieldStyle={styles.decisionDropdownScheduleHour}
+            />
           </View>
           <View style={styles.decisionToolbarGroup}>
             <Text style={styles.decisionToolbarLabel}>End</Text>
-            <View style={styles.decisionOptionRow}>
-              {SCHEDULE_HOUR_OPTIONS.filter((hour) => hour > newBlockStartHour).map((hour) => (
-                <Pressable
-                  key={`end-${hour}`}
-                  onPress={() => setNewBlockEndHour(hour)}
-                  style={[
-                    styles.decisionOptionButton,
-                    newBlockEndHour === hour && styles.decisionOptionButtonActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.decisionOptionText,
-                      newBlockEndHour === hour && styles.decisionOptionTextActive,
-                    ]}
-                  >
-                    {formatScheduleHourLabel(hour)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <DecisionDropdown
+              value={formatScheduleHourLabel(newBlockEndHour)}
+              options={endHourDropdownOptions}
+              placeholder="Select end"
+              dropdownId="schedule-end-hour"
+              activeDropdown={activeDecisionDropdown}
+              onToggleDropdown={setActiveDecisionDropdown}
+              onChange={(value) => setNewBlockEndHour(Number(value))}
+              fieldStyle={styles.decisionDropdownScheduleHour}
+            />
           </View>
           <Pressable style={styles.decisionAssignButton} onPress={addScheduleBlock}>
             <Text style={styles.decisionAssignButtonText}>Add Block</Text>
           </Pressable>
         </View>
+        {scheduleBuilderHint ? <Text style={styles.decisionInlineHint}>{scheduleBuilderHint}</Text> : null}
         <Text style={styles.decisionBuilderListLabel}>Timeline blocks</Text>
         <View style={styles.decisionScheduleChipRow}>
           {timeBlocks.map((block) => (
@@ -5137,18 +5168,50 @@ function DecisionEngineScreen({
         <Text style={styles.decisionScheduleLead}>
           Create the case-note rows themselves here, then assign markdown questions to them.
         </Text>
-        <TextInput
-          value={newRowDescription}
-          onChangeText={(text) => {
-            setNewRowDescription(text);
-            if (String(text).trim()) {
-              setRowBuilderHint("");
-            }
-          }}
-          placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
-          placeholderTextColor="#888888"
-          style={styles.decisionRowInput}
-        />
+        <View style={styles.rowPromptAnchor}>
+          <TextInput
+            value={newRowDescription}
+            onChangeText={(text) => {
+              setNewRowDescription(text);
+              setRowPromptPopoverVisible(true);
+              if (String(text).trim()) {
+                setRowBuilderHint("");
+              }
+            }}
+            onFocus={() => setRowPromptPopoverVisible(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                setRowPromptPopoverVisible(false);
+              }, 120);
+            }}
+            placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
+            placeholderTextColor="#888888"
+            style={styles.decisionRowInput}
+          />
+          {rowPromptPopoverVisible ? (
+            <View style={[styles.rowPromptPopover, isPhone && styles.rowPromptPopoverPhone]}>
+              <Text style={styles.rowPromptTitle}>Suggested prompts</Text>
+              <Text style={styles.rowPromptLead}>Tap a suggestion to insert it, or keep typing your own custom row.</Text>
+              {rowPromptLoading ? <Text style={styles.rowPromptStatus}>Loading suggestions...</Text> : null}
+              {!rowPromptLoading && rowPromptError ? <Text style={styles.rowPromptStatus}>{rowPromptError}</Text> : null}
+              {!rowPromptLoading && !rowPromptError && rowPromptSuggestions.length ? (
+                <ScrollView style={styles.rowPromptPopoverScroll} nestedScrollEnabled>
+                  <View style={styles.rowPromptSuggestionList}>
+                    {rowPromptSuggestions.map((prompt) => (
+                      <Pressable
+                        key={prompt.id || prompt.prompt_key || prompt.prompt_text}
+                        onPress={() => applyRowPromptSuggestion(prompt.prompt_text)}
+                        style={styles.rowPromptSuggestionCard}
+                      >
+                        <Text style={styles.rowPromptSuggestionText}>{prompt.prompt_text}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
         {rowBuilderHint ? <Text style={styles.decisionInlineHint}>{rowBuilderHint}</Text> : null}
         <View style={styles.decisionWorkflowChipRow}>
           {workflowOptions.map((option) => (
@@ -5173,25 +5236,6 @@ function DecisionEngineScreen({
           <Pressable style={[styles.decisionAssignButton, styles.decisionWorkflowAddRowButton]} onPress={addRowTarget}>
             <Text style={styles.decisionAssignButtonText}>Add Row</Text>
           </Pressable>
-        </View>
-        <View style={styles.rowPromptPanel}>
-          <Text style={styles.rowPromptTitle}>Suggested prompts</Text>
-          <Text style={styles.rowPromptLead}>Tap a suggestion to insert it, or keep typing your own custom row.</Text>
-          {rowPromptLoading ? <Text style={styles.rowPromptStatus}>Loading suggestions...</Text> : null}
-          {!rowPromptLoading && rowPromptError ? <Text style={styles.rowPromptStatus}>{rowPromptError}</Text> : null}
-          {!rowPromptLoading && !rowPromptError && rowPromptSuggestions.length ? (
-            <View style={styles.rowPromptSuggestionList}>
-              {rowPromptSuggestions.map((prompt) => (
-                <Pressable
-                  key={prompt.id || prompt.prompt_key || prompt.prompt_text}
-                  onPress={() => applyRowPromptSuggestion(prompt.prompt_text)}
-                  style={styles.rowPromptSuggestionCard}
-                >
-                  <Text style={styles.rowPromptSuggestionText}>{prompt.prompt_text}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
         </View>
         <Text style={styles.decisionBuilderListLabel}>Case-note rows</Text>
         <View style={styles.decisionScheduleChipRow}>
@@ -6691,10 +6735,13 @@ const styles = StyleSheet.create({
     rowGap: 16,
     minWidth: 0,
     overflow: "visible",
+    zIndex: 5,
   },
   rightColumn: {
     rowGap: 16,
     flexShrink: 0,
+    overflow: "visible",
+    zIndex: 1,
   },
   card: {
     backgroundColor: colors.panel,
@@ -6845,6 +6892,11 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#fcfbff",
     marginBottom: 18,
+    overflow: "visible",
+    zIndex: 1,
+  },
+  decisionScheduleEditorOverlayActive: {
+    zIndex: 60,
   },
   decisionScheduleTitle: {
     fontSize: 17,
@@ -6895,13 +6947,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 14,
   },
-  rowPromptPanel: {
-    marginBottom: 14,
+  rowPromptAnchor: {
+    position: "relative",
+    marginBottom: 12,
+    overflow: "visible",
+    zIndex: 30,
+  },
+  rowPromptPopover: {
+    position: "absolute",
+    top: 0,
+    left: "100%",
+    marginLeft: 12,
+    width: 420,
+    maxWidth: 420,
+    maxHeight: 360,
     padding: 12,
     borderWidth: 1,
     borderColor: colors.lightBorder,
     borderRadius: 12,
     backgroundColor: "#ffffff",
+    shadowColor: "#2f184f",
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 12,
+    zIndex: 80,
+  },
+  rowPromptPopoverPhone: {
+    top: "100%",
+    left: 0,
+    marginLeft: 0,
+    marginTop: 10,
+    width: "100%",
+    maxWidth: "100%",
   },
   rowPromptTitle: {
     fontSize: 13,
@@ -6919,13 +6997,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
   },
+  rowPromptPopoverScroll: {
+    maxHeight: 260,
+  },
   rowPromptSuggestionList: {
     gap: 8,
   },
   rowPromptSuggestionCard: {
     borderWidth: 1,
     borderColor: colors.rowBorder,
-    borderRadius: 10,
+    borderRadius: 4,
     backgroundColor: "#fcfbff",
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -6962,7 +7043,7 @@ const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: 4,
     backgroundColor: "#ffffff",
     paddingLeft: 12,
     paddingRight: 8,
@@ -6977,7 +7058,7 @@ const styles = StyleSheet.create({
   decisionScheduleChipAction: {
     width: 22,
     height: 22,
-    borderRadius: 7,
+    borderRadius: 3,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fff3f1",
@@ -7032,6 +7113,10 @@ const styles = StyleSheet.create({
   },
   decisionDropdownDepth: {
     width: 64,
+  },
+  decisionDropdownScheduleHour: {
+    width: 120,
+    maxWidth: "100%",
   },
   decisionDropdownTargetType: {
     width: 140,
@@ -7117,7 +7202,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 4,
     minHeight: 40,
     justifyContent: "center",
   },
@@ -7187,7 +7272,7 @@ const styles = StyleSheet.create({
   decisionSectionAction: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 4,
     backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: colors.border,
@@ -7263,7 +7348,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.topPurple,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 4,
     minHeight: 40,
     justifyContent: "center",
     alignItems: "center",
@@ -7384,7 +7469,7 @@ const styles = StyleSheet.create({
   switchGoButton: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: 4,
     backgroundColor: colors.link,
     alignItems: "center",
     justifyContent: "center",
