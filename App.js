@@ -4758,17 +4758,23 @@ function DecisionEngineScreen({
   timeBlocks = [],
   rowTargets = [],
   initialTargetKey = "",
+  initialSelectionState = null,
   onScheduleChange,
   onRowsChange,
+  onSelectionStateChange,
 }) {
-  const [selectedLibrary, setSelectedLibrary] = useState(decisionNodes.libraries[0]?.library || "");
-  const [selectedDepth, setSelectedDepth] = useState(2);
-  const [includeMode, setIncludeMode] = useState("full-branch");
+  const [selectedLibrary, setSelectedLibrary] = useState(
+    initialSelectionState?.selectedLibrary || decisionNodes.libraries[0]?.library || ""
+  );
+  const [selectedDepth, setSelectedDepth] = useState(initialSelectionState?.selectedDepth || 2);
+  const [includeMode, setIncludeMode] = useState(initialSelectionState?.includeMode || "full-branch");
   const [activeDecisionDropdown, setActiveDecisionDropdown] = useState(null);
-  const [expandedDecisionPanel, setExpandedDecisionPanel] = useState({});
-  const [targetType, setTargetType] = useState(initialTargetKey.startsWith("row:") ? "case-note-row" : "time-block");
-  const [checkedNodes, setCheckedNodes] = useState({});
-  const [includeInFinalMap, setIncludeInFinalMap] = useState({});
+  const [expandedDecisionPanel, setExpandedDecisionPanel] = useState(initialSelectionState?.collapsedSections || {});
+  const [targetType, setTargetType] = useState(
+    initialSelectionState?.targetType || (initialTargetKey.startsWith("row:") ? "case-note-row" : "time-block")
+  );
+  const [checkedNodes, setCheckedNodes] = useState(initialSelectionState?.checkedNodes || {});
+  const [includeInFinalMap, setIncludeInFinalMap] = useState(initialSelectionState?.includeInFinalMap || {});
   const [newBlockStartHour, setNewBlockStartHour] = useState(7);
   const [newBlockEndHour, setNewBlockEndHour] = useState(8);
   const [newRowDescription, setNewRowDescription] = useState("");
@@ -4796,7 +4802,9 @@ function DecisionEngineScreen({
       targetId: row.id,
     })),
   ];
-  const [selectedTargetKey, setSelectedTargetKey] = useState(initialTargetKey || assignmentTargets[0]?.key || "");
+  const [selectedTargetKey, setSelectedTargetKey] = useState(
+    initialSelectionState?.selectedTargetKey || initialTargetKey || assignmentTargets[0]?.key || ""
+  );
 
   useEffect(() => {
     if (initialTargetKey && assignmentTargets.some((target) => target.key === initialTargetKey)) {
@@ -4862,13 +4870,37 @@ function DecisionEngineScreen({
   const selectedCount = allNodes.filter((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]).length;
 
   useEffect(() => {
-    setExpandedDecisionPanel(
-      Object.keys(sections).reduce((acc, sectionKey) => {
-        acc[sectionKey] = true;
-        return acc;
-      }, {})
-    );
+    setExpandedDecisionPanel((prev) => {
+      const next = {};
+      Object.keys(sections).forEach((sectionKey) => {
+        next[sectionKey] = prev[sectionKey] ?? true;
+      });
+      return next;
+    });
   }, [selectedLibrary]);
+
+  useEffect(() => {
+    onSelectionStateChange?.({
+      selectedLibrary,
+      selectedDepth,
+      includeMode,
+      targetType,
+      selectedTargetKey,
+      checkedNodes,
+      includeInFinalMap,
+      collapsedSections: expandedDecisionPanel,
+    });
+  }, [
+    checkedNodes,
+    expandedDecisionPanel,
+    includeInFinalMap,
+    includeMode,
+    onSelectionStateChange,
+    selectedDepth,
+    selectedLibrary,
+    selectedTargetKey,
+    targetType,
+  ]);
 
   const toggleNode = (nodeKey) => {
     setCheckedNodes((prev) => ({
@@ -5847,6 +5879,16 @@ export default function App() {
   });
   const [decisionEngineTimeBlocks, setDecisionEngineTimeBlocks] = useState(defaultCaseNoteTemplate.timeBlocks);
   const [decisionEngineRows, setDecisionEngineRows] = useState(defaultCaseNoteTemplate.rows);
+  const [decisionEngineSelectionState, setDecisionEngineSelectionState] = useState({
+    selectedLibrary: decisionNodes.libraries[0]?.library || "",
+    selectedDepth: 2,
+    includeMode: "full-branch",
+    targetType: "time-block",
+    selectedTargetKey: "",
+    checkedNodes: {},
+    includeInFinalMap: {},
+    collapsedSections: {},
+  });
   const [decisionStateHydrated, setDecisionStateHydrated] = useState(false);
   const lastLoadedStateRef = useRef(null);
   const workspaceStatus = documentationSession
@@ -5881,11 +5923,31 @@ export default function App() {
       setDecisionEngineTimeBlocks(defaultTemplate.timeBlocks);
       setDecisionEngineRows(defaultTemplate.rows);
       setDocumentationSession(null);
+      setDecisionEngineSelectionState({
+        selectedLibrary: decisionNodes.libraries[0]?.library || "",
+        selectedDepth: 2,
+        includeMode: "full-branch",
+        targetType: "time-block",
+        selectedTargetKey: "",
+        checkedNodes: {},
+        includeInFinalMap: {},
+        collapsedSections: {},
+      });
       lastLoadedStateRef.current = JSON.stringify({
         clientId: activeClientId,
         timeBlocks: defaultTemplate.timeBlocks,
         rows: defaultTemplate.rows,
         documentationSession: null,
+        selectionState: {
+          selectedLibrary: decisionNodes.libraries[0]?.library || "",
+          selectedDepth: 2,
+          includeMode: "full-branch",
+          targetType: "time-block",
+          selectedTargetKey: "",
+          checkedNodes: {},
+          includeInFinalMap: {},
+          collapsedSections: {},
+        },
       });
       setDecisionStateHydrated(true);
     };
@@ -5910,15 +5972,27 @@ export default function App() {
           ? state.rows
           : defaultTemplate.rows;
         const nextSession = state.documentationSession || null;
+        const nextSelectionState = {
+          selectedLibrary: state.selectionState?.selectedLibrary || decisionNodes.libraries[0]?.library || "",
+          selectedDepth: state.selectionState?.selectedDepth || 2,
+          includeMode: state.selectionState?.includeMode || "full-branch",
+          targetType: state.selectionState?.targetType || "time-block",
+          selectedTargetKey: state.selectionState?.selectedTargetKey || "",
+          checkedNodes: state.selectionState?.checkedNodes || {},
+          includeInFinalMap: state.selectionState?.includeInFinalMap || {},
+          collapsedSections: state.selectionState?.collapsedSections || {},
+        };
 
         setDecisionEngineTimeBlocks(nextTimeBlocks);
         setDecisionEngineRows(nextRows);
         setDocumentationSession(nextSession);
+        setDecisionEngineSelectionState(nextSelectionState);
         lastLoadedStateRef.current = JSON.stringify({
           clientId: activeClientId,
           timeBlocks: nextTimeBlocks,
           rows: nextRows,
           documentationSession: nextSession,
+          selectionState: nextSelectionState,
         });
         setDecisionStateHydrated(true);
       })
@@ -5941,6 +6015,7 @@ export default function App() {
       timeBlocks: decisionEngineTimeBlocks,
       rows: decisionEngineRows,
       documentationSession,
+      selectionState: decisionEngineSelectionState,
     };
     const serialized = JSON.stringify(nextState);
 
@@ -5956,6 +6031,16 @@ export default function App() {
           timeBlocks: decisionEngineTimeBlocks,
           rows: decisionEngineRows,
           documentationSession,
+          selectedLibrary: decisionEngineSelectionState.selectedLibrary,
+          selectedDepth: decisionEngineSelectionState.selectedDepth,
+          includeMode: decisionEngineSelectionState.includeMode,
+          selectedTargetType: decisionEngineSelectionState.targetType,
+          selectedTargetId: decisionEngineSelectionState.selectedTargetKey
+            ? decisionEngineSelectionState.selectedTargetKey.split(":").slice(1).join(":")
+            : null,
+          checkedNodes: decisionEngineSelectionState.checkedNodes,
+          includeInFinalMap: decisionEngineSelectionState.includeInFinalMap,
+          collapsedSections: decisionEngineSelectionState.collapsedSections,
           updatedAt: new Date().toISOString(),
         }),
       })
@@ -5966,7 +6051,14 @@ export default function App() {
     }, 350);
 
     return () => clearTimeout(timeoutId);
-  }, [activeClientId, decisionEngineRows, decisionEngineTimeBlocks, decisionStateHydrated, documentationSession]);
+  }, [
+    activeClientId,
+    decisionEngineRows,
+    decisionEngineSelectionState,
+    decisionEngineTimeBlocks,
+    decisionStateHydrated,
+    documentationSession,
+  ]);
 
   const handleSelectClient = (clientId) => {
     setActiveClientId(clientId);
@@ -6315,8 +6407,10 @@ export default function App() {
                       : decisionEngineRows
                   }
                   initialTargetKey={pendingDecisionAssignmentTarget?.key || ""}
+                  initialSelectionState={decisionEngineSelectionState}
                   onScheduleChange={setDecisionEngineTimeBlocks}
                   onRowsChange={setDecisionEngineRows}
+                  onSelectionStateChange={setDecisionEngineSelectionState}
                 />
               ) : showCarePlan ? (
                 <CarePlanDocument

@@ -194,6 +194,21 @@ db.exec(`
     FOREIGN KEY (library_id) REFERENCES decision_libraries(id) ON DELETE SET NULL
   );
 
+  CREATE TABLE IF NOT EXISTS decision_selection_set_nodes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    selection_set_id INTEGER NOT NULL,
+    node_id INTEGER,
+    node_key TEXT NOT NULL,
+    include_in_final INTEGER NOT NULL DEFAULT 0,
+    is_checked INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (selection_set_id, node_key),
+    FOREIGN KEY (selection_set_id) REFERENCES decision_selection_sets(id) ON DELETE CASCADE,
+    FOREIGN KEY (node_id) REFERENCES decision_nodes(id) ON DELETE SET NULL
+  );
+
   CREATE TABLE IF NOT EXISTS decision_include_final_flags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     assignment_id INTEGER NOT NULL,
@@ -502,6 +517,38 @@ const insertSelectionSetStatement = db.prepare(`
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
+const getLatestSelectionSetByWorkspaceStatement = db.prepare(`
+  SELECT id, selected_depth, include_mode, target_type, target_id
+  FROM decision_selection_sets
+  WHERE workspace_state_id = ?
+  ORDER BY updated_at DESC, id DESC
+  LIMIT 1
+`);
+
+const deleteSelectionSetNodesBySelectionSetStatement = db.prepare(`
+  DELETE FROM decision_selection_set_nodes
+  WHERE selection_set_id = ?
+`);
+
+const insertSelectionSetNodeStatement = db.prepare(`
+  INSERT INTO decision_selection_set_nodes (
+    selection_set_id,
+    node_id,
+    node_key,
+    include_in_final,
+    is_checked,
+    sort_order,
+    updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?)
+`);
+
+const getSelectionSetNodesBySelectionSetStatement = db.prepare(`
+  SELECT node_key, include_in_final, is_checked
+  FROM decision_selection_set_nodes
+  WHERE selection_set_id = ?
+  ORDER BY sort_order, id
+`);
+
 const upsertUiPreferencesStatement = db.prepare(`
   INSERT INTO decision_ui_preferences (
     client_id,
@@ -515,6 +562,16 @@ const upsertUiPreferencesStatement = db.prepare(`
     last_selected_library_id = excluded.last_selected_library_id,
     last_target_type = excluded.last_target_type,
     updated_at = excluded.updated_at
+`);
+
+const getUiPreferencesByClientStatement = db.prepare(`
+  SELECT
+    collapsed_sections_json,
+    dl.slug AS last_selected_library,
+    last_target_type
+  FROM decision_ui_preferences dip
+  LEFT JOIN decision_libraries dl ON dl.id = dip.last_selected_library_id
+  WHERE dip.client_id = ?
 `);
 
 const insertAuditLogStatement = db.prepare(`
@@ -769,6 +826,19 @@ function getWorkspaceState(clientId) {
     return null;
   }
 
+  const selectionSet = getLatestSelectionSetByWorkspaceStatement.get(row.id);
+  const selectionNodes = selectionSet
+    ? getSelectionSetNodesBySelectionSetStatement.all(selectionSet.id)
+    : [];
+  const uiPreferences = getUiPreferencesByClientStatement.get(clientId);
+  const checkedNodes = {};
+  const includeInFinalMap = {};
+
+  selectionNodes.forEach((node) => {
+    checkedNodes[node.node_key] = Boolean(node.is_checked);
+    includeInFinalMap[node.node_key] = Boolean(node.include_in_final);
+  });
+
   return {
     id: row.id,
     clientId: row.client_id,
@@ -790,6 +860,19 @@ function getWorkspaceState(clientId) {
       workflowId: item.workflow_id,
       theme: item.theme,
     })),
+    selectionState: {
+      selectedLibrary: row.selected_library_slug || uiPreferences?.last_selected_library || null,
+      selectedDepth: selectionSet?.selected_depth ?? row.selected_depth ?? null,
+      includeMode: selectionSet?.include_mode || row.include_mode || null,
+      targetType: selectionSet?.target_type || row.selected_target_type || uiPreferences?.last_target_type || null,
+      selectedTargetKey:
+        selectionSet?.target_type && selectionSet?.target_id
+          ? `${selectionSet.target_type === "case-note-row" ? "row" : "time"}:${selectionSet.target_id}`
+          : null,
+      checkedNodes,
+      includeInFinalMap,
+      collapsedSections: parseJson(uiPreferences?.collapsed_sections_json, {}),
+    },
     updatedAt: row.updated_at,
   };
 }
@@ -804,6 +887,8 @@ function saveWorkspaceState({
   includeMode = null,
   selectedTargetType = null,
   selectedTargetId = null,
+  checkedNodes = {},
+  includeInFinalMap = {},
   collapsedSections = null,
   updatedAt = new Date().toISOString(),
 }) {
@@ -845,6 +930,40 @@ function saveWorkspaceState({
       );
     });
 
+    deleteSelectionSetsByWorkspaceStatement.run(workspaceStateId);
+    insertSelectionSetStatement.run(
+      workspaceStateId,
+      selectedLibraryId,
+      "Current selection",
+      selectedDepth,
+      includeMode,
+      selectedTargetType,
+      selectedTargetId,
+      Object.keys(checkedNodes).filter((key) => checkedNodes[key]).length,
+      updatedAt
+    );
+
+    const selectionSet = getLatestSelectionSetByWorkspaceStatement.get(workspaceStateId);
+    if (selectionSet) {
+      deleteSelectionSetNodesBySelectionSetStatement.run(selectionSet.id);
+      Object.keys(checkedNodes)
+        .filter((nodeKey) => checkedNodes[nodeKey])
+        .forEach((nodeKey, index) => {
+          const resolvedNodeId = selectedLibraryId
+            ? getNodeByLibraryAndKeyStatement.get(selectedLibraryId, nodeKey)?.id || null
+            : null;
+          insertSelectionSetNodeStatement.run(
+            selectionSet.id,
+            resolvedNodeId,
+            nodeKey,
+            includeInFinalMap[nodeKey] ? 1 : 0,
+            1,
+            index,
+            updatedAt
+          );
+        });
+    }
+
     upsertUiPreferencesStatement.run(
       clientId,
       collapsedSections ? JSON.stringify(collapsedSections) : serializeCollapsedSectionsFromRows(rows),
@@ -866,6 +985,7 @@ function saveWorkspaceState({
         includeMode,
         selectedTargetType,
         selectedTargetId,
+        checkedNodeCount: Object.keys(checkedNodes).filter((key) => checkedNodes[key]).length,
       })
     );
 
