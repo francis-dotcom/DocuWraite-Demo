@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { DatabaseSync } = require("node:sqlite");
+const Database = require("better-sqlite3");
 
 const decisionNodes = require("../decisionAlgo/nodes.json");
 
@@ -9,7 +9,7 @@ const dbPath = path.join(dataDir, "docuwraite.sqlite");
 
 fs.mkdirSync(dataDir, { recursive: true });
 
-const db = new DatabaseSync(dbPath);
+const db = new Database(dbPath);
 db.exec("PRAGMA foreign_keys = ON");
 
 function tableExists(tableName) {

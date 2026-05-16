@@ -5006,8 +5006,17 @@ function DecisionEngineScreen({
     }
 
     const selectedWorkflow = workflowOptions.find((option) => option.workflowId === newRowWorkflowId);
+    let nextIndex = rowTargets.length;
+    let nextId = `case-note-custom-${nextIndex}`;
+    const existingIds = new Set(rowTargets.map((row) => row.id));
+
+    while (existingIds.has(nextId)) {
+      nextIndex += 1;
+      nextId = `case-note-custom-${nextIndex}`;
+    }
+
     const nextRow = {
-      id: `case-note-custom-${rowTargets.length}`,
+      id: nextId,
       description: String(newRowDescription).trim(),
       source: "Case Note",
       linkedFromCarePlan: true,
