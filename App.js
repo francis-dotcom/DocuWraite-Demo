@@ -4765,7 +4765,7 @@ function DecisionEngineScreen({
   const [selectedDepth, setSelectedDepth] = useState(2);
   const [includeMode, setIncludeMode] = useState("full-branch");
   const [activeDecisionDropdown, setActiveDecisionDropdown] = useState(null);
-  const [expandedDecisionPanel, setExpandedDecisionPanel] = useState(null);
+  const [expandedDecisionPanel, setExpandedDecisionPanel] = useState({});
   const [targetType, setTargetType] = useState(initialTargetKey.startsWith("row:") ? "case-note-row" : "time-block");
   const [checkedNodes, setCheckedNodes] = useState({});
   const [includeInFinalMap, setIncludeInFinalMap] = useState({});
@@ -4773,6 +4773,7 @@ function DecisionEngineScreen({
   const [newBlockEndHour, setNewBlockEndHour] = useState(8);
   const [newRowDescription, setNewRowDescription] = useState("");
   const [newRowWorkflowId, setNewRowWorkflowId] = useState("behavior-support");
+  const [rowBuilderHint, setRowBuilderHint] = useState("");
   const workflowOptions = [
     { workflowId: "behavior-support", label: "Behavior", theme: "behavior" },
     { workflowId: "morning-adl", label: "ADL", theme: "hygiene" },
@@ -4809,6 +4810,18 @@ function DecisionEngineScreen({
       setNewBlockEndHour(newBlockStartHour + 1);
     }
   }, [newBlockStartHour, newBlockEndHour]);
+
+  useEffect(() => {
+    if (!rowBuilderHint) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setRowBuilderHint("");
+    }, 2200);
+
+    return () => clearTimeout(timeoutId);
+  }, [rowBuilderHint]);
 
   const selectedLibraryData =
     decisionNodes.libraries.find((lib) => lib.library === selectedLibrary) ??
@@ -4848,6 +4861,15 @@ function DecisionEngineScreen({
   const allNodes = selectedLibraryData.nodes;
   const selectedCount = allNodes.filter((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]).length;
 
+  useEffect(() => {
+    setExpandedDecisionPanel(
+      Object.keys(sections).reduce((acc, sectionKey) => {
+        acc[sectionKey] = true;
+        return acc;
+      }, {})
+    );
+  }, [selectedLibrary]);
+
   const toggleNode = (nodeKey) => {
     setCheckedNodes((prev) => ({
       ...prev,
@@ -4865,6 +4887,13 @@ function DecisionEngineScreen({
       });
       return next;
     });
+  };
+
+  const toggleSectionCollapse = (sectionKey) => {
+    setExpandedDecisionPanel((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey],
+    }));
   };
 
   const addScheduleBlock = () => {
@@ -4890,6 +4919,7 @@ function DecisionEngineScreen({
 
   const addRowTarget = () => {
     if (!String(newRowDescription).trim()) {
+      setRowBuilderHint("Add a row description first.");
       return;
     }
 
@@ -4907,6 +4937,17 @@ function DecisionEngineScreen({
     onRowsChange?.([...rowTargets, nextRow]);
     setSelectedTargetKey(`row:${nextRow.id}`);
     setNewRowDescription("");
+    setRowBuilderHint("");
+  };
+
+  const handleWorkflowOptionPress = (workflowId) => {
+    if (!String(newRowDescription).trim()) {
+      setRowBuilderHint("Type the row description first.");
+      return;
+    }
+
+    setNewRowWorkflowId(workflowId);
+    setRowBuilderHint("");
   };
 
   const removeRowTarget = (rowId) => {
@@ -4996,16 +5037,22 @@ function DecisionEngineScreen({
         </Text>
         <TextInput
           value={newRowDescription}
-          onChangeText={setNewRowDescription}
+          onChangeText={(text) => {
+            setNewRowDescription(text);
+            if (String(text).trim()) {
+              setRowBuilderHint("");
+            }
+          }}
           placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
           placeholderTextColor="#888888"
           style={styles.decisionRowInput}
         />
+        {rowBuilderHint ? <Text style={styles.decisionInlineHint}>{rowBuilderHint}</Text> : null}
         <View style={styles.decisionWorkflowChipRow}>
           {workflowOptions.map((option) => (
             <Pressable
               key={option.workflowId}
-              onPress={() => setNewRowWorkflowId(option.workflowId)}
+              onPress={() => handleWorkflowOptionPress(option.workflowId)}
               style={[
                 styles.decisionOptionButton,
                 newRowWorkflowId === option.workflowId && styles.decisionOptionButtonActive,
@@ -5021,9 +5068,7 @@ function DecisionEngineScreen({
               </Text>
             </Pressable>
           ))}
-        </View>
-        <View style={styles.decisionBuilderActionRow}>
-          <Pressable style={styles.decisionAssignButton} onPress={addRowTarget}>
+          <Pressable style={[styles.decisionAssignButton, styles.decisionWorkflowAddRowButton]} onPress={addRowTarget}>
             <Text style={styles.decisionAssignButtonText}>Add Row</Text>
           </Pressable>
         </View>
@@ -5059,34 +5104,32 @@ function DecisionEngineScreen({
           />
         </View>
 
-        <View style={[styles.decisionFormSplitRow, isPhone && styles.decisionFormSplitRowPhone]}>
-          <View style={[styles.decisionFormFieldGrow, styles.decisionFormFieldMode]}>
-            <Text style={styles.decisionToolbarLabel}>Mode</Text>
-            <DecisionDropdown
-              value={getDecisionOptionLabel(DECISION_MODE_OPTIONS, includeMode)}
-              options={DECISION_MODE_OPTIONS}
-              placeholder="Select mode"
-              dropdownId="decision-mode"
-              activeDropdown={activeDecisionDropdown}
-              onToggleDropdown={setActiveDecisionDropdown}
-              onChange={setIncludeMode}
-              fieldStyle={styles.decisionDropdownMode}
-            />
-          </View>
+        <View style={[styles.decisionFormField, styles.decisionFormFieldMode]}>
+          <Text style={styles.decisionToolbarLabel}>Mode</Text>
+          <DecisionDropdown
+            value={getDecisionOptionLabel(DECISION_MODE_OPTIONS, includeMode)}
+            options={DECISION_MODE_OPTIONS}
+            placeholder="Select mode"
+            dropdownId="decision-mode"
+            activeDropdown={activeDecisionDropdown}
+            onToggleDropdown={setActiveDecisionDropdown}
+            onChange={setIncludeMode}
+            fieldStyle={styles.decisionDropdownMode}
+          />
+        </View>
 
-          <View style={styles.decisionFormFieldDepth}>
-            <Text style={styles.decisionToolbarLabel}>Depth</Text>
-            <DecisionDropdown
-              value={getDecisionOptionLabel(DECISION_DEPTH_OPTIONS, selectedDepth)}
-              options={DECISION_DEPTH_OPTIONS}
-              placeholder="Select depth"
-              dropdownId="decision-depth"
-              activeDropdown={activeDecisionDropdown}
-              onToggleDropdown={setActiveDecisionDropdown}
-              onChange={(value) => setSelectedDepth(Number(value))}
-              fieldStyle={styles.decisionDropdownDepth}
-            />
-          </View>
+        <View style={styles.decisionFormFieldDepth}>
+          <Text style={styles.decisionToolbarLabel}>Depth</Text>
+          <DecisionDropdown
+            value={getDecisionOptionLabel(DECISION_DEPTH_OPTIONS, selectedDepth)}
+            options={DECISION_DEPTH_OPTIONS}
+            placeholder="Select depth"
+            dropdownId="decision-depth"
+            activeDropdown={activeDecisionDropdown}
+            onToggleDropdown={setActiveDecisionDropdown}
+            onChange={(value) => setSelectedDepth(Number(value))}
+            fieldStyle={styles.decisionDropdownDepth}
+          />
         </View>
 
         <View style={[styles.decisionFormField, styles.decisionFormFieldTarget]}>
@@ -5130,11 +5173,31 @@ function DecisionEngineScreen({
 
         {Object.entries(sections).map(([sectionKey, sectionNodes]) => (
           <View key={sectionKey} style={styles.decisionSectionCard}>
-          <Pressable onPress={() => toggleSection(sectionKey)} style={styles.decisionSectionHeader}>
-            <Text style={styles.decisionSectionTitle}>{sectionKey}</Text>
-            <Text style={styles.decisionSectionMeta}>{`${sectionNodes.length} questions`}</Text>
+          <Pressable onPress={() => toggleSectionCollapse(sectionKey)} style={styles.decisionSectionHeader}>
+            <View style={styles.decisionSectionHeaderContent}>
+              <Feather
+                name={expandedDecisionPanel[sectionKey] ? "chevron-right" : "chevron-down"}
+                size={16}
+                color={colors.headerText}
+              />
+              <Text style={styles.decisionSectionTitle}>{sectionKey}</Text>
+            </View>
+            <View style={styles.decisionSectionHeaderActions}>
+              <Text style={styles.decisionSectionMeta}>{`${sectionNodes.length} questions`}</Text>
+              <Pressable
+                onPress={(event) => {
+                  event.stopPropagation();
+                  toggleSection(sectionKey);
+                }}
+                style={styles.decisionSectionAction}
+              >
+                <Text style={styles.decisionSectionActionText}>
+                  {sectionNodes.every((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]) ? "Clear" : "Select all"}
+                </Text>
+              </Pressable>
+            </View>
           </Pressable>
-          {selectedDepth >= 2 ? (
+          {!expandedDecisionPanel[sectionKey] && selectedDepth >= 2 ? (
             sectionNodes.map((node) => (
               <Pressable
                 key={buildDecisionNodeSelectionKey(node)}
@@ -5784,6 +5847,8 @@ export default function App() {
   });
   const [decisionEngineTimeBlocks, setDecisionEngineTimeBlocks] = useState(defaultCaseNoteTemplate.timeBlocks);
   const [decisionEngineRows, setDecisionEngineRows] = useState(defaultCaseNoteTemplate.rows);
+  const [decisionStateHydrated, setDecisionStateHydrated] = useState(false);
+  const lastLoadedStateRef = useRef(null);
   const workspaceStatus = documentationSession
     ? documentationSession.title
     : showCarePlan
@@ -5798,16 +5863,116 @@ export default function App() {
   }, [showIndividualSuggestions]);
 
   useEffect(() => {
-    setDecisionEngineTimeBlocks(defaultCaseNoteTemplate.timeBlocks);
-    setDecisionEngineRows(defaultCaseNoteTemplate.rows);
+    let cancelled = false;
+    const defaultTemplate = createDocumentationSession({
+      title: "Case Note (Decision Engine)",
+      program: "Case Note",
+      sessionType: "case-note",
+      clientProfile: activeClientProfile,
+    });
+
+    setDecisionStateHydrated(false);
+
+    const applyDefaultState = () => {
+      if (cancelled) {
+        return;
+      }
+
+      setDecisionEngineTimeBlocks(defaultTemplate.timeBlocks);
+      setDecisionEngineRows(defaultTemplate.rows);
+      setDocumentationSession(null);
+      lastLoadedStateRef.current = JSON.stringify({
+        clientId: activeClientId,
+        timeBlocks: defaultTemplate.timeBlocks,
+        rows: defaultTemplate.rows,
+        documentationSession: null,
+      });
+      setDecisionStateHydrated(true);
+    };
+
+    fetch(`${docuWraiteApiBaseUrl}/api/workspace-state/${activeClientId}`)
+      .then((response) => response.json())
+      .then((payload) => {
+        if (cancelled) {
+          return;
+        }
+
+        const state = payload?.state;
+        if (!state) {
+          applyDefaultState();
+          return;
+        }
+
+        const nextTimeBlocks = Array.isArray(state.timeBlocks) && state.timeBlocks.length
+          ? state.timeBlocks
+          : defaultTemplate.timeBlocks;
+        const nextRows = Array.isArray(state.rows) && state.rows.length
+          ? state.rows
+          : defaultTemplate.rows;
+        const nextSession = state.documentationSession || null;
+
+        setDecisionEngineTimeBlocks(nextTimeBlocks);
+        setDecisionEngineRows(nextRows);
+        setDocumentationSession(nextSession);
+        lastLoadedStateRef.current = JSON.stringify({
+          clientId: activeClientId,
+          timeBlocks: nextTimeBlocks,
+          rows: nextRows,
+          documentationSession: nextSession,
+        });
+        setDecisionStateHydrated(true);
+      })
+      .catch(() => {
+        applyDefaultState();
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeClientId]);
+
+  useEffect(() => {
+    if (!decisionStateHydrated) {
+      return undefined;
+    }
+
+    const nextState = {
+      clientId: activeClientId,
+      timeBlocks: decisionEngineTimeBlocks,
+      rows: decisionEngineRows,
+      documentationSession,
+    };
+    const serialized = JSON.stringify(nextState);
+
+    if (serialized === lastLoadedStateRef.current) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      fetch(`${docuWraiteApiBaseUrl}/api/workspace-state/${activeClientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timeBlocks: decisionEngineTimeBlocks,
+          rows: decisionEngineRows,
+          documentationSession,
+          updatedAt: new Date().toISOString(),
+        }),
+      })
+        .then(() => {
+          lastLoadedStateRef.current = serialized;
+        })
+        .catch(() => {});
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [activeClientId, decisionEngineRows, decisionEngineTimeBlocks, decisionStateHydrated, documentationSession]);
 
   const handleSelectClient = (clientId) => {
     setActiveClientId(clientId);
     const selectedClient = CLIENT_ROSTER.find((client) => client.id === clientId);
     setIndividualQuery(selectedClient?.displayName ?? "");
     setShowIndividualSuggestions(false);
-    setDocumentationSession(null);
     setSelectedModule(null);
   };
 
@@ -6425,7 +6590,12 @@ const styles = StyleSheet.create({
   },
   decisionAssignForm: {
     marginBottom: 18,
-    gap: 16,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    columnGap: 16,
+    rowGap: 16,
     overflow: "visible",
     position: "relative",
   },
@@ -6441,6 +6611,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 8,
     overflow: "visible",
+    flexShrink: 0,
   },
   decisionTargetRow: {
     flexDirection: "row",
@@ -6457,14 +6628,9 @@ const styles = StyleSheet.create({
   },
   decisionFormFieldTarget: {
     zIndex: 4,
-  },
-  decisionFormSplitRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 16,
-  },
-  decisionFormSplitRowPhone: {
-    flexDirection: "column",
+    flexShrink: 1,
+    minWidth: 320,
+    maxWidth: "100%",
   },
   decisionFormFieldGrow: {
     flexShrink: 1,
@@ -6472,8 +6638,9 @@ const styles = StyleSheet.create({
     overflow: "visible",
   },
   decisionFormFieldDepth: {
-    flexShrink: 0,
+    alignItems: "flex-start",
     gap: 8,
+    flexShrink: 0,
     zIndex: 5,
     overflow: "visible",
   },
@@ -6519,6 +6686,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 12,
   },
+  decisionInlineHint: {
+    alignSelf: "flex-start",
+    marginTop: -2,
+    marginBottom: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#fff3f1",
+    color: colors.red,
+    fontSize: 12,
+    fontWeight: "700",
+  },
   decisionScheduleBuilderRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -6530,7 +6709,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+    alignItems: "center",
     marginBottom: 14,
+  },
+  decisionWorkflowAddRowButton: {
+    marginLeft: "auto",
   },
   decisionBuilderActionRow: {
     flexDirection: "row",
@@ -6757,6 +6940,18 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     backgroundColor: "#f6f0ff",
   },
+  decisionSectionHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+    flex: 1,
+    paddingRight: 12,
+  },
+  decisionSectionHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 10,
+  },
   decisionSectionTitle: {
     fontSize: 15,
     fontWeight: "700",
@@ -6765,6 +6960,19 @@ const styles = StyleSheet.create({
   decisionSectionMeta: {
     fontSize: 13,
     color: colors.muted,
+  },
+  decisionSectionAction: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  decisionSectionActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.headerText,
   },
   decisionNodeRow: {
     flexDirection: "row",

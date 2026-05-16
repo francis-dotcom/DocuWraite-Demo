@@ -6,6 +6,15 @@ const OpenAI = require("openai");
 const { isSupportedWorkflow } = require("./playbooks");
 const { resolveWorkflowStep } = require("./playbookEngine");
 const { buildDraftNotePrompt } = require("./draftPrompt");
+const {
+  dbPath,
+  getAssignmentsByClient,
+  getRowPromptCategories,
+  getRowPromptTemplates,
+  getWorkspaceState,
+  saveAssignment,
+  saveWorkspaceState,
+} = require("./storage");
 
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
@@ -18,14 +27,78 @@ const openai = process.env.OPENAI_API_KEY
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-const fs = require("fs").promises;
-
 app.post("/api/assignments", async (req, res) => {
   try {
     const data = req.body || {};
-    const outPath = path.join(__dirname, "..", "decisionAlgo", "assignments.json");
-    await fs.writeFile(outPath, JSON.stringify(data, null, 2), "utf8");
-    res.json({ ok: true, path: outPath });
+    const saved = saveAssignment({
+      clientId: data.clientId,
+      target: data.target,
+      assigned: data.assigned || [],
+      assignedNodeConfig: data.assignedNodeConfig || null,
+      updatedAt: data.updatedAt || new Date().toISOString(),
+    });
+    res.json({ ok: true, assignment: saved, dbPath });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/assignments/:clientId", (req, res) => {
+  try {
+    res.json({
+      ok: true,
+      assignments: getAssignmentsByClient(req.params.clientId),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/workspace-state/:clientId", (req, res) => {
+  try {
+    res.json({
+      ok: true,
+      state: getWorkspaceState(req.params.clientId),
+      dbPath,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/row-prompts/categories", (_req, res) => {
+  try {
+    res.json({
+      ok: true,
+      categories: getRowPromptCategories(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/row-prompts/:categoryKey", (req, res) => {
+  try {
+    res.json({
+      ok: true,
+      prompts: getRowPromptTemplates(req.params.categoryKey),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/workspace-state/:clientId", (req, res) => {
+  try {
+    const data = req.body || {};
+    const savedState = saveWorkspaceState({
+      clientId: req.params.clientId,
+      timeBlocks: data.timeBlocks || [],
+      rows: data.rows || [],
+      documentationSession: data.documentationSession || null,
+      updatedAt: data.updatedAt || new Date().toISOString(),
+    });
+    res.json({ ok: true, state: savedState, dbPath });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -35,6 +108,7 @@ app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
     aiConfigured: Boolean(openai),
+    dbPath,
   });
 });
 
