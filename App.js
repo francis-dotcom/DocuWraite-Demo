@@ -7099,6 +7099,7 @@ const styles = StyleSheet.create({
     zIndex: 3,
     alignSelf: "flex-start",
     overflow: "visible",
+    backgroundColor: "#ffffff",
   },
   decisionDropdownWrapOpen: {
     zIndex: 40,
@@ -7159,9 +7160,10 @@ const styles = StyleSheet.create({
   },
   decisionDropdownMenu: {
     position: "absolute",
-    top: 38,
+    top: "100%",
     left: 0,
     right: 0,
+    marginTop: 6,
     borderWidth: 1,
     borderColor: "#e3d8fb",
     borderRadius: 6,
