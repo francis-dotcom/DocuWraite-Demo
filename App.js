@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -16,14 +17,17 @@ import { StatusBar } from "expo-status-bar";
 import { Feather } from "@expo/vector-icons";
 import { carePlanText } from "./carePlanText";
 import { fetchDocuWraiteWorkflowStep } from "./docuWraiteAi";
-import { docuWraiteUseRuleBasedFallback } from "./docuWraiteConfig";
+import { docuWraiteUseRuleBasedFallback, docuWraiteApiBaseUrl } from "./docuWraiteConfig";
 import {
   buildCaseNoteDocumentationItems,
   buildMeasurableDocumentationItems,
   CLIENT_ROSTER,
+  getClientById,
   getMarkBrentProfile,
   searchClients,
 } from "./clientProfiles";
+
+const decisionNodes = require("./decisionAlgo/nodes.json");
 
 const userProfilePhoto = require("./demoImages/dsp-user.png");
 const maryBetProfilePhoto = require("./demoImages/patient-mary-bet.png");
@@ -42,6 +46,7 @@ const colors = {
   muted: "#6b4fa1",
   link: "#7e57c2",
   green: "#5b3db6",
+  red: "#d32f2f",
   lightBorder: "#ddd2f3",
   rowBorder: "#f0e9fb",
   headerText: "#5c3d99",
@@ -63,6 +68,7 @@ const modules = [
   "Behavior Data",
   "Behavior Plan",
   "Care Plan",
+  "Decision Engine",
   "Case Note",
   "Document Storage",
   "Drug Count",
@@ -718,6 +724,23 @@ function createTimeBlockEntry(block, index) {
   };
 }
 
+const SCHEDULE_HOUR_OPTIONS = Array.from({ length: 18 }, (_, index) => 6 + index);
+const SCHEDULE_START_HOUR_OPTIONS = SCHEDULE_HOUR_OPTIONS.slice(0, -1);
+
+function formatScheduleHourLabel(hour = 7) {
+  const suffix = hour >= 12 ? "pm" : "am";
+  const normalized = hour % 12 === 0 ? 12 : hour % 12;
+  return `${normalized}${suffix}`;
+}
+
+function buildScheduleBlockLabel(startHour = 7, endHour = 8) {
+  return `${formatScheduleHourLabel(startHour)}–${formatScheduleHourLabel(endHour)}`;
+}
+
+function buildScheduleBlockId(startHour = 7, endHour = 8, index = 0) {
+  return `${startHour}-${endHour}-${index}`;
+}
+
 function getTimeBlockPrompt(blockLabel, clientProfile = null) {
   if (clientProfile?.timeBlockMappings?.[blockLabel]?.prompt) {
     return clientProfile.timeBlockMappings[blockLabel].prompt;
@@ -783,6 +806,8 @@ function getTimeBlockWorkflowId(blockLabel, clientProfile = null) {
 
 function getWorkflowEyebrow(workflowId) {
   switch (workflowId) {
+    case "assigned-nodes":
+      return "Assigned decision workflow";
     case "morning-adl":
       return "Morning ADL support";
     case "feeding-support":
@@ -804,6 +829,201 @@ function getWorkflowEyebrow(workflowId) {
     default:
       return "Guided workflow";
   }
+}
+
+function getDecisionNodeDepth(nodeId = "") {
+  const match = String(nodeId).match(/^([a-z]+)/i);
+  if (!match) {
+    return 1;
+  }
+
+  return match[1].toLowerCase().charCodeAt(0) - 96;
+}
+
+function getDecisionNodeBranchKey(nodeId = "") {
+  const match = String(nodeId).match(/(\d+)/);
+  return match ? match[1] : "";
+}
+
+function buildDecisionNodeStepKey(node = {}) {
+  const sectionSlug = String(node.section || "section")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `decision-${node.library || "library"}-${sectionSlug}-${node.id || "node"}`;
+}
+
+function buildDecisionNodeSelectionKey(node = {}) {
+  return `${node.library || "library"}::${node.section || "section"}::${node.id || "node"}`;
+}
+
+function inferDecisionNodeKind(choices = []) {
+  const normalized = choices.map((choice) => String(choice).trim().toLowerCase());
+  if (
+    normalized.length === 2 &&
+    normalized.includes("yes") &&
+    normalized.includes("no")
+  ) {
+    return "yes-no";
+  }
+
+  return "suggestions";
+}
+
+function inferDecisionNodeMultiSelect(question = "", choices = []) {
+  const normalizedQuestion = String(question || "").trim().toLowerCase();
+  const normalizedChoices = choices.map((choice) => String(choice).trim().toLowerCase());
+  if (!normalizedChoices.length) {
+    return false;
+  }
+
+  if (normalizedChoices.includes("yes") && normalizedChoices.includes("no")) {
+    return false;
+  }
+
+  return /^which\b/.test(normalizedQuestion);
+}
+
+function normalizeDecisionNodeChoices(choices = []) {
+  return choices.map((choice) => (String(choice).trim() === "Other" ? "Other..." : choice));
+}
+
+function createAssignedWorkflowSteps(assignedNodes = []) {
+  const steps = assignedNodes
+    .filter((node) => node?.question)
+    .map((node) => {
+      const suggestions = normalizeDecisionNodeChoices(node.choices || []);
+      return {
+        stepKey: node.stepKey || buildDecisionNodeStepKey(node),
+        kind: inferDecisionNodeKind(suggestions),
+        question: node.question,
+        suggestions,
+        allowCustom: suggestions.includes("Other..."),
+        multiSelect: inferDecisionNodeMultiSelect(node.question, suggestions),
+        rationale: node.section ? `Assigned from ${node.library} / ${node.section}.` : `Assigned from ${node.library}.`,
+        sourceNodeId: node.id,
+        sourceLibrary: node.library,
+        sourceSection: node.section,
+      };
+    });
+
+  if (!steps.length) {
+    return [];
+  }
+
+  return [
+    ...steps,
+    {
+      stepKey: "assigned-nodes-draft",
+      kind: "draft",
+      question: "Generated documentation",
+    },
+  ];
+}
+
+function formatAssignedWorkflowAnswer(value) {
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+  return String(value || "").trim();
+}
+
+function generateAssignedWorkflowNote(answers = {}, workflowState = {}, fieldContext = {}) {
+  const answeredSteps = (workflowState.localSteps || [])
+    .filter((step) => step.kind !== "draft")
+    .map((step) => {
+      const value = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, step.stepKey));
+      const narration = String(
+        answers[step.narrationField || `${step.stepKey}Narration`] ||
+        answers[`${kebabToCamel(step.stepKey)}Narration`] ||
+        ""
+      ).trim();
+
+      if (!value && !narration) {
+        return null;
+      }
+
+      const prompt = String(step.question || "")
+        .replace(/\?+$/g, "")
+        .trim();
+      const detail = [value, narration].filter(Boolean).join(" - ");
+      return prompt && detail ? `${prompt}: ${detail}` : detail || prompt;
+    })
+    .filter(Boolean);
+
+  if (!answeredSteps.length) {
+    return `No assigned decision-tree responses were captured for ${fieldContext.label || "this block"}.`;
+  }
+
+  return `During ${fieldContext.label || "this block"}, ${answeredSteps.join("; ")}.`;
+}
+
+function expandAssignedDecisionNodes(selectedNodesPayload = [], options = {}) {
+  const {
+    selectedDepth = 1,
+    includeMode = "selective-branch",
+  } = options;
+
+  const allNodes = decisionNodes.libraries.flatMap((lib) => lib.nodes || []);
+  const indexedNodes = new Map(
+    allNodes.map((node, index) => [
+      buildDecisionNodeSelectionKey(node),
+      {
+        ...node,
+        _order: index,
+      },
+    ])
+  );
+
+  const expandedNodes = [];
+  const seen = new Set();
+
+  selectedNodesPayload.forEach((payload) => {
+    const rootNode = indexedNodes.get(payload.key);
+    if (!rootNode) {
+      return;
+    }
+
+    const rootDepth = getDecisionNodeDepth(rootNode.id);
+    const branchKey = getDecisionNodeBranchKey(rootNode.id);
+    const branchNodes =
+      includeMode === "full-branch" && branchKey
+        ? allNodes.filter((candidate) => {
+            if (candidate.library !== rootNode.library || candidate.section !== rootNode.section) {
+              return false;
+            }
+
+            const candidateBranchKey = getDecisionNodeBranchKey(candidate.id);
+            const candidateDepth = getDecisionNodeDepth(candidate.id);
+            return (
+              candidateBranchKey === branchKey &&
+              candidateDepth >= rootDepth &&
+              candidateDepth <= selectedDepth
+            );
+          })
+        : [rootNode];
+
+    branchNodes
+      .filter((node) => node.question)
+      .forEach((node) => {
+        const dedupeKey = `${node.library}:${node.section}:${node.id}`;
+        if (seen.has(dedupeKey)) {
+          return;
+        }
+
+        seen.add(dedupeKey);
+        expandedNodes.push({
+          ...node,
+          stepKey: buildDecisionNodeStepKey(node),
+          includeInFinal: Boolean(payload.includeInFinal),
+          rootNodeId: rootNode.id,
+          assignmentDepth: selectedDepth,
+          includeMode,
+        });
+      });
+  });
+
+  return expandedNodes.sort((left, right) => (left._order || 0) - (right._order || 0));
 }
 
 function kebabToCamel(value = "") {
@@ -1430,14 +1650,21 @@ function collectReadinessIssues(stepMeta, workflowMeta) {
   return items;
 }
 
-function createDocumentationSession({ title, program, sessionType = "isp", clientProfile = null }) {
+function createDocumentationSession({
+  title,
+  program,
+  sessionType = "isp",
+  clientProfile = null,
+  timeBlocksOverride = null,
+  rowsOverride = null,
+}) {
   const isCaseNote = sessionType === "case-note";
-  const timeBlocks = clientProfile?.documentationTimeBlocks ?? documentationTimeBlocks;
-  const rows = clientProfile
+  const timeBlocks = timeBlocksOverride || clientProfile?.documentationTimeBlocks || documentationTimeBlocks;
+  const rows = rowsOverride || (clientProfile
     ? (isCaseNote ? buildCaseNoteDocumentationItems(clientProfile) : buildMeasurableDocumentationItems(clientProfile))
     : isCaseNote
       ? getCaseNoteDocumentationItems()
-      : getMeasurableDocumentationItems();
+      : getMeasurableDocumentationItems());
 
   return {
     title,
@@ -1943,6 +2170,10 @@ const communityOutingResponseSuggestions = [
 ];
 
 function detectDocuWraiteGuidedWorkflow(fieldContext, value, clientProfile = null) {
+  if (fieldContext.assignedWorkflowSteps?.length) {
+    return "assigned-nodes";
+  }
+
   if (fieldContext.workflowId) {
     return fieldContext.workflowId;
   }
@@ -2161,6 +2392,110 @@ function DocumentationDropdown({
   );
 }
 
+function DecisionDropdown({
+  value,
+  options,
+  placeholder,
+  dropdownId,
+  activeDropdown,
+  onToggleDropdown,
+  onChange,
+  fieldStyle,
+}) {
+  const anchorRef = useRef(null);
+  const [anchorRect, setAnchorRect] = useState(null);
+  const isOpen = activeDropdown === dropdownId;
+
+  const closeDropdown = useCallback(() => {
+    onToggleDropdown(null);
+  }, [onToggleDropdown]);
+
+  const openDropdown = useCallback(() => {
+    onToggleDropdown(dropdownId);
+  }, [dropdownId, onToggleDropdown]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setAnchorRect(null);
+      return undefined;
+    }
+
+    const measureAnchor = () => {
+      anchorRef.current?.measureInWindow((x, y, width, height) => {
+        setAnchorRect({ x, y, width, height });
+      });
+    };
+
+    const frame = requestAnimationFrame(measureAnchor);
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, options.length]);
+
+  const renderMenuOptions = () =>
+    options.map((option, index) => (
+      <Pressable
+        key={option.value}
+        style={[
+          styles.decisionDropdownOptionPressable,
+          index === options.length - 1 && styles.decisionDropdownOptionPressableLast,
+        ]}
+        onPress={() => {
+          onChange(option.value);
+          closeDropdown();
+        }}
+      >
+        <Text style={styles.decisionDropdownOptionLabel}>{option.label}</Text>
+        {option.meta ? <Text style={styles.decisionDropdownOptionMeta}>{option.meta}</Text> : null}
+      </Pressable>
+    ));
+
+  return (
+    <>
+      <View
+        ref={anchorRef}
+        collapsable={false}
+        style={[
+          styles.decisionDropdownWrap,
+          fieldStyle,
+          isOpen && styles.decisionDropdownWrapOpen,
+        ]}
+      >
+        <Pressable style={styles.decisionDropdown} onPress={() => (isOpen ? closeDropdown() : openDropdown())}>
+          <Text
+            style={value ? styles.decisionDropdownValue : styles.decisionDropdownPlaceholder}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {value || placeholder}
+          </Text>
+          <Feather name="chevron-down" size={14} color="#6f5a9f" />
+        </Pressable>
+      </View>
+
+      {isOpen && anchorRect ? (
+        <Modal transparent visible animationType="none" onRequestClose={closeDropdown}>
+          <View style={styles.decisionDropdownModalRoot}>
+            <Pressable style={styles.decisionDropdownBackdrop} onPress={closeDropdown} />
+            <View
+              style={[
+                styles.decisionDropdownMenuPortal,
+                {
+                  top: anchorRect.y + anchorRect.height + 4,
+                  left: anchorRect.x,
+                  width: anchorRect.width,
+                },
+              ]}
+            >
+              <ScrollView nestedScrollEnabled style={styles.decisionDropdownMenuScroll}>
+                {renderMenuOptions()}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
 function DocuWraiteBubbleGlyph() {
   return (
     <View style={styles.docuWraiteBubbleOuter}>
@@ -2194,21 +2529,31 @@ function DocuWraiteGuidedWorkflowPanel({
   const workflowEyebrow = getWorkflowEyebrow(workflowId);
   const answers = workflowState?.answers || {};
   const useAiWorkflow = workflowState?.ai?.enabled && !docuWraiteUseRuleBasedFallback;
+  const useAssignedNodeWorkflow =
+    !useAiWorkflow && workflowId === "assigned-nodes" && (workflowState?.localSteps || []).length > 0;
+  const assignedNodeSteps = workflowState?.localSteps || [];
   const ruleSteps = workflowId === "community-outing" ? getCommunityOutingSteps(answers) : [];
   const stepIndex = workflowState?.stepIndex ?? 0;
   const ruleStepKey = ruleSteps[stepIndex];
   const upcomingRuleStepKey = ruleSteps[Math.min(stepIndex, Math.max(ruleSteps.length - 1, 0))];
   const ruleStepMeta = ruleStepKey ? getCommunityOutingStepMeta(ruleStepKey) : null;
+  const localStepMeta = useAssignedNodeWorkflow ? assignedNodeSteps[stepIndex] : null;
   const aiStep = useAiWorkflow ? workflowState.ai.step : null;
   const workflowMeta = useAiWorkflow ? workflowState?.ai?.meta : null;
   const aiLoading = useAiWorkflow ? workflowState?.ai?.loading : false;
   const aiError = useAiWorkflow ? workflowState?.ai?.error : "";
-  const stepMeta = useAiWorkflow ? aiStep : ruleStepMeta;
-  const stepKey = useAiWorkflow ? aiStep?.stepKey || `step-${stepIndex}` : ruleStepKey;
+  const stepMeta = useAiWorkflow ? aiStep : useAssignedNodeWorkflow ? localStepMeta : ruleStepMeta;
+  const stepKey = useAiWorkflow
+    ? aiStep?.stepKey || `step-${stepIndex}`
+    : useAssignedNodeWorkflow
+      ? localStepMeta?.stepKey || `assigned-step-${stepIndex}`
+      : ruleStepKey;
   const upcomingStepKey = aiStep?.stepKey || upcomingRuleStepKey;
   const draftBlocked = Boolean(stepMeta?.draftBlocked || workflowMeta?.draftBlocked);
   const generatedNote = useAiWorkflow
     ? aiStep?.draftNote || ""
+    : useAssignedNodeWorkflow
+      ? generateAssignedWorkflowNote(answers, workflowState, workflowState?.fieldContext || {})
     : workflowId === "community-outing"
       ? generateCommunityOutingNote(answers)
       : "";
@@ -2222,6 +2567,8 @@ function DocuWraiteGuidedWorkflowPanel({
         ? `Quick check ${stepKey.replace("dsp-understanding-", "")} of 3`
       : useAiWorkflow
         ? `Question ${stepIndex + 1}`
+        : useAssignedNodeWorkflow
+          ? `Assigned question ${Math.min(stepIndex + 1, assignedNodeSteps.length)} of ${assignedNodeSteps.length}`
         : `Question ${Math.min(stepIndex + 1, Math.max(ruleSteps.length, stepIndex + 1))}`;
   const reviewDraftNote = answers.finalDraftNote || generatedNote;
   const narrationValue = answers[stepMeta?.narrationField || `${stepKey}Narration`] || "";
@@ -2871,6 +3218,7 @@ function DocumentationCommentField({
   onWorkflowJump,
   onWorkflowInsert,
   onAssistActivity,
+  onAssignQuestions,
 }) {
   const [focused, setFocused] = useState(false);
   const [activeTool, setActiveTool] = useState(null);
@@ -2990,6 +3338,15 @@ function DocumentationCommentField({
           )}
         </View>
       ) : null}
+      {fieldContext.assignedNodeSummary && !workflow ? (
+        <View style={styles.docCommentToolPanel}>
+          <Text style={styles.docCommentToolPanelTitle}>Assigned Decision-Tree Questions</Text>
+          <Text style={styles.docCommentToolPanelMessage}>
+            Open DocuWraite to answer the assigned questions for this block.
+          </Text>
+          <Text style={styles.docCommentToolSuggestion}>{fieldContext.assignedNodeSummary}</Text>
+        </View>
+      ) : null}
       {activeTool === "spell" ? (
         <View style={styles.docCommentToolPanel}>
           <Text style={styles.docCommentToolPanelTitle}>Spell check</Text>
@@ -3047,6 +3404,11 @@ function DocumentationCommentField({
               Suggest Wording
             </Text>
           </Pressable>
+          {onAssignQuestions ? (
+            <Pressable onPress={onAssignQuestions}>
+              <Text style={styles.docCommentTool}>Assign Questions</Text>
+            </Pressable>
+          ) : null}
         </View>
         <Text style={styles.docCommentCounter}>{`About ${remaining} characters left`}</Text>
       </View>
@@ -3076,6 +3438,7 @@ function DocumentationFormTable({
   getCommentAssistProps,
   onCommentAssistActivity,
   runtimeShiftIntelligence,
+  onAssignQuestions,
 }) {
   return (
     <View style={styles.docFormCard}>
@@ -3109,6 +3472,9 @@ function DocumentationFormTable({
                 workflowId: row.workflowId,
                 theme: row.theme,
                 shiftIntelligence: runtimeShiftIntelligence,
+                assignedNodes: row.assignedNodes || [],
+                assignedNodeSummary: row.assignedNodeSummary || "",
+                assignedWorkflowSteps: createAssignedWorkflowSteps(row.assignedNodes || []),
               }}
               value={row.comment}
               onChange={(comment) => onCommentChange(row.id, comment)}
@@ -3116,6 +3482,7 @@ function DocumentationFormTable({
               onToggleExpanded={() => onToggleExpanded(`row-${row.id}`)}
               {...getCommentAssistProps(`row-${row.id}`)}
               onAssistActivity={onCommentAssistActivity}
+              onAssignQuestions={onAssignQuestions ? () => onAssignQuestions(row) : null}
             />
           </View>
         </View>
@@ -3124,7 +3491,14 @@ function DocumentationFormTable({
   );
 }
 
-function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, clientProfile = null }) {
+function DocumentationEntryScreen({
+  session,
+  onUpdate,
+  onCancel,
+  isPhone,
+  clientProfile = null,
+  onOpenDecisionAssignment,
+}) {
   const activePatientName = clientProfile?.displayName ?? patientDisplayName;
   const previousShiftData = clientProfile?.previousShiftSnapshot ?? previousShiftSnapshot;
   const isCaseNoteSession = session.sessionType === "case-note";
@@ -3323,6 +3697,9 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
           return current;
         }
 
+        const localSteps = assist.localWorkflowSteps || assist.fieldContext?.assignedWorkflowSteps || [];
+        const useLocalWorkflow = assist.workflowId === "assigned-nodes" && localSteps.length > 0;
+
         const startingWorkflow = {
           fieldId: assist.fieldId,
           workflowId: assist.workflowId,
@@ -3330,16 +3707,19 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
           answers: {},
           structuredAnswers: [],
           fieldContext: assist.fieldContext || {},
+          localSteps,
           ai: {
-            enabled: true,
-            loading: true,
+            enabled: !useLocalWorkflow,
+            loading: !useLocalWorkflow,
             error: "",
             step: null,
             meta: null,
           },
         };
 
-        queueMicrotask(() => refreshDocuWraiteWorkflowStep(withWorkflowSnapshot(startingWorkflow)));
+        if (!useLocalWorkflow) {
+          queueMicrotask(() => refreshDocuWraiteWorkflowStep(withWorkflowSnapshot(startingWorkflow)));
+        }
         return startingWorkflow;
       });
       setDocuWraiteExpanded(true);
@@ -3361,8 +3741,12 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
       mode: "workflow",
       workflowId,
       fieldContext,
+      localWorkflowSteps: workflowId === "assigned-nodes" ? fieldContext.assignedWorkflowSteps || [] : [],
       title: getWorkflowEyebrow(workflowId),
-      message: "DocuWraite will guide this note with care-plan questions.",
+      message:
+        workflowId === "assigned-nodes"
+          ? "DocuWraite will ask the assigned decision-tree questions for this block."
+          : "DocuWraite will guide this note with care-plan questions.",
       trigger: "focus",
     });
     return true;
@@ -3379,6 +3763,96 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
       message: "DocuWraite will roll the row notes into a final case note.",
       trigger: "manual",
     });
+  };
+
+  const [showFinalDraftChoice, setShowFinalDraftChoice] = useState(false);
+  const [pendingFinalDraft, setPendingFinalDraft] = useState(null);
+  const [pendingFinalDraftSource, setPendingFinalDraftSource] = useState(null);
+  const [finalDraftError, setFinalDraftError] = useState("");
+  const [isGeneratingFinalDraft, setIsGeneratingFinalDraft] = useState(false);
+
+  const generateSimpleFinalNote = () => {
+    setFinalDraftError("");
+    setPendingFinalDraft(null);
+    setPendingFinalDraftSource(null);
+    // Prefer row comments (actual DSP input). Fallback to assignedNodes or timeBlock comments.
+    const parts = [];
+
+    // use rows with comments
+    (session.rows || []).forEach((r) => {
+      if (r.comment && String(r.comment).trim()) {
+        parts.push(r.comment.trim());
+      }
+    });
+
+    // fall back to timeBlocks assignedNodes or comments
+    (session.timeBlocks || []).forEach((b) => {
+      if (b.comment && String(b.comment).trim()) {
+        parts.push(b.comment.trim());
+      } else if (b.assignedNodes && b.assignedNodes.length) {
+        const prompts = b.assignedNodes.map((n) => (n.question ? n.question : n.title || n.id));
+        parts.push(prompts.map((p) => `${p}?`).join(" "));
+      }
+    });
+
+    const draft = parts.length ? parts.join("\n\n") : "No documentation available to draft a final note.";
+    setPendingFinalDraft(draft);
+    setPendingFinalDraftSource("simple");
+    setShowFinalDraftChoice(false);
+  };
+
+  const generateAIFinalNote = async () => {
+    setFinalDraftError("");
+    setPendingFinalDraft(null);
+    setPendingFinalDraftSource(null);
+    setIsGeneratingFinalDraft(true);
+
+    try {
+      const fieldContext = buildCaseNoteFinalFieldContext();
+      const { step, meta } = await fetchDocuWraiteWorkflowStep({
+        workflowId: "case-note-final",
+        answers: {},
+        fieldContext,
+        stepIndex: 0,
+        patientName: activePatientName,
+        currentNote: session.shiftSummary || "",
+        forcedStepKey: "draft",
+      });
+
+      if (step?.kind === "draft" && step.draftNote) {
+        setPendingFinalDraft(step.draftNote);
+        setPendingFinalDraftSource("ai");
+        setShowFinalDraftChoice(false);
+      } else if (step?.draftNote) {
+        setPendingFinalDraft(step.draftNote);
+        setPendingFinalDraftSource("ai");
+        setShowFinalDraftChoice(false);
+      } else if (step?.kind === "draft" && meta?.draftBlocked) {
+        const readinessIssues = collectReadinessIssues(step, meta)
+          .map((item) => item.message)
+          .filter(Boolean);
+        const detail = readinessIssues.length
+          ? ` ${readinessIssues.slice(0, 3).join("; ")}`
+          : "";
+        setFinalDraftError(`AI draft generation is blocked until readiness issues are resolved.${detail}`);
+      } else if (step?.kind === "readiness" || meta?.draftBlocked) {
+        const readinessIssues = collectReadinessIssues(step, meta)
+          .map((item) => item.message)
+          .filter(Boolean);
+        const detail = readinessIssues.length
+          ? ` ${readinessIssues.slice(0, 3).join("; ")}`
+          : "";
+        setFinalDraftError(`AI draft generation is blocked until readiness issues are resolved.${detail}`);
+      } else if (step?.question) {
+        setFinalDraftError("AI service returned an interactive workflow step instead of a draft.");
+      } else {
+        setFinalDraftError("AI could not generate a final note draft.");
+      }
+    } catch (error) {
+      setFinalDraftError(error?.message || "AI final note generation failed.");
+    } finally {
+      setIsGeneratingFinalDraft(false);
+    }
   };
 
   const evaluateDocuWraiteAssist = (fieldId, fieldContext, value, trigger) => {
@@ -3539,15 +4013,18 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
 
         const remediationTarget = current.remediationStepKey || current.forcedStepKey;
         const remediationStep = answeredStepKey ? buildLocalRemediationStep(answeredStepKey) : null;
+        const assignedWorkflowStep = answeredStepKey
+          ? (current.localSteps || []).find((step) => step.stepKey === answeredStepKey)
+          : null;
         const remediationValue = answeredStepKey ? getWorkflowAnswer(answers, answeredStepKey) : undefined;
 
         if (answeredStepKey && remediationValue !== undefined) {
           structuredAnswers = appendStructuredWorkflowAnswers(structuredAnswers, {
             stepKey: answeredStepKey,
-            question: remediationStep?.question || answeredStepKey,
+            question: assignedWorkflowStep?.question || remediationStep?.question || answeredStepKey,
             value: remediationValue,
             narration:
-              answers[remediationStep?.narrationField || `${answeredStepKey}Narration`] ||
+              answers[assignedWorkflowStep?.narrationField || remediationStep?.narrationField || `${answeredStepKey}Narration`] ||
               answers[`${kebabToCamel(answeredStepKey)}Narration`] ||
               "",
           });
@@ -3941,7 +4418,7 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
   if (isCaseNoteSession) {
     workflowActions.splice(3, 0, {
       label: "Generate Final Case Note",
-      action: openCaseNoteFinalWorkflow,
+      action: () => setShowFinalDraftChoice(true),
     });
   }
 
@@ -3965,6 +4442,68 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
           </Pressable>
         ))}
       </View>
+
+      {showFinalDraftChoice ? (
+        <View style={styles.finalDraftChoiceRow}>
+          <Text style={styles.finalDraftChoiceLabel}>Generate draft using:</Text>
+          <View style={styles.finalDraftChoiceButtons}>
+            <Pressable style={[styles.docWorkflowButton, styles.finalDraftButton]} onPress={generateSimpleFinalNote} disabled={isGeneratingFinalDraft}>
+              <Text style={styles.docWorkflowButtonText}>Simple</Text>
+            </Pressable>
+            <Pressable style={[styles.docWorkflowButton, styles.finalDraftButton]} onPress={generateAIFinalNote} disabled={isGeneratingFinalDraft}>
+              <Text style={styles.docWorkflowButtonText}>AI (Server)</Text>
+            </Pressable>
+            <Pressable style={[styles.docWorkflowButton, styles.finalDraftCancel]} onPress={() => setShowFinalDraftChoice(false)} disabled={isGeneratingFinalDraft}>
+              <Text style={styles.docWorkflowButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+          {isGeneratingFinalDraft ? (
+            <Text style={styles.finalDraftStatusText}>Generating AI draft…</Text>
+          ) : null}
+          {finalDraftError ? (
+            <Text style={styles.finalDraftErrorText}>{finalDraftError}</Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {pendingFinalDraft ? (
+        <View style={styles.finalDraftPreviewCard}>
+          <Text style={styles.finalDraftPreviewTitle}>Draft Final Note Preview</Text>
+          <ScrollView style={styles.finalDraftPreviewBody}>
+            <Text style={styles.finalDraftPreviewText}>{pendingFinalDraft}</Text>
+          </ScrollView>
+          <View style={styles.finalDraftPreviewActions}>
+            <Pressable
+              style={[styles.docWorkflowButton, styles.finalDraftButton]}
+              onPress={() => {
+                patchSession({ shiftSummary: pendingFinalDraft, statusMessage: "Applied generated final note." });
+                setPendingFinalDraft(null);
+                setPendingFinalDraftSource(null);
+              }}
+            >
+              <Text style={styles.docWorkflowButtonText}>Apply Draft</Text>
+            </Pressable>
+            {pendingFinalDraftSource === "ai" ? (
+              <Pressable
+                style={[styles.docWorkflowButton, styles.finalDraftButton]}
+                onPress={generateAIFinalNote}
+                disabled={isGeneratingFinalDraft}
+              >
+                <Text style={styles.docWorkflowButtonText}>{isGeneratingFinalDraft ? "Regenerating..." : "Regenerate AI"}</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={[styles.docWorkflowButton, styles.finalDraftCancel]}
+              onPress={() => {
+                setPendingFinalDraft(null);
+                setPendingFinalDraftSource(null);
+              }}
+            >
+              <Text style={styles.docWorkflowButtonText}>Discard Draft</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       <ScrollView
         style={styles.docEntryScroll}
@@ -4005,6 +4544,9 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
                     source: getTimeBlockSource(block.label, clientProfile),
                     workflowId: getTimeBlockWorkflowId(block.label, clientProfile),
                     shiftIntelligence: runtimeShiftIntelligence,
+                    assignedNodes: block.assignedNodes || [],
+                    assignedNodeSummary: block.assignedNodeSummary || "",
+                    assignedWorkflowSteps: createAssignedWorkflowSteps(block.assignedNodes || []),
                   }}
                   value={block.comment}
                 onChange={(comment) => updateTimeBlock(block.id, { comment })}
@@ -4030,6 +4572,12 @@ function DocumentationEntryScreen({ session, onUpdate, onCancel, isPhone, client
           getCommentAssistProps={getCommentAssistProps}
           onCommentAssistActivity={handleCommentAssistActivity}
           runtimeShiftIntelligence={runtimeShiftIntelligence}
+          onAssignQuestions={(row) => onOpenDecisionAssignment?.({
+            key: `row:${row.id}`,
+            label: row.description,
+            type: "case-note-row",
+            targetId: row.id,
+          })}
         />
 
         <View style={styles.docFormCard}>
@@ -4230,9 +4778,489 @@ function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) 
   );
 }
 
-function Card({ title, rightAccessory, children, bodyStyle }) {
+const DECISION_MODE_OPTIONS = [
+  { label: "Full branch", value: "full-branch" },
+  { label: "Selective branch", value: "selective-branch" },
+];
+
+const DECISION_DEPTH_OPTIONS = [
+  { label: "1", value: "1" },
+  { label: "2", value: "2" },
+];
+
+const DECISION_TARGET_TYPE_OPTIONS = [
+  { label: "Time block", value: "time-block" },
+  { label: "Case-note row", value: "case-note-row" },
+];
+
+function getDecisionOptionLabel(options = [], value = "") {
+  return options.find((option) => String(option.value) === String(value))?.label || "";
+}
+
+function DecisionEngineScreen({
+  isPhone,
+  onAssignToCaseNote,
+  timeBlocks = [],
+  rowTargets = [],
+  initialTargetKey = "",
+  onScheduleChange,
+  onRowsChange,
+}) {
+  const [selectedLibrary, setSelectedLibrary] = useState(decisionNodes.libraries[0]?.library || "");
+  const [selectedDepth, setSelectedDepth] = useState(2);
+  const [includeMode, setIncludeMode] = useState("full-branch");
+  const [activeDecisionDropdown, setActiveDecisionDropdown] = useState(null);
+  const [targetType, setTargetType] = useState(initialTargetKey.startsWith("row:") ? "case-note-row" : "time-block");
+  const [checkedNodes, setCheckedNodes] = useState({});
+  const [includeInFinalMap, setIncludeInFinalMap] = useState({});
+  const [newBlockStartHour, setNewBlockStartHour] = useState(7);
+  const [newBlockEndHour, setNewBlockEndHour] = useState(8);
+  const [newRowDescription, setNewRowDescription] = useState("");
+  const [newRowWorkflowId, setNewRowWorkflowId] = useState("behavior-support");
+  const workflowOptions = [
+    { workflowId: "behavior-support", label: "Behavior", theme: "behavior" },
+    { workflowId: "morning-adl", label: "ADL", theme: "hygiene" },
+    { workflowId: "feeding-support", label: "Meal", theme: "meal" },
+    { workflowId: "communication-support", label: "Communication", theme: "communication" },
+    { workflowId: "community-outing", label: "Community", theme: "outing" },
+    { workflowId: "medication-support", label: "Medication", theme: "medication" },
+  ];
+  const assignmentTargets = [
+    ...timeBlocks.map((block) => ({
+      key: `time:${block.id}`,
+      label: block.label,
+      type: "time-block",
+      targetId: block.id,
+    })),
+    ...rowTargets.map((row) => ({
+      key: `row:${row.id}`,
+      label: row.description,
+      type: "case-note-row",
+      targetId: row.id,
+    })),
+  ];
+  const [selectedTargetKey, setSelectedTargetKey] = useState(initialTargetKey || assignmentTargets[0]?.key || "");
+
+  useEffect(() => {
+    if (initialTargetKey && assignmentTargets.some((target) => target.key === initialTargetKey)) {
+      setSelectedTargetKey(initialTargetKey);
+      setTargetType(initialTargetKey.startsWith("row:") ? "case-note-row" : "time-block");
+    }
+  }, [initialTargetKey, assignmentTargets]);
+
+  useEffect(() => {
+    if (newBlockEndHour <= newBlockStartHour) {
+      setNewBlockEndHour(newBlockStartHour + 1);
+    }
+  }, [newBlockStartHour, newBlockEndHour]);
+
+  const selectedLibraryData =
+    decisionNodes.libraries.find((lib) => lib.library === selectedLibrary) ??
+    decisionNodes.libraries[0];
+  const timeBlockTargets = assignmentTargets.filter((target) => target.type === "time-block");
+  const rowAssignmentTargets = assignmentTargets.filter((target) => target.type === "case-note-row");
+  const scopedTargets = targetType === "case-note-row" ? rowAssignmentTargets : timeBlockTargets;
+  const selectedTarget = assignmentTargets.find((target) => target.key === selectedTargetKey);
+  const libraryDropdownOptions = decisionNodes.libraries.map((lib) => ({
+    value: lib.library,
+    label: lib.library,
+    meta: `${lib.nodes.length} nodes`,
+  }));
+  const targetDropdownOptions = scopedTargets.map((target) => ({
+    value: target.key,
+    label: target.type === "time-block" ? target.label : `Row: ${target.label}`,
+    meta: target.type === "time-block" ? "Timeline block" : "Case-note row",
+  }));
+
+  useEffect(() => {
+    if (!scopedTargets.length) {
+      setSelectedTargetKey("");
+      return;
+    }
+    if (!scopedTargets.some((target) => target.key === selectedTargetKey)) {
+      setSelectedTargetKey(scopedTargets[0].key);
+    }
+  }, [scopedTargets, selectedTargetKey]);
+
+  const sections = selectedLibraryData.nodes.reduce((acc, node) => {
+    const sectionKey = node.section || "Uncategorized";
+    if (!acc[sectionKey]) {
+      acc[sectionKey] = [];
+    }
+    acc[sectionKey].push(node);
+    return acc;
+  }, {});
+
+  const allNodes = selectedLibraryData.nodes;
+  const selectedCount = allNodes.filter((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]).length;
+
+  const toggleNode = (nodeKey) => {
+    setCheckedNodes((prev) => ({
+      ...prev,
+      [nodeKey]: !prev[nodeKey],
+    }));
+  };
+
+  const toggleSection = (sectionKey) => {
+    const sectionNodes = sections[sectionKey] || [];
+    const sectionSelected = sectionNodes.every((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]);
+    setCheckedNodes((prev) => {
+      const next = { ...prev };
+      sectionNodes.forEach((node) => {
+        next[buildDecisionNodeSelectionKey(node)] = !sectionSelected;
+      });
+      return next;
+    });
+  };
+
+  const addScheduleBlock = () => {
+    if (newBlockEndHour <= newBlockStartHour) {
+      return;
+    }
+
+    const nextBlock = {
+      id: buildScheduleBlockId(newBlockStartHour, newBlockEndHour, timeBlocks.length),
+      label: buildScheduleBlockLabel(newBlockStartHour, newBlockEndHour),
+    };
+    onScheduleChange?.([...timeBlocks, nextBlock]);
+    setSelectedTargetKey(`time:${nextBlock.id}`);
+  };
+
+  const removeScheduleBlock = (blockId) => {
+    const nextBlocks = timeBlocks.filter((block) => block.id !== blockId);
+    onScheduleChange?.(nextBlocks);
+    if (selectedTargetKey === `time:${blockId}`) {
+      setSelectedTargetKey(nextBlocks[0] ? `time:${nextBlocks[0].id}` : "");
+    }
+  };
+
+  const addRowTarget = () => {
+    if (!String(newRowDescription).trim()) {
+      return;
+    }
+
+    const selectedWorkflow = workflowOptions.find((option) => option.workflowId === newRowWorkflowId);
+    const nextRow = {
+      id: `case-note-custom-${rowTargets.length}`,
+      description: String(newRowDescription).trim(),
+      source: "Case Note",
+      linkedFromCarePlan: true,
+      workflowId: newRowWorkflowId,
+      theme: selectedWorkflow?.theme || "behavior",
+      score: "",
+      comment: "",
+    };
+    onRowsChange?.([...rowTargets, nextRow]);
+    setSelectedTargetKey(`row:${nextRow.id}`);
+    setNewRowDescription("");
+  };
+
+  const removeRowTarget = (rowId) => {
+    const nextRows = rowTargets.filter((row) => row.id !== rowId);
+    onRowsChange?.(nextRows);
+    if (selectedTargetKey === `row:${rowId}`) {
+      setSelectedTargetKey(nextRows[0] ? `row:${nextRows[0].id}` : "");
+    }
+  };
+
   return (
-    <View style={styles.card}>
+    <Card title="Decision Engine Library" containerStyle={styles.decisionCard} bodyStyle={styles.decisionCardBody}>
+      <View style={styles.decisionScheduleEditor}>
+        <Text style={styles.decisionScheduleTitle}>Schedule Builder</Text>
+        <Text style={styles.decisionScheduleLead}>
+          Define the case-note timeline here, then assign questions to each block.
+        </Text>
+        <View style={[styles.decisionScheduleBuilderRow, isPhone && styles.decisionToolbarPhone]}>
+          <View style={styles.decisionToolbarGroup}>
+            <Text style={styles.decisionToolbarLabel}>Start</Text>
+            <View style={styles.decisionOptionRow}>
+              {SCHEDULE_START_HOUR_OPTIONS.map((hour) => (
+                <Pressable
+                  key={`start-${hour}`}
+                  onPress={() => setNewBlockStartHour(hour)}
+                  style={[
+                    styles.decisionOptionButton,
+                    newBlockStartHour === hour && styles.decisionOptionButtonActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.decisionOptionText,
+                      newBlockStartHour === hour && styles.decisionOptionTextActive,
+                    ]}
+                  >
+                    {formatScheduleHourLabel(hour)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <View style={styles.decisionToolbarGroup}>
+            <Text style={styles.decisionToolbarLabel}>End</Text>
+            <View style={styles.decisionOptionRow}>
+              {SCHEDULE_HOUR_OPTIONS.filter((hour) => hour > newBlockStartHour).map((hour) => (
+                <Pressable
+                  key={`end-${hour}`}
+                  onPress={() => setNewBlockEndHour(hour)}
+                  style={[
+                    styles.decisionOptionButton,
+                    newBlockEndHour === hour && styles.decisionOptionButtonActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.decisionOptionText,
+                      newBlockEndHour === hour && styles.decisionOptionTextActive,
+                    ]}
+                  >
+                    {formatScheduleHourLabel(hour)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <Pressable style={styles.decisionAssignButton} onPress={addScheduleBlock}>
+            <Text style={styles.decisionAssignButtonText}>Add Block</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.decisionBuilderListLabel}>Timeline blocks</Text>
+        <View style={styles.decisionScheduleChipRow}>
+          {timeBlocks.map((block) => (
+            <View key={block.id} style={styles.decisionScheduleChip}>
+              <Text style={styles.decisionScheduleChipText}>{block.label}</Text>
+              <Pressable style={styles.decisionScheduleChipAction} onPress={() => removeScheduleBlock(block.id)}>
+                <Text style={styles.decisionScheduleChipRemove}>×</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      </View>
+      <View style={styles.decisionScheduleEditor}>
+        <Text style={styles.decisionScheduleTitle}>Row Builder</Text>
+        <Text style={styles.decisionScheduleLead}>
+          Create the case-note rows themselves here, then assign markdown questions to them.
+        </Text>
+        <TextInput
+          value={newRowDescription}
+          onChangeText={setNewRowDescription}
+          placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
+          placeholderTextColor="#888888"
+          style={styles.decisionRowInput}
+        />
+        <View style={styles.decisionWorkflowChipRow}>
+          {workflowOptions.map((option) => (
+            <Pressable
+              key={option.workflowId}
+              onPress={() => setNewRowWorkflowId(option.workflowId)}
+              style={[
+                styles.decisionOptionButton,
+                newRowWorkflowId === option.workflowId && styles.decisionOptionButtonActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.decisionOptionText,
+                  newRowWorkflowId === option.workflowId && styles.decisionOptionTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.decisionBuilderActionRow}>
+          <Pressable style={styles.decisionAssignButton} onPress={addRowTarget}>
+            <Text style={styles.decisionAssignButtonText}>Add Row</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.decisionBuilderListLabel}>Case-note rows</Text>
+        <View style={styles.decisionScheduleChipRow}>
+          {rowTargets.map((row) => (
+            <View key={row.id} style={styles.decisionScheduleChip}>
+              <Text style={styles.decisionScheduleChipText}>{row.description}</Text>
+              <Pressable style={styles.decisionScheduleChipAction} onPress={() => removeRowTarget(row.id)}>
+                <Text style={styles.decisionScheduleChipRemove}>×</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      </View>
+      <View
+        style={[
+          styles.decisionAssignForm,
+          activeDecisionDropdown ? styles.decisionAssignFormActive : null,
+        ]}
+      >
+        <View style={[styles.decisionFormField, styles.decisionFormFieldLibrary]}>
+          <Text style={styles.decisionToolbarLabel}>Library</Text>
+          <DecisionDropdown
+            value={selectedLibraryData.library}
+            options={libraryDropdownOptions}
+            placeholder="Select library"
+            dropdownId="decision-library"
+            activeDropdown={activeDecisionDropdown}
+            onToggleDropdown={setActiveDecisionDropdown}
+            onChange={setSelectedLibrary}
+            fieldStyle={styles.decisionDropdownLibrary}
+          />
+        </View>
+
+        <View style={[styles.decisionFormSplitRow, isPhone && styles.decisionFormSplitRowPhone]}>
+          <View style={[styles.decisionFormFieldGrow, styles.decisionFormFieldMode]}>
+            <Text style={styles.decisionToolbarLabel}>Mode</Text>
+            <DecisionDropdown
+              value={getDecisionOptionLabel(DECISION_MODE_OPTIONS, includeMode)}
+              options={DECISION_MODE_OPTIONS}
+              placeholder="Select mode"
+              dropdownId="decision-mode"
+              activeDropdown={activeDecisionDropdown}
+              onToggleDropdown={setActiveDecisionDropdown}
+              onChange={setIncludeMode}
+              fieldStyle={styles.decisionDropdownMode}
+            />
+          </View>
+
+          <View style={styles.decisionFormFieldDepth}>
+            <Text style={styles.decisionToolbarLabel}>Depth</Text>
+            <DecisionDropdown
+              value={getDecisionOptionLabel(DECISION_DEPTH_OPTIONS, selectedDepth)}
+              options={DECISION_DEPTH_OPTIONS}
+              placeholder="Select depth"
+              dropdownId="decision-depth"
+              activeDropdown={activeDecisionDropdown}
+              onToggleDropdown={setActiveDecisionDropdown}
+              onChange={(value) => setSelectedDepth(Number(value))}
+              fieldStyle={styles.decisionDropdownDepth}
+            />
+          </View>
+        </View>
+
+        <View style={[styles.decisionFormField, styles.decisionFormFieldTarget]}>
+          <Text style={styles.decisionToolbarLabel}>Target</Text>
+          <View style={styles.decisionTargetRow}>
+            <DecisionDropdown
+              value={getDecisionOptionLabel(DECISION_TARGET_TYPE_OPTIONS, targetType)}
+              options={DECISION_TARGET_TYPE_OPTIONS}
+              placeholder="Select target type"
+              dropdownId="decision-target-type"
+              activeDropdown={activeDecisionDropdown}
+              onToggleDropdown={setActiveDecisionDropdown}
+              onChange={setTargetType}
+              fieldStyle={styles.decisionDropdownTargetType}
+            />
+            <DecisionDropdown
+              value={
+                selectedTarget && selectedTarget.type === targetType
+                  ? selectedTarget.type === "time-block"
+                    ? selectedTarget.label
+                    : `Row: ${selectedTarget.label}`
+                  : ""
+              }
+              options={targetDropdownOptions}
+              placeholder={targetType === "time-block" ? "Select schedule block" : "Select case-note row"}
+              dropdownId="decision-target"
+              activeDropdown={activeDecisionDropdown}
+              onToggleDropdown={setActiveDecisionDropdown}
+              onChange={setSelectedTargetKey}
+              fieldStyle={styles.decisionDropdownTargetValue}
+            />
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.decisionQuestionList}>
+        <View style={styles.decisionSummaryRow}>
+          <Text style={styles.decisionSummaryText}>{`${selectedLibraryData.library} • ${allNodes.length} nodes`}</Text>
+          <Text style={styles.decisionSummaryText}>{`${selectedCount} selected`}</Text>
+        </View>
+
+        {Object.entries(sections).map(([sectionKey, sectionNodes]) => (
+          <View key={sectionKey} style={styles.decisionSectionCard}>
+          <Pressable onPress={() => toggleSection(sectionKey)} style={styles.decisionSectionHeader}>
+            <Text style={styles.decisionSectionTitle}>{sectionKey}</Text>
+            <Text style={styles.decisionSectionMeta}>{`${sectionNodes.length} questions`}</Text>
+          </Pressable>
+          {selectedDepth >= 2 ? (
+            sectionNodes.map((node) => (
+              <Pressable
+                key={buildDecisionNodeSelectionKey(node)}
+                onPress={() => toggleNode(buildDecisionNodeSelectionKey(node))}
+                style={styles.decisionNodeRow}
+              >
+                <View
+                  style={[
+                    styles.decisionNodeCheckbox,
+                    checkedNodes[buildDecisionNodeSelectionKey(node)] && styles.decisionNodeCheckboxActive,
+                  ]}
+                >
+                  <Text style={styles.decisionNodeCheckboxLabel}>
+                    {checkedNodes[buildDecisionNodeSelectionKey(node)] ? "✓" : ""}
+                  </Text>
+                </View>
+                <View style={styles.decisionNodeContent}>
+                  <Text style={styles.decisionNodeTitle}>{node.title || node.id}</Text>
+                  {node.question ? <Text style={styles.decisionNodeQuestion}>{node.question}</Text> : null}
+                  {node.conditions?.length ? (
+                    <View style={styles.decisionConditionList}>
+                      {node.conditions.map((condition) => (
+                        <Text key={condition} style={styles.decisionConditionBadge}>
+                          {condition}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+                  <View style={styles.decisionNodeFinalRow}>
+                    <Pressable
+                      onPress={() =>
+                        setIncludeInFinalMap((p) => ({
+                          ...p,
+                          [buildDecisionNodeSelectionKey(node)]: !p[buildDecisionNodeSelectionKey(node)],
+                        }))
+                      }
+                      style={[
+                        styles.includeFinalToggle,
+                        includeInFinalMap[buildDecisionNodeSelectionKey(node)] && styles.includeFinalToggleActive,
+                      ]}
+                    >
+                      <Text style={styles.includeFinalToggleText}>
+                        {includeInFinalMap[buildDecisionNodeSelectionKey(node)] ? "Included in final" : "Exclude from final"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </Pressable>
+            ))
+          ) : null}
+        </View>
+        ))}
+      </View>
+      <View style={styles.decisionAssignRow}>
+        <Pressable
+            onPress={() => {
+            const selectedKeys = Object.keys(checkedNodes).filter((key) => checkedNodes[key]);
+            const payload = selectedKeys.map((key) => ({ key, includeInFinal: Boolean(includeInFinalMap[key]) }));
+            const selectedTarget = assignmentTargets.find((target) => target.key === selectedTargetKey);
+            if (!selectedTarget) return;
+            if (onAssignToCaseNote) {
+              onAssignToCaseNote(payload, selectedTarget, {
+                selectedDepth,
+                includeMode,
+                selectedLibrary,
+              });
+            }
+          }}
+          style={styles.decisionAssignButton}
+        >
+          <Text style={styles.decisionAssignButtonText}>Assign Selected Questions</Text>
+        </Pressable>
+      </View>
+    </Card>
+  );
+}
+
+function Card({ title, rightAccessory, children, bodyStyle, containerStyle }) {
+  return (
+    <View style={[styles.card, containerStyle]}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardHeaderText}>{title}</Text>
         {rightAccessory ?? null}
@@ -4558,6 +5586,7 @@ function CarePlanDocument({
           onCancel={onDocumentationCancel}
           isPhone={isPhone}
           clientProfile={clientProfile}
+          onOpenDecisionAssignment={openDecisionAssignmentTarget}
         />
       ) : (
       <ScrollView
@@ -4784,24 +5813,40 @@ export default function App() {
   const [individualQuery, setIndividualQuery] = useState("Mary Bet");
   const [showIndividualSuggestions, setShowIndividualSuggestions] = useState(false);
   const [hoveredClientSuggestionId, setHoveredClientSuggestionId] = useState(null);
-  const activeClientProfile = activeClientId === "mark-brent" ? getMarkBrentProfile() : null;
+  const [pendingDecisionAssignmentTarget, setPendingDecisionAssignmentTarget] = useState(null);
+  const activeClientProfile =
+    activeClientId === "mary-bet" ? null : getClientById(activeClientId) || getMarkBrentProfile();
   const activeClientPhoto = activeClientId === "mark-brent" ? markBrentProfilePhoto : maryBetProfilePhoto;
   const activeDisplayName = activeClientProfile?.displayName ?? patientDisplayName;
   const activeIspRows = activeClientProfile?.ispRows ?? ispRows;
   const clientSuggestions = searchClients(individualQuery);
   const showCarePlan = selectedModule === "Care Plan";
+  const showDecisionEngine = selectedModule === "Decision Engine";
+  const defaultCaseNoteTemplate = createDocumentationSession({
+    title: "Case Note (Decision Engine)",
+    program: "Case Note",
+    sessionType: "case-note",
+    clientProfile: activeClientProfile,
+  });
+  const [decisionEngineTimeBlocks, setDecisionEngineTimeBlocks] = useState(defaultCaseNoteTemplate.timeBlocks);
+  const [decisionEngineRows, setDecisionEngineRows] = useState(defaultCaseNoteTemplate.rows);
   const workspaceStatus = documentationSession
     ? documentationSession.title
     : showCarePlan
       ? activeClientProfile?.carePlanHeader?.status ?? "Plan Approved"
       : activeClientProfile?.workspaceStatus ?? "Admitted";
-  const workspaceTab = documentationSession ? "Documentation" : showCarePlan ? "Care Plan" : "Home";
+  const workspaceTab = documentationSession ? "Documentation" : showCarePlan ? "Care Plan" : showDecisionEngine ? "Decision Engine" : "Home";
 
   useEffect(() => {
     if (!showIndividualSuggestions) {
       setHoveredClientSuggestionId(null);
     }
   }, [showIndividualSuggestions]);
+
+  useEffect(() => {
+    setDecisionEngineTimeBlocks(defaultCaseNoteTemplate.timeBlocks);
+    setDecisionEngineRows(defaultCaseNoteTemplate.rows);
+  }, [activeClientId]);
 
   const handleSelectClient = (clientId) => {
     setActiveClientId(clientId);
@@ -4836,7 +5881,18 @@ export default function App() {
   };
 
   const openDocumentation = (config) => {
-    setDocumentationSession(createDocumentationSession({ ...config, clientProfile: activeClientProfile }));
+    const timeBlocksOverride =
+      config.sessionType === "case-note" ? decisionEngineTimeBlocks : null;
+    const rowsOverride =
+      config.sessionType === "case-note" ? decisionEngineRows : null;
+    setDocumentationSession(
+      createDocumentationSession({
+        ...config,
+        clientProfile: activeClientProfile,
+        timeBlocksOverride,
+        rowsOverride,
+      })
+    );
   };
 
   const handleModuleSelect = (item) => {
@@ -4844,6 +5900,12 @@ export default function App() {
 
     if (item === "Care Plan") {
       setDocumentationSession(null);
+      return;
+    }
+
+    if (item === "Decision Engine") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
       return;
     }
 
@@ -4872,6 +5934,110 @@ export default function App() {
       title: "Daily Documentation",
       program: row.name,
     });
+  };
+
+  const handleAssignToCaseNote = (selectedNodesPayload = [], target = null, options = {}) => {
+    const selectedNodes = expandAssignedDecisionNodes(selectedNodesPayload, options);
+    if (!target) {
+      return;
+    }
+
+    const baseSession = createDocumentationSession({
+      title: "Case Note (Decision Engine)",
+      program: "Case Note",
+      sessionType: "case-note",
+      clientProfile: activeClientProfile,
+      timeBlocksOverride: decisionEngineTimeBlocks,
+      rowsOverride: decisionEngineRows,
+    });
+
+    // create readable bullet list of assigned questions and includeInFinal flags
+    const assignedText = selectedNodes
+      .map((n, i) => {
+        const flag = Boolean(n.includeInFinal);
+        return `${flag ? "[FINAL] " : ""}- ${n.question || n.title || n.id}`;
+      })
+      .join("\n");
+    const assignedNodeConfig = {
+      selectedDepth: options.selectedDepth || 1,
+      includeMode: options.includeMode || "selective-branch",
+      selectedLibrary: options.selectedLibrary || "",
+      targetType: target.type,
+      targetId: target.targetId,
+    };
+    const mappedAssignedNodes = selectedNodes.map((n) => ({
+      id: n.id,
+      title: n.title,
+      question: n.question,
+      choices: n.choices || [],
+      section: n.section,
+      library: n.library,
+      stepKey: n.stepKey,
+      includeInFinal: Boolean(n.includeInFinal),
+      assignmentDepth: n.assignmentDepth,
+      includeMode: n.includeMode,
+    }));
+
+    const session = {
+      ...baseSession,
+      title: baseSession.title,
+      // attach assigned nodes to the selected target and include metadata
+      timeBlocks: baseSession.timeBlocks.map((block) =>
+        target.type === "time-block" && block.id === target.targetId
+          ? {
+              ...block,
+              comment: "",
+              assignedNodes: mappedAssignedNodes,
+              assignedNodeSummary: assignedText,
+              assignedNodeConfig,
+            }
+          : block
+      ),
+      rows: baseSession.rows.map((row) =>
+        target.type === "case-note-row" && row.id === target.targetId
+          ? {
+              ...row,
+              comment: "",
+              assignedNodes: mappedAssignedNodes,
+              assignedNodeSummary: assignedText,
+              assignedNodeConfig,
+            }
+          : row
+      ),
+    };
+
+    setDocumentationSession(session);
+    setSelectedModule("Case Note");
+    setPendingDecisionAssignmentTarget(null);
+    setDecisionEngineTimeBlocks(session.timeBlocks.map(({ id, label }) => ({ id, label })));
+    setDecisionEngineRows(session.rows);
+
+    // persist assignment to server for reuse
+    try {
+      fetch(`${docuWraiteApiBaseUrl}/api/assignments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: activeClientId,
+          target,
+          assigned:
+            target.type === "time-block"
+              ? session.timeBlocks.find((entry) => entry.id === target.targetId)?.assignedNodes || []
+              : session.rows.find((entry) => entry.id === target.targetId)?.assignedNodes || [],
+          assignedNodeConfig,
+          updatedAt: new Date().toISOString(),
+        }),
+      }).catch(() => {});
+    } catch (e) {}
+  };
+
+  const openDecisionAssignmentTarget = (target) => {
+    if (!target) {
+      return;
+    }
+
+    setPendingDecisionAssignmentTarget(target);
+    setSelectedModule("Decision Engine");
   };
 
   return (
@@ -5014,7 +6180,26 @@ export default function App() {
                 </View>
               </View>
 
-              {showCarePlan ? (
+              {showDecisionEngine ? (
+                <DecisionEngineScreen
+                  key="decision-engine"
+                  isPhone={isPhone}
+                  onAssignToCaseNote={handleAssignToCaseNote}
+                  timeBlocks={
+                    documentationSession?.sessionType === "case-note"
+                      ? documentationSession.timeBlocks.map(({ id, label }) => ({ id, label }))
+                      : decisionEngineTimeBlocks
+                  }
+                  rowTargets={
+                    documentationSession?.sessionType === "case-note"
+                      ? documentationSession.rows
+                      : decisionEngineRows
+                  }
+                  initialTargetKey={pendingDecisionAssignmentTarget?.key || ""}
+                  onScheduleChange={setDecisionEngineTimeBlocks}
+                  onRowsChange={setDecisionEngineRows}
+                />
+              ) : showCarePlan ? (
                 <CarePlanDocument
                   key={activeClientId}
                   isPhone={isPhone}
@@ -5117,6 +6302,7 @@ const styles = StyleSheet.create({
   },
   screenContent: {
     paddingVertical: 16,
+    overflow: "visible",
   },
   page: {
     width: "100%",
@@ -5202,6 +6388,7 @@ const styles = StyleSheet.create({
     flex: 1,
     rowGap: 16,
     minWidth: 0,
+    overflow: "visible",
   },
   rightColumn: {
     rowGap: 16,
@@ -5273,7 +6460,512 @@ const styles = StyleSheet.create({
     color: colors.headerText,
     fontWeight: "700",
   },
-  profileHead: {
+  decisionCard: {
+    overflow: "visible",
+  },
+  decisionCardBody: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 16,
+    overflow: "visible",
+  },
+  decisionAssignForm: {
+    marginBottom: 18,
+    gap: 16,
+    overflow: "visible",
+    position: "relative",
+  },
+  decisionAssignFormActive: {
+    zIndex: 20,
+    elevation: 20,
+  },
+  decisionQuestionList: {
+    position: "relative",
+    zIndex: 1,
+  },
+  decisionFormField: {
+    alignItems: "flex-start",
+    gap: 8,
+    overflow: "visible",
+  },
+  decisionTargetRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    gap: 10,
+    overflow: "visible",
+  },
+  decisionFormFieldLibrary: {
+    zIndex: 6,
+  },
+  decisionFormFieldMode: {
+    zIndex: 5,
+  },
+  decisionFormFieldTarget: {
+    zIndex: 4,
+  },
+  decisionFormSplitRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 16,
+  },
+  decisionFormSplitRowPhone: {
+    flexDirection: "column",
+  },
+  decisionFormFieldGrow: {
+    flexShrink: 1,
+    gap: 8,
+    overflow: "visible",
+  },
+  decisionFormFieldDepth: {
+    flexShrink: 0,
+    gap: 8,
+    zIndex: 5,
+    overflow: "visible",
+  },
+  decisionFormFieldFullWidth: {
+    width: "100%",
+  },
+  decisionToolbar: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+    rowGap: 12,
+    marginBottom: 18,
+    alignItems: "flex-start",
+  },
+  decisionScheduleEditor: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 16,
+    backgroundColor: "#fcfbff",
+    marginBottom: 18,
+  },
+  decisionScheduleTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.headerText,
+    marginBottom: 6,
+  },
+  decisionScheduleLead: {
+    fontSize: 13,
+    color: colors.muted,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  decisionRowInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 12,
+  },
+  decisionScheduleBuilderRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    alignItems: "flex-end",
+    marginBottom: 12,
+  },
+  decisionWorkflowChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 14,
+  },
+  decisionBuilderActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  decisionBuilderListLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: colors.muted,
+    marginBottom: 10,
+  },
+  decisionScheduleChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  decisionScheduleChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    paddingLeft: 12,
+    paddingRight: 8,
+    paddingVertical: 8,
+    maxWidth: "100%",
+  },
+  decisionScheduleChipText: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  decisionScheduleChipAction: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff3f1",
+  },
+  decisionScheduleChipRemove: {
+    fontSize: 16,
+    color: colors.red,
+    fontWeight: "700",
+    lineHeight: 18,
+  },
+  decisionToolbarPhone: {
+    flexDirection: "column",
+  },
+  decisionToolbarGroup: {
+    minWidth: 140,
+    flex: 1,
+    gap: 8,
+  },
+  decisionToolbarGroupWide: {
+    minWidth: 240,
+    flex: 1.35,
+  },
+  decisionToolbarLabel: {
+    fontSize: 12,
+    color: colors.muted,
+    fontWeight: "700",
+    marginBottom: 8,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  decisionOptionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  decisionDropdownWrap: {
+    position: "relative",
+    zIndex: 3,
+    alignSelf: "flex-start",
+    overflow: "visible",
+  },
+  decisionDropdownWrapOpen: {
+    zIndex: 40,
+  },
+  decisionDropdownLibrary: {
+    width: 196,
+    maxWidth: "100%",
+  },
+  decisionDropdownMode: {
+    width: 168,
+    maxWidth: "100%",
+  },
+  decisionDropdownDepth: {
+    width: 64,
+  },
+  decisionDropdownTargetType: {
+    width: 140,
+    maxWidth: "100%",
+  },
+  decisionDropdownTargetValue: {
+    width: 200,
+    maxWidth: "100%",
+  },
+  decisionDropdown: {
+    minHeight: 36,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  decisionDropdownValue: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.headerText,
+  },
+  decisionDropdownPlaceholder: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 13,
+    color: colors.muted,
+  },
+  decisionDropdownModalRoot: {
+    flex: 1,
+  },
+  decisionDropdownBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
+  },
+  decisionDropdownMenuPortal: {
+    position: "absolute",
+    borderWidth: 1,
+    borderColor: "#e3d8fb",
+    borderRadius: 6,
+    backgroundColor: "#ffffff",
+    shadowColor: "#2f184f",
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 24,
+    overflow: "hidden",
+    zIndex: 2,
+  },
+  decisionDropdownMenu: {
+    position: "absolute",
+    top: 38,
+    left: 0,
+    right: 0,
+    borderWidth: 1,
+    borderColor: "#e3d8fb",
+    borderRadius: 6,
+    backgroundColor: "#ffffff",
+    shadowColor: "#2f184f",
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 14,
+    overflow: "hidden",
+    zIndex: 50,
+  },
+  decisionDropdownMenuScroll: {
+    maxHeight: 260,
+  },
+  decisionDropdownOptionPressable: {
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1ebfc",
+    gap: 2,
+  },
+  decisionDropdownOptionPressableLast: {
+    borderBottomWidth: 0,
+  },
+  decisionDropdownOptionLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  decisionDropdownOptionMeta: {
+    fontSize: 12,
+    color: colors.muted,
+  },
+  decisionOptionButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    minHeight: 40,
+    justifyContent: "center",
+  },
+  decisionTargetTypeButton: {
+    minWidth: 108,
+  },
+  decisionOptionButtonActive: {
+    backgroundColor: colors.topPurple,
+    borderColor: colors.topPurple,
+  },
+  decisionOptionText: {
+    fontSize: 13,
+    color: colors.headerText,
+    fontWeight: "700",
+  },
+  decisionOptionTextActive: {
+    color: "#ffffff",
+  },
+  decisionSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  decisionSummaryText: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  decisionSectionCard: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    marginBottom: 14,
+    overflow: "hidden",
+  },
+  decisionSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    backgroundColor: "#f6f0ff",
+  },
+  decisionSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  decisionSectionMeta: {
+    fontSize: 13,
+    color: colors.muted,
+  },
+  decisionNodeRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  decisionNodeCheckbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    marginTop: 4,
+  },
+  decisionNodeCheckboxActive: {
+    borderColor: colors.topPurple,
+    backgroundColor: colors.topPurple,
+  },
+  decisionNodeCheckboxLabel: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  decisionNodeContent: {
+    flex: 1,
+  },
+  decisionNodeTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 3,
+  },
+  decisionNodeQuestion: {
+    fontSize: 13,
+    color: colors.muted,
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  decisionConditionList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  decisionConditionBadge: {
+    fontSize: 11,
+    color: colors.link,
+    backgroundColor: "#efe6ff",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  decisionAssignRow: {
+    paddingHorizontal: 0,
+    paddingTop: 4,
+    paddingBottom: 2,
+    alignItems: "flex-end",
+  },
+  decisionAssignButton: {
+    backgroundColor: colors.topPurple,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    minHeight: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  decisionAssignButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  finalDraftChoiceRow: {
+    marginTop: 12,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+  },
+  finalDraftChoiceLabel: {
+    fontSize: 13,
+    color: colors.muted,
+    marginBottom: 8,
+    fontWeight: "700",
+  },
+  finalDraftChoiceButtons: {
+    flexDirection: "row",
+    columnGap: 8,
+  },
+  finalDraftButton: {
+    backgroundColor: colors.topPurple,
+  },
+  finalDraftCancel: {
+    backgroundColor: colors.border,
+  },
+  finalDraftPreviewCard: {
+    backgroundColor: "#fffefc",
+    borderWidth: 1,
+    borderColor: "#e8d9c8",
+    borderRadius: 8,
+    padding: 14,
+    marginHorizontal: 14,
+    marginBottom: 14,
+  },
+  finalDraftPreviewTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.headerText,
+    marginBottom: 10,
+  },
+  finalDraftPreviewBody: {
+    maxHeight: 180,
+    marginBottom: 12,
+  },
+  finalDraftPreviewText: {
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  finalDraftPreviewActions: {
+    flexDirection: "row",
+    columnGap: 8,
+  },
+  finalDraftStatusText: {
+    marginTop: 10,
+    color: colors.link,
+    fontSize: 12,
+  },
+  finalDraftErrorText: {
+    marginTop: 10,
+    color: colors.red,
+    fontSize: 12,
+  },
+  carePlanShell: {
     rowGap: 10,
   },
   nameRow: {

@@ -18,6 +18,19 @@ const openai = process.env.OPENAI_API_KEY
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
+const fs = require("fs").promises;
+
+app.post("/api/assignments", async (req, res) => {
+  try {
+    const data = req.body || {};
+    const outPath = path.join(__dirname, "..", "decisionAlgo", "assignments.json");
+    await fs.writeFile(outPath, JSON.stringify(data, null, 2), "utf8");
+    res.json({ ok: true, path: outPath });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,

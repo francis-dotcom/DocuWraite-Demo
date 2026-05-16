@@ -9,6 +9,11 @@ export const CLIENT_ROSTER = [
     displayName: "Mark Brent",
     searchTerms: ["mark", "brent", "mark brent"],
   },
+  {
+    id: "elias-brian",
+    displayName: "Elias Brian",
+    searchTerms: ["elias", "brian", "elias brian"],
+  },
 ];
 
 export function searchClients(query = "") {
@@ -28,6 +33,9 @@ export function searchClients(query = "") {
 export function getClientById(clientId) {
   if (clientId === "mark-brent") {
     return getMarkBrentProfile();
+  }
+  if (clientId === "elias-brian") {
+    return getEliasBrianProfile();
   }
   return null;
 }
@@ -413,6 +421,195 @@ export function getMarkBrentProfile() {
   };
 }
 
+export function getEliasBrianProfile() {
+  const displayName = "Elias Brian";
+
+  const documentationTimeBlocks = [{ id: "10-11", label: "10am–11am" }];
+
+  const timeBlockMappings = {
+    "10am–11am": {
+      prompt: `Document birthday outing support, fatigue monitoring, and return-home planning for ${displayName} during 10am–11am.`,
+      source: "Shift Timeline / Birthday Community Outing",
+      workflowId: "community-outing",
+    },
+  };
+
+  const riskCards = [
+    {
+      title: "Fatigue During Community Activity",
+      severity: "High",
+      notes:
+        "Elias Brian becomes visibly tired during longer outings and may need a seated break or early transition back home.",
+      guidance:
+        "Document rest breaks, reduced pacing, wheelchair use if offered, and the observed response after recovery support.",
+    },
+    {
+      title: "Fall Risk During Transfers",
+      severity: "Medium",
+      notes:
+        "Elias Brian needs close supervision during curb steps, van transfers, and uneven walking surfaces.",
+      guidance:
+        "Use line-of-sight support and document mobility assistance during all transitions.",
+    },
+  ];
+
+  const actionPlans = [
+    {
+      title: "Action Plan 1",
+      outcome:
+        "Elias Brian will participate in community celebrations with fatigue-aware pacing, safe transitions, and clear handoff documentation.",
+      issue:
+        "Extended outings can lead to fatigue and reduced participation unless staff pace the event and support transitions.",
+      steps: [
+        {
+          step: "Elias Brian receives rest-break prompting and pacing support during community activities longer than 30 minutes.",
+          responsible: "Home: Elias Brian and DSP\nOther: Elias Brian and DSP",
+          frequency: "As needed",
+          record: "Case note",
+          notes: "Document what recovery support was offered and whether participation improved afterward.",
+        },
+      ],
+    },
+  ];
+
+  return {
+    id: "elias-brian",
+    displayName,
+    carePlanHeader: {
+      fullName: "ELIAS BRIAN",
+      medicaidId: "5E117420882",
+      dob: "08/05/1996",
+      oversightId: "0000045219 (DIDD-TN)",
+      guardian: "Monica Brian",
+      planStart: "01/01/2026",
+      planEnd: "12/31/2026",
+      status: "Approved",
+    },
+    aboutMeCards: [
+      {
+        title: "What people admire about me",
+        body:
+          "Elias Brian is upbeat, social, and enjoys simple celebrations. He responds well to calm encouragement and likes being included in group activities.",
+      },
+      {
+        title: "What is important to me",
+        body:
+          "Elias Brian enjoys birthday events, music, short community trips, and returning home before he becomes overly tired.",
+      },
+      {
+        title: "How best to support me",
+        body:
+          "Support Elias Brian with safe mobility supervision, fatigue checks, offered rest breaks, and clear transition planning when community activity runs long.",
+      },
+    ],
+    riskCards,
+    supportCards: [
+      {
+        title: "Supports at Home",
+        body:
+          "Elias Brian lives in a staffed home and benefits from structured routines, mobility supervision, and calm verbal prompting when tired.",
+      },
+      {
+        title: "Supports in Community",
+        body:
+          "Community support focuses on pacing, safe transfers, wheelchair availability when needed, and return-home transitions when fatigue increases.",
+      },
+    ],
+    serviceCards: [
+      {
+        title: "Community Living Supports",
+        provider: "Summit Support Services",
+        funding: "CAC - Comprehensive Aggregate Cap",
+        status: "Approved",
+        dateRange: "01/01/2026 - 12/31/2026",
+        detail: "Short-duration community outings with mobility supervision and transition support.",
+      },
+    ],
+    rightsCards: [
+      {
+        title: "Decision Making & Rights",
+        body:
+          "Elias Brian chooses preferred outings and activities when options are presented simply, with guardian support for major medical decisions.",
+      },
+    ],
+    activityCards: [
+      {
+        title: "Current community activities",
+        body:
+          "Birthday lunches, music outings, and short celebrations with fatigue-aware pacing and early return options.",
+      },
+    ],
+    actionPlans,
+    documentationTimeBlocks,
+    timeBlockMappings,
+    ispFormDescriptions: [
+      `Measurable outcome: ${displayName} participates in a one-hour community activity with documented pacing support and observed response.`,
+    ],
+    supplementalDocumentationItems: [
+      `${displayName} attended a birthday outing with staff support, fatigue monitoring, and safe transition planning.`,
+    ],
+    previousShiftSnapshot: {
+      timeBlocks: [
+        {
+          label: "10am–11am",
+          score: "Partial Assist",
+          comment:
+            "Birthday outing completed with mobility supervision, offered rest break, and calm return-home transition when fatigue increased.",
+        },
+      ],
+      rows: [
+        {
+          score: "Completed",
+          comment:
+            "Community celebration note completed with observed response, pacing support, and transition details.",
+        },
+      ],
+      shiftSummary:
+        "Elias Brian enjoyed the activity, accepted pacing support, and returned home safely after fatigue was observed.",
+    },
+    shiftIntelligenceData: {
+      overdue: ["Case note review signature"],
+      activeRisks: riskCards.map((risk) => `${risk.title} (${risk.severity})`),
+      appointments: ["Birthday lunch outing 10:15 AM"],
+      medicationsDue: ["Midday medication reminder 11:15 AM"],
+      alerts: ["Monitor for fatigue during outing", "Wheelchair available if rest support needed"],
+      incompleteGoals: actionPlans.map((plan) => plan.outcome),
+    },
+    documentChecklist: ["Community outing plan on file", "Guardian birthday outing approval signed"],
+    documentFiles: ["Community Outing Support Plan.pdf", "Celebration Approval.pdf"],
+    participants: [
+      { name: "Elias Brian", relationship: "Individual", copy: "Yes" },
+      { name: "Monica Brian", relationship: "Guardian", copy: "Yes" },
+    ],
+    signatureLogs: ["01/02/2026 Guardian approval on file"],
+    carePlanTextPages: [
+      {
+        page: 1,
+        text:
+          "Elias Brian participates best in short one-hour community activities with pacing support, safe mobility supervision, and early transition home when fatigue increases.",
+      },
+    ],
+    ispRows: [
+      {
+        name: "Daily Documentation",
+        startDate: "01/01/2026",
+        endDate: "12/31/2026",
+        frequency: "Daily",
+        schedule: "10am-11am",
+        ispData: "Open",
+      },
+    ],
+    workspaceStatus: "One-Hour Demo Profile",
+    caseNoteEntries: [
+      {
+        description: `Document the one-hour birthday outing, fatigue recovery support, and return-home transition for ${displayName}.`,
+        workflowId: "community-outing",
+        theme: "outing",
+      },
+    ],
+  };
+}
+
 export function buildMeasurableDocumentationItems(clientProfile) {
   const displayName = clientProfile.displayName;
   const items = clientProfile.ispFormDescriptions.map((description, index) => ({
@@ -462,7 +659,7 @@ export function buildMeasurableDocumentationItems(clientProfile) {
 
 export function buildCaseNoteDocumentationItems(clientProfile) {
   const displayName = clientProfile.displayName;
-  const entries = [
+  const entries = clientProfile.caseNoteEntries || [
     {
       description: `Document target behavior, sensory regulation, and intervention implemented during the shift for ${displayName}.`,
       workflowId: "behavior-support",
