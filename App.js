@@ -2402,97 +2402,52 @@ function DecisionDropdown({
   onChange,
   fieldStyle,
 }) {
-  const anchorRef = useRef(null);
-  const [anchorRect, setAnchorRect] = useState(null);
   const isOpen = activeDropdown === dropdownId;
 
-  const closeDropdown = useCallback(() => {
-    onToggleDropdown(null);
-  }, [onToggleDropdown]);
-
-  const openDropdown = useCallback(() => {
-    onToggleDropdown(dropdownId);
-  }, [dropdownId, onToggleDropdown]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setAnchorRect(null);
-      return undefined;
-    }
-
-    const measureAnchor = () => {
-      anchorRef.current?.measureInWindow((x, y, width, height) => {
-        setAnchorRect({ x, y, width, height });
-      });
-    };
-
-    const frame = requestAnimationFrame(measureAnchor);
-    return () => cancelAnimationFrame(frame);
-  }, [isOpen, options.length]);
-
-  const renderMenuOptions = () =>
-    options.map((option, index) => (
-      <Pressable
-        key={option.value}
-        style={[
-          styles.decisionDropdownOptionPressable,
-          index === options.length - 1 && styles.decisionDropdownOptionPressableLast,
-        ]}
-        onPress={() => {
-          onChange(option.value);
-          closeDropdown();
-        }}
-      >
-        <Text style={styles.decisionDropdownOptionLabel}>{option.label}</Text>
-        {option.meta ? <Text style={styles.decisionDropdownOptionMeta}>{option.meta}</Text> : null}
-      </Pressable>
-    ));
-
   return (
-    <>
-      <View
-        ref={anchorRef}
-        collapsable={false}
-        style={[
-          styles.decisionDropdownWrap,
-          fieldStyle,
-          isOpen && styles.decisionDropdownWrapOpen,
-        ]}
+    <View
+      style={[
+        styles.decisionDropdownWrap,
+        fieldStyle,
+        isOpen && styles.decisionDropdownWrapOpen,
+      ]}
+    >
+      <Pressable
+        style={styles.decisionDropdown}
+        onPress={() => onToggleDropdown(isOpen ? null : dropdownId)}
       >
-        <Pressable style={styles.decisionDropdown} onPress={() => (isOpen ? closeDropdown() : openDropdown())}>
-          <Text
-            style={value ? styles.decisionDropdownValue : styles.decisionDropdownPlaceholder}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {value || placeholder}
-          </Text>
-          <Feather name="chevron-down" size={14} color="#6f5a9f" />
-        </Pressable>
-      </View>
-
-      {isOpen && anchorRect ? (
-        <Modal transparent visible animationType="none" onRequestClose={closeDropdown}>
-          <View style={styles.decisionDropdownModalRoot}>
-            <Pressable style={styles.decisionDropdownBackdrop} onPress={closeDropdown} />
-            <View
-              style={[
-                styles.decisionDropdownMenuPortal,
-                {
-                  top: anchorRect.y + anchorRect.height + 4,
-                  left: anchorRect.x,
-                  width: anchorRect.width,
-                },
-              ]}
-            >
-              <ScrollView nestedScrollEnabled style={styles.decisionDropdownMenuScroll}>
-                {renderMenuOptions()}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
+        <Text
+          style={value ? styles.decisionDropdownValue : styles.decisionDropdownPlaceholder}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {value || placeholder}
+        </Text>
+        <Feather name="chevron-down" size={14} color="#6f5a9f" />
+      </Pressable>
+      {isOpen ? (
+        <View style={styles.decisionDropdownMenu}>
+          <ScrollView nestedScrollEnabled style={styles.decisionDropdownMenuScroll}>
+            {options.map((option, index) => (
+              <Pressable
+                key={option.value}
+                style={[
+                  styles.decisionDropdownOptionPressable,
+                  index === options.length - 1 && styles.decisionDropdownOptionPressableLast,
+                ]}
+                onPress={() => {
+                  onChange(option.value);
+                  onToggleDropdown(null);
+                }}
+              >
+                <Text style={styles.decisionDropdownOptionLabel}>{option.label}</Text>
+                {option.meta ? <Text style={styles.decisionDropdownOptionMeta}>{option.meta}</Text> : null}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
       ) : null}
-    </>
+    </View>
   );
 }
 
@@ -4810,6 +4765,7 @@ function DecisionEngineScreen({
   const [selectedDepth, setSelectedDepth] = useState(2);
   const [includeMode, setIncludeMode] = useState("full-branch");
   const [activeDecisionDropdown, setActiveDecisionDropdown] = useState(null);
+  const [expandedDecisionPanel, setExpandedDecisionPanel] = useState(null);
   const [targetType, setTargetType] = useState(initialTargetKey.startsWith("row:") ? "case-note-row" : "time-block");
   const [checkedNodes, setCheckedNodes] = useState({});
   const [includeInFinalMap, setIncludeInFinalMap] = useState({});
@@ -4864,12 +4820,10 @@ function DecisionEngineScreen({
   const libraryDropdownOptions = decisionNodes.libraries.map((lib) => ({
     value: lib.library,
     label: lib.library,
-    meta: `${lib.nodes.length} nodes`,
   }));
   const targetDropdownOptions = scopedTargets.map((target) => ({
     value: target.key,
     label: target.type === "time-block" ? target.label : `Row: ${target.label}`,
-    meta: target.type === "time-block" ? "Timeline block" : "Case-note row",
   }));
 
   useEffect(() => {
@@ -6711,24 +6665,6 @@ const styles = StyleSheet.create({
   },
   decisionDropdownModalRoot: {
     flex: 1,
-  },
-  decisionDropdownBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "transparent",
-  },
-  decisionDropdownMenuPortal: {
-    position: "absolute",
-    borderWidth: 1,
-    borderColor: "#e3d8fb",
-    borderRadius: 6,
-    backgroundColor: "#ffffff",
-    shadowColor: "#2f184f",
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 24,
-    overflow: "hidden",
-    zIndex: 2,
   },
   decisionDropdownMenu: {
     position: "absolute",
