@@ -2403,9 +2403,28 @@ function DecisionDropdown({
   fieldStyle,
 }) {
   const isOpen = activeDropdown === dropdownId;
+  const containerRef = useRef(null);
+  const [menuFrame, setMenuFrame] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen || !containerRef.current?.measureInWindow) {
+      return;
+    }
+
+    containerRef.current.measureInWindow((x, y, width, height) => {
+      setMenuFrame({
+        x,
+        y,
+        width,
+        height,
+      });
+    });
+  }, [isOpen]);
 
   return (
     <View
+      ref={containerRef}
+      collapsable={false}
       style={[
         styles.decisionDropdownWrap,
         fieldStyle,
@@ -2426,26 +2445,43 @@ function DecisionDropdown({
         <Feather name="chevron-down" size={14} color="#6f5a9f" />
       </Pressable>
       {isOpen ? (
-        <View style={styles.decisionDropdownMenu}>
-          <ScrollView nestedScrollEnabled style={styles.decisionDropdownMenuScroll}>
-            {options.map((option, index) => (
-              <Pressable
-                key={option.value}
+        <Modal transparent visible animationType="none" onRequestClose={() => onToggleDropdown(null)}>
+          <View style={styles.decisionDropdownModalRoot}>
+            <Pressable style={styles.decisionDropdownModalBackdrop} onPress={() => onToggleDropdown(null)} />
+            {menuFrame ? (
+              <View
                 style={[
-                  styles.decisionDropdownOptionPressable,
-                  index === options.length - 1 && styles.decisionDropdownOptionPressableLast,
+                  styles.decisionDropdownMenu,
+                  {
+                    position: "absolute",
+                    top: menuFrame.y + menuFrame.height + 6,
+                    left: menuFrame.x,
+                    width: menuFrame.width,
+                  },
                 ]}
-                onPress={() => {
-                  onChange(option.value);
-                  onToggleDropdown(null);
-                }}
               >
-                <Text style={styles.decisionDropdownOptionLabel}>{option.label}</Text>
-                {option.meta ? <Text style={styles.decisionDropdownOptionMeta}>{option.meta}</Text> : null}
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
+                <ScrollView nestedScrollEnabled style={styles.decisionDropdownMenuScroll}>
+                  {options.map((option, index) => (
+                    <Pressable
+                      key={option.value}
+                      style={[
+                        styles.decisionDropdownOptionPressable,
+                        index === options.length - 1 && styles.decisionDropdownOptionPressableLast,
+                      ]}
+                      onPress={() => {
+                        onChange(option.value);
+                        onToggleDropdown(null);
+                      }}
+                    >
+                      <Text style={styles.decisionDropdownOptionLabel}>{option.label}</Text>
+                      {option.meta ? <Text style={styles.decisionDropdownOptionMeta}>{option.meta}</Text> : null}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+          </View>
+        </Modal>
       ) : null}
     </View>
   );
@@ -5995,9 +6031,7 @@ export default function App() {
   const [individualQuery, setIndividualQuery] = useState("Mary Bet");
   const [showIndividualSuggestions, setShowIndividualSuggestions] = useState(false);
   const [hoveredClientSuggestionId, setHoveredClientSuggestionId] = useState(null);
-  const [switchSuggestionsLayout, setSwitchSuggestionsLayout] = useState(null);
   const [pendingDecisionAssignmentTarget, setPendingDecisionAssignmentTarget] = useState(null);
-  const switchBoxRef = useRef(null);
   const activeClientProfile =
     activeClientId === "mary-bet" ? null : getClientById(activeClientId) || getMarkBrentProfile();
   const activeClientPhoto = activeClientId === "mark-brent" ? markBrentProfilePhoto : maryBetProfilePhoto;
@@ -6038,30 +6072,6 @@ export default function App() {
       setHoveredClientSuggestionId(null);
     }
   }, [showIndividualSuggestions]);
-
-  const updateSwitchSuggestionsLayout = useCallback(() => {
-    const node = switchBoxRef.current;
-    if (!node?.measureInWindow) {
-      return;
-    }
-
-    node.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-      setSwitchSuggestionsLayout({
-        x,
-        y: y + measuredHeight + 6,
-        width: measuredWidth,
-      });
-    });
-  }, []);
-
-  const openIndividualSuggestions = useCallback(() => {
-    updateSwitchSuggestionsLayout();
-    setShowIndividualSuggestions(true);
-  }, [updateSwitchSuggestionsLayout]);
-
-  const closeIndividualSuggestions = useCallback(() => {
-    setShowIndividualSuggestions(false);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -6223,7 +6233,7 @@ export default function App() {
     setActiveClientId(clientId);
     const selectedClient = CLIENT_ROSTER.find((client) => client.id === clientId);
     setIndividualQuery(selectedClient?.displayName ?? "");
-    closeIndividualSuggestions();
+    setShowIndividualSuggestions(false);
     setSelectedModule(null);
   };
 
@@ -6493,20 +6503,19 @@ export default function App() {
               <View style={styles.profileHead}>
                 <View style={[styles.nameRow, isPhone && styles.nameRowPhone]}>
                   <Text style={[styles.name, { fontSize: nameSize }]}>{activeDisplayName}</Text>
-                  <View
-                    ref={switchBoxRef}
-                    onLayout={updateSwitchSuggestionsLayout}
-                    style={[styles.switchBox, isPhone && styles.switchBoxPhone]}
-                  >
+                  <View style={[styles.switchBox, isPhone && styles.switchBoxPhone]}>
                     <View style={styles.switchInputRow}>
                       <TextInput
                         style={styles.switchInput}
                         value={individualQuery}
                         onChangeText={(text) => {
                           setIndividualQuery(text);
-                          openIndividualSuggestions();
+                          setShowIndividualSuggestions(true);
                         }}
-                        onFocus={openIndividualSuggestions}
+                        onFocus={() => setShowIndividualSuggestions(true)}
+                        onBlur={() => {
+                          setTimeout(() => setShowIndividualSuggestions(false), 150);
+                        }}
                         onSubmitEditing={handleGoToClient}
                         placeholder="Switch Individual"
                         placeholderTextColor={colors.placeholder}
@@ -6515,6 +6524,27 @@ export default function App() {
                         <Feather name="arrow-right-circle" size={18} color="#ffffff" />
                       </Pressable>
                     </View>
+                    {showIndividualSuggestions && clientSuggestions.length > 0 ? (
+                      <View style={styles.switchSuggestions}>
+                        {clientSuggestions.map((client) => (
+                          <Pressable
+                            key={client.id}
+                            style={[
+                              styles.switchSuggestionRow,
+                              hoveredClientSuggestionId === client.id && styles.switchSuggestionRowHover,
+                            ]}
+                            onHoverIn={() => setHoveredClientSuggestionId(client.id)}
+                            onHoverOut={() => setHoveredClientSuggestionId(null)}
+                            onPressIn={() => handleChooseClientSuggestion(client)}
+                            onPress={() => handleChooseClientSuggestion(client)}
+                          >
+                            <View style={styles.switchSuggestionHitArea}>
+                              <Text style={styles.switchSuggestionText}>{client.displayName}</Text>
+                            </View>
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
                 </View>
                 <Text style={styles.admitted}>{workspaceStatus}</Text>
@@ -6639,45 +6669,6 @@ export default function App() {
           <Text style={styles.footer}>ogigrid</Text>
         </View>
       </ScrollView>
-      <Modal
-        animationType="fade"
-        transparent
-        visible={showIndividualSuggestions && clientSuggestions.length > 0}
-        onRequestClose={closeIndividualSuggestions}
-      >
-        <View style={styles.switchSuggestionsModalRoot}>
-          <Pressable style={styles.switchSuggestionsOverlay} onPress={closeIndividualSuggestions} />
-          {switchSuggestionsLayout ? (
-            <View
-              style={[
-                styles.switchSuggestions,
-                {
-                  top: switchSuggestionsLayout.y,
-                  left: switchSuggestionsLayout.x,
-                  width: switchSuggestionsLayout.width,
-                },
-              ]}
-            >
-              {clientSuggestions.map((client) => (
-                <Pressable
-                  key={client.id}
-                  style={[
-                    styles.switchSuggestionRow,
-                    hoveredClientSuggestionId === client.id && styles.switchSuggestionRowHover,
-                  ]}
-                  onHoverIn={() => setHoveredClientSuggestionId(client.id)}
-                  onHoverOut={() => setHoveredClientSuggestionId(null)}
-                  onPress={() => handleChooseClientSuggestion(client)}
-                >
-                  <View style={styles.switchSuggestionHitArea}>
-                    <Text style={styles.switchSuggestionText}>{client.displayName}</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -7208,12 +7199,11 @@ const styles = StyleSheet.create({
   decisionDropdownModalRoot: {
     flex: 1,
   },
+  decisionDropdownModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
+  },
   decisionDropdownMenu: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
-    marginTop: 6,
     borderWidth: 1,
     borderColor: "#e3d8fb",
     borderRadius: 6,
@@ -7472,11 +7462,19 @@ const styles = StyleSheet.create({
   carePlanShell: {
     rowGap: 10,
   },
+  profileHead: {
+    position: "relative",
+    zIndex: 60,
+    overflow: "visible",
+  },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     columnGap: 12,
+    position: "relative",
+    zIndex: 60,
+    overflow: "visible",
   },
   nameRowPhone: {
     flexDirection: "column",
@@ -7529,6 +7527,9 @@ const styles = StyleSheet.create({
   },
   switchSuggestions: {
     position: "absolute",
+    top: 40,
+    left: 0,
+    right: 0,
     borderWidth: 1,
     borderColor: colors.lightBorder,
     borderRadius: 4,
@@ -7542,13 +7543,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     maxHeight: 280,
     ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
-  },
-  switchSuggestionsModalRoot: {
-    flex: 1,
-  },
-  switchSuggestionsOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(49, 36, 71, 0.08)",
   },
   switchSuggestionRow: {
     paddingHorizontal: 12,
