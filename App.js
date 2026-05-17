@@ -1228,9 +1228,9 @@ function getMissingDecisionChoiceNodeKeys(selectedKeys = [], selections = {}) {
 
 function createAssignedWorkflowSteps(assignedNodes = []) {
   const steps = assignedNodes
-    .filter((node) => node?.question)
+    .filter((node) => node?.question || getDecisionNodeDisplayQuestion(node))
     .map((node) => {
-      const displayQuestion = getDecisionNodeDisplayQuestion(node);
+      const displayQuestion = getDecisionNodeDisplayQuestion(node) || node.question;
       const suggestions = normalizeDecisionNodeChoices(
         node.selectedChoices?.length ? node.selectedChoices : node.choices || []
       );
@@ -1506,6 +1506,8 @@ function applyFinalizedAssignmentsToDocumentationSession(session, finalizedAssig
       return {
         ...block,
         comment: "",
+        workflowId: "assigned-nodes",
+        assignedLibraries: assignmentGroup.map((assignment) => assignment.selectedLibrary).filter(Boolean),
         ...buildTargetAssignmentDataFromGroup(assignmentGroup),
       };
     }),
@@ -1518,6 +1520,8 @@ function applyFinalizedAssignmentsToDocumentationSession(session, finalizedAssig
       return {
         ...row,
         comment: "",
+        workflowId: "assigned-nodes",
+        assignedLibraries: assignmentGroup.map((assignment) => assignment.selectedLibrary).filter(Boolean),
         ...buildTargetAssignmentDataFromGroup(assignmentGroup),
       };
     }),
@@ -3845,7 +3849,14 @@ function DocumentationCommentField({
             <Text style={styles.decisionAssignedSummaryText}>{fieldContext.assignedNodeSummary}</Text>
           ) : null}
           <Text style={styles.decisionAssignedSummaryHint}>
-            Tap the help bubble to answer your assigned library questions only — not the block category workflow.
+            Tap the help bubble to answer your assigned library questions only — for example, &quot;Which ADL supports were provided?&quot;
+          </Text>
+        </View>
+      ) : fieldContext.fieldKind === "time" ? (
+        <View style={styles.decisionMissingAssignmentCard}>
+          <Text style={styles.decisionMissingAssignmentTitle}>No assigned library questions yet</Text>
+          <Text style={styles.decisionMissingAssignmentText}>
+            This block is still using Behavior guidance from the schedule builder. Lock baseplan (or another library) to this time block in Decision Engine, then tap Final Assign to Case Note.
           </Text>
         </View>
       ) : null}
@@ -4249,6 +4260,20 @@ function DocumentationEntryScreen({
     if (!assist) {
       return;
     }
+
+    const assignedNodes = assist.fieldContext?.assignedNodes || [];
+    if (assignedNodes.length) {
+      const localWorkflowSteps = getAssignedWorkflowStepsForField(assist.fieldContext || {});
+      assist = {
+        ...assist,
+        workflowId: "assigned-nodes",
+        title: getWorkflowEyebrow("assigned-nodes"),
+        localWorkflowSteps,
+        message:
+          "DocuWraite will ask only the questions you locked from the Decision Engine library for this block.",
+      };
+    }
+
     if (assist.mode !== "workflow") {
       const dismissKey = `${assist.fieldId}:${assist.id}`;
       if (docuWraiteDismissed.current.has(dismissKey)) {
@@ -4307,7 +4332,19 @@ function DocumentationEntryScreen({
       return false;
     }
 
-    const useAssignedWorkflow = workflowId === "assigned-nodes" && localWorkflowSteps.length > 0;
+    const useAssignedWorkflow =
+      workflowId === "assigned-nodes" && localWorkflowSteps.some((step) => step.kind !== "draft");
+
+    if ((fieldContext.assignedNodes || []).length && !useAssignedWorkflow) {
+      const alertMessage =
+        "Assigned questions did not load for this block. Go to Decision Engine, lock your library to this time block, then tap Final Assign to Case Note.";
+      if (Platform.OS === "web" && typeof window !== "undefined" && typeof window.alert === "function") {
+        window.alert(alertMessage);
+      } else {
+        Alert.alert("Assigned questions not loaded", alertMessage, [{ text: "OK" }]);
+      }
+      return false;
+    }
 
     showDocuWraiteAssist({
       fieldId,
@@ -4549,6 +4586,16 @@ function DocumentationEntryScreen({
       docuWraiteWorkflow?.fieldId === fieldId ||
       (docuWraiteAssist?.fieldId === fieldId && docuWraiteExpanded),
     onHelpBubblePress: () => {
+      const hasAssignedWork = fieldHasAssignedDecisionWorkflow(fieldContext);
+
+      if (hasAssignedWork) {
+        setDocuWraiteAssist(null);
+        setDocuWraiteWorkflow(null);
+        setDocuWraiteExpanded(false);
+        openDocuWraiteWorkflow(fieldId, fieldContext, value);
+        return;
+      }
+
       if (docuWraiteWorkflow?.fieldId === fieldId || docuWraiteAssist?.fieldId === fieldId) {
         setDocuWraiteExpanded((current) => !current);
         return;
@@ -8589,6 +8636,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     color: "#9d174d",
+  },
+  decisionMissingAssignmentCard: {
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#fff7ed",
+    borderWidth: 1,
+    borderColor: "#fdba74",
+  },
+  decisionMissingAssignmentTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "#9a3412",
+    marginBottom: 4,
+  },
+  decisionMissingAssignmentText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#7c2d12",
   },
   decisionScheduleBuilderRow: {
     flexDirection: "row",
