@@ -2374,7 +2374,14 @@ function runDecisionEngineConfirmAction({
 }
 
 function getDecisionLibraryDisplayName(librarySlug = "") {
-  return DECISION_LIBRARY_DISPLAY_NAMES[librarySlug] || librarySlug || "Library";
+  const slug = String(librarySlug || "").trim();
+  if (!slug) {
+    return "Library";
+  }
+  if (DECISION_LIBRARY_DISPLAY_NAMES[slug]) {
+    return DECISION_LIBRARY_DISPLAY_NAMES[slug];
+  }
+  return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
 function getDecisionBranchOptions(nodes = []) {
@@ -6655,6 +6662,8 @@ const DECISION_TARGET_TYPE_OPTIONS = [
   { label: "Case-note row", value: "case-note-row" },
 ];
 
+const PROMPT_POPOVER_IDLE_MS = 10000;
+
 function getDecisionOptionLabel(options = [], value = "") {
   return options.find((option) => String(option.value) === String(value))?.label || "";
 }
@@ -6730,6 +6739,11 @@ function DecisionEngineScreen({
   const rowWorkflowTouchedRef = useRef(false);
   const blockPromptRequestRef = useRef(0);
   const rowPromptRequestRef = useRef(0);
+  const blockPromptEngagedRef = useRef(false);
+  const rowPromptEngagedRef = useRef(false);
+  const blockPromptIdleTimerRef = useRef(null);
+  const rowPromptIdleTimerRef = useRef(null);
+  const suppressBuilderHydrationRef = useRef({ block: false, row: false });
   const workflowOptions = [
     { workflowId: "behavior-support", label: "Behavior", theme: "behavior", promptCategory: "behavior" },
     { workflowId: "morning-adl", label: "ADL", theme: "hygiene", promptCategory: "adl" },
@@ -6784,12 +6798,16 @@ function DecisionEngineScreen({
     if (seed.blockDescription) {
       const workflowId = seed.blockWorkflowId || "behavior-support";
       setNewBlockWorkflowId(workflowId);
-      setBlockDraftsByWorkflow((prev) => {
-        if (prev[workflowId] === seed.blockDescription) {
-          return prev;
-        }
-        return { ...prev, [workflowId]: seed.blockDescription };
-      });
+      if (suppressBuilderHydrationRef.current.block) {
+        suppressBuilderHydrationRef.current.block = false;
+      } else {
+        setBlockDraftsByWorkflow((prev) => {
+          if (prev[workflowId] === seed.blockDescription) {
+            return prev;
+          }
+          return { ...prev, [workflowId]: seed.blockDescription };
+        });
+      }
       if (Number.isFinite(seed.blockStartHour)) {
         setNewBlockStartHour(seed.blockStartHour);
       }
@@ -6801,12 +6819,16 @@ function DecisionEngineScreen({
     if (seed.rowDescription) {
       const workflowId = seed.rowWorkflowId || "behavior-support";
       setNewRowWorkflowId(workflowId);
-      setRowDraftsByWorkflow((prev) => {
-        if (prev[workflowId] === seed.rowDescription) {
-          return prev;
-        }
-        return { ...prev, [workflowId]: seed.rowDescription };
-      });
+      if (suppressBuilderHydrationRef.current.row) {
+        suppressBuilderHydrationRef.current.row = false;
+      } else {
+        setRowDraftsByWorkflow((prev) => {
+          if (prev[workflowId] === seed.rowDescription) {
+            return prev;
+          }
+          return { ...prev, [workflowId]: seed.rowDescription };
+        });
+      }
     }
   }, [selectedTargetKey, targetType, timeBlocks, rowTargets]);
 
@@ -6917,6 +6939,9 @@ function DecisionEngineScreen({
         }
         setBlockPromptSuggestions(Array.isArray(payload?.prompts) ? payload.prompts : []);
         setBlockPromptLoading(false);
+        if (!blockPromptEngagedRef.current) {
+          scheduleBlockPromptIdleClose();
+        }
       })
       .catch(() => {
         if (blockPromptRequestRef.current !== requestId) {
@@ -6925,6 +6950,9 @@ function DecisionEngineScreen({
         setBlockPromptSuggestions([]);
         setBlockPromptError("Suggestions unavailable right now.");
         setBlockPromptLoading(false);
+        if (!blockPromptEngagedRef.current) {
+          scheduleBlockPromptIdleClose();
+        }
       });
   }, [newBlockWorkflowId]);
 
@@ -6952,6 +6980,9 @@ function DecisionEngineScreen({
         }
         setRowPromptSuggestions(Array.isArray(payload?.prompts) ? payload.prompts : []);
         setRowPromptLoading(false);
+        if (!rowPromptEngagedRef.current) {
+          scheduleRowPromptIdleClose();
+        }
       })
       .catch(() => {
         if (rowPromptRequestRef.current !== requestId) {
@@ -6960,27 +6991,98 @@ function DecisionEngineScreen({
         setRowPromptSuggestions([]);
         setRowPromptError("Suggestions unavailable right now.");
         setRowPromptLoading(false);
+        if (!rowPromptEngagedRef.current) {
+          scheduleRowPromptIdleClose();
+        }
       });
   }, [newRowWorkflowId]);
 
+  const clearBlockPromptIdleTimer = () => {
+    if (blockPromptIdleTimerRef.current) {
+      clearTimeout(blockPromptIdleTimerRef.current);
+      blockPromptIdleTimerRef.current = null;
+    }
+  };
+
+  const clearRowPromptIdleTimer = () => {
+    if (rowPromptIdleTimerRef.current) {
+      clearTimeout(rowPromptIdleTimerRef.current);
+      rowPromptIdleTimerRef.current = null;
+    }
+  };
+
+  const closeBlockPromptPopover = () => {
+    clearBlockPromptIdleTimer();
+    blockPromptEngagedRef.current = false;
+    setBlockPromptPopoverVisible(false);
+  };
+
+  const closeRowPromptPopover = () => {
+    clearRowPromptIdleTimer();
+    rowPromptEngagedRef.current = false;
+    setRowPromptPopoverVisible(false);
+  };
+
+  const markBlockPromptEngaged = () => {
+    blockPromptEngagedRef.current = true;
+    clearBlockPromptIdleTimer();
+  };
+
+  const markRowPromptEngaged = () => {
+    rowPromptEngagedRef.current = true;
+    clearRowPromptIdleTimer();
+  };
+
+  const scheduleBlockPromptIdleClose = () => {
+    clearBlockPromptIdleTimer();
+    blockPromptIdleTimerRef.current = setTimeout(() => {
+      blockPromptIdleTimerRef.current = null;
+      if (!blockPromptEngagedRef.current) {
+        setBlockPromptPopoverVisible(false);
+      }
+    }, PROMPT_POPOVER_IDLE_MS);
+  };
+
+  const scheduleRowPromptIdleClose = () => {
+    clearRowPromptIdleTimer();
+    rowPromptIdleTimerRef.current = setTimeout(() => {
+      rowPromptIdleTimerRef.current = null;
+      if (!rowPromptEngagedRef.current) {
+        setRowPromptPopoverVisible(false);
+      }
+    }, PROMPT_POPOVER_IDLE_MS);
+  };
+
+  useEffect(
+    () => () => {
+      clearBlockPromptIdleTimer();
+      clearRowPromptIdleTimer();
+    },
+    []
+  );
+
   const toggleBlockPromptHelp = () => {
     if (blockPromptPopoverVisible) {
-      setBlockPromptPopoverVisible(false);
+      closeBlockPromptPopover();
       return;
     }
 
+    blockPromptEngagedRef.current = false;
     setBlockPromptPopoverVisible(true);
     loadBlockPromptSuggestions(newBlockWorkflowId);
+    scheduleBlockPromptIdleClose();
   };
 
   const toggleRowPromptHelp = () => {
     if (rowPromptPopoverVisible) {
-      setRowPromptPopoverVisible(false);
+      closeRowPromptPopover();
       return;
     }
 
+    rowPromptEngagedRef.current = false;
     setRowPromptPopoverVisible(true);
     loadRowPromptSuggestions(newRowWorkflowId);
+    scheduleRowPromptIdleClose();
   };
 
   useEffect(() => {
@@ -7234,6 +7336,7 @@ function DecisionEngineScreen({
       theme: selectedWorkflow?.theme || "behavior",
     };
     onScheduleChange?.([...timeBlocks, nextBlock]);
+    suppressBuilderHydrationRef.current.block = true;
     setSelectedTargetKey(`time:${nextBlock.id}`);
     setScheduleBuilderHint("");
     setScheduleBuilderGuideNote(
@@ -7244,6 +7347,7 @@ function DecisionEngineScreen({
       [newBlockWorkflowId]: "",
     }));
     setBlockBuilderHint("");
+    closeBlockPromptPopover();
   };
 
   const removeScheduleBlock = (blockId) => {
@@ -7259,7 +7363,7 @@ function DecisionEngineScreen({
 
   const handleBlockWorkflowOptionPress = (workflowId) => {
     setNewBlockWorkflowId(workflowId);
-    setBlockPromptPopoverVisible(false);
+    closeBlockPromptPopover();
     setBlockPromptSuggestions([]);
     setBlockPromptError("");
     setBlockPromptLoading(false);
@@ -7275,6 +7379,8 @@ function DecisionEngineScreen({
     if (!String(promptText).trim()) {
       return;
     }
+
+    markBlockPromptEngaged();
 
     setBlockDraftsByWorkflow((prev) => {
       const current = String(prev[newBlockWorkflowId] || "").trim();
@@ -7313,21 +7419,23 @@ function DecisionEngineScreen({
       comment: "",
     };
     onRowsChange?.([...rowTargets, nextRow]);
+    suppressBuilderHydrationRef.current.row = true;
     setSelectedTargetKey(`row:${nextRow.id}`);
-    setRowBuilderGuideNote(
-      `Added row "${String(newRowDescription).trim()}". Next: add more rows, add time blocks above, select work from the library, then scroll down to lock this row and stage for Final Assign.`
-    );
     setRowDraftsByWorkflow((prev) => ({
       ...prev,
       [newRowWorkflowId]: "",
     }));
+    setRowBuilderGuideNote(
+      `Added row "${String(newRowDescription).trim()}". Next: add more rows, add time blocks above, select work from the library, then scroll down to lock this row and stage for Final Assign.`
+    );
     setRowBuilderHint("");
+    closeRowPromptPopover();
   };
 
   const handleWorkflowOptionPress = (workflowId) => {
     rowWorkflowTouchedRef.current = true;
     setNewRowWorkflowId(workflowId);
-    setRowPromptPopoverVisible(false);
+    closeRowPromptPopover();
     setRowPromptSuggestions([]);
     setRowPromptError("");
     setRowPromptLoading(false);
@@ -7343,6 +7451,8 @@ function DecisionEngineScreen({
     if (!String(promptText).trim()) {
       return;
     }
+
+    markRowPromptEngaged();
 
     setRowDraftsByWorkflow((prev) => {
       const current = String(prev[newRowWorkflowId] || "").trim();
@@ -7522,7 +7632,10 @@ function DecisionEngineScreen({
             </Pressable>
           </View>
           {blockPromptPopoverVisible ? (
-            <View style={[styles.rowPromptPopover, isPhone && styles.rowPromptPopoverPhone]}>
+            <Pressable
+              style={[styles.rowPromptPopover, isPhone && styles.rowPromptPopoverPhone]}
+              onPressIn={markBlockPromptEngaged}
+            >
               <Text style={styles.rowPromptTitle}>Suggested prompts</Text>
               <Text style={styles.rowPromptLead}>Tap a suggestion to insert it, or keep typing your own custom block note.</Text>
               {blockPromptLoading ? <Text style={styles.rowPromptStatus}>Loading suggestions...</Text> : null}
@@ -7531,7 +7644,12 @@ function DecisionEngineScreen({
                 <Text style={styles.rowPromptStatus}>No suggestions available for this workflow.</Text>
               ) : null}
               {!blockPromptLoading && !blockPromptError && blockPromptSuggestions.length ? (
-                <ScrollView style={styles.rowPromptPopoverScroll} nestedScrollEnabled>
+                <ScrollView
+                  style={styles.rowPromptPopoverScroll}
+                  nestedScrollEnabled
+                  onScrollBeginDrag={markBlockPromptEngaged}
+                  onTouchStart={markBlockPromptEngaged}
+                >
                   <View style={styles.rowPromptSuggestionList}>
                     {blockPromptSuggestions.map((prompt) => (
                       <Pressable
@@ -7545,7 +7663,7 @@ function DecisionEngineScreen({
                   </View>
                 </ScrollView>
               ) : null}
-            </View>
+            </Pressable>
           ) : null}
         </View>
         {blockBuilderHint ? <Text style={styles.decisionInlineHint}>{blockBuilderHint}</Text> : null}
@@ -7578,16 +7696,43 @@ function DecisionEngineScreen({
           </View>
         ) : null}
         <Text style={styles.decisionBuilderListLabel}>Timeline blocks</Text>
-        <View style={styles.decisionScheduleChipRow}>
-          {timeBlocks.map((block) => (
-            <View key={block.id} style={styles.decisionScheduleChip}>
-              <Text style={styles.decisionScheduleChipText}>{block.label}</Text>
-              <Pressable style={styles.decisionScheduleChipAction} onPress={() => removeScheduleBlock(block.id)}>
-                <Text style={styles.decisionScheduleChipRemove}>×</Text>
-              </Pressable>
-            </View>
-          ))}
-        </View>
+        {timeBlocks.length ? (
+          <View style={styles.decisionTimelineBlockList}>
+            {timeBlocks.map((block) => {
+              const workflowLabel =
+                workflowOptions.find((option) => option.workflowId === block.workflowId)?.label || "";
+              const blockDescription = String(block.description || "").trim();
+
+              return (
+                <View key={block.id} style={styles.decisionTimelineBlockCard}>
+                  <View style={styles.decisionTimelineBlockHeader}>
+                    <View style={styles.decisionTimelineBlockHeaderMain}>
+                      <Text style={styles.decisionTimelineBlockTime}>{block.label}</Text>
+                      {workflowLabel ? (
+                        <Text style={styles.decisionTimelineBlockCategory}>{workflowLabel}</Text>
+                      ) : null}
+                    </View>
+                    <Pressable
+                      style={styles.decisionScheduleChipAction}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${block.label} timeline block`}
+                      onPress={() => removeScheduleBlock(block.id)}
+                    >
+                      <Text style={styles.decisionScheduleChipRemove}>×</Text>
+                    </Pressable>
+                  </View>
+                  {blockDescription ? (
+                    <Text style={styles.decisionTimelineBlockDetail}>{blockDescription}</Text>
+                  ) : (
+                    <Text style={styles.decisionTimelineBlockDetailMuted}>No block description added.</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <Text style={styles.decisionTimelineBlockEmpty}>No timeline blocks yet. Add a time range and description above.</Text>
+        )}
       </View>
       <View style={styles.decisionScheduleEditor}>
         <Text style={styles.decisionScheduleTitle}>Row Builder</Text>
@@ -7621,7 +7766,10 @@ function DecisionEngineScreen({
             </Pressable>
           </View>
           {rowPromptPopoverVisible ? (
-            <View style={[styles.rowPromptPopover, isPhone && styles.rowPromptPopoverPhone]}>
+            <Pressable
+              style={[styles.rowPromptPopover, isPhone && styles.rowPromptPopoverPhone]}
+              onPressIn={markRowPromptEngaged}
+            >
               <Text style={styles.rowPromptTitle}>Suggested prompts</Text>
               <Text style={styles.rowPromptLead}>Tap a suggestion to insert it, or keep typing your own custom row.</Text>
               {rowPromptLoading ? <Text style={styles.rowPromptStatus}>Loading suggestions...</Text> : null}
@@ -7630,7 +7778,12 @@ function DecisionEngineScreen({
                 <Text style={styles.rowPromptStatus}>No suggestions available for this workflow.</Text>
               ) : null}
               {!rowPromptLoading && !rowPromptError && rowPromptSuggestions.length ? (
-                <ScrollView style={styles.rowPromptPopoverScroll} nestedScrollEnabled>
+                <ScrollView
+                  style={styles.rowPromptPopoverScroll}
+                  nestedScrollEnabled
+                  onScrollBeginDrag={markRowPromptEngaged}
+                  onTouchStart={markRowPromptEngaged}
+                >
                   <View style={styles.rowPromptSuggestionList}>
                     {rowPromptSuggestions.map((prompt) => (
                       <Pressable
@@ -7644,7 +7797,7 @@ function DecisionEngineScreen({
                   </View>
                 </ScrollView>
               ) : null}
-            </View>
+            </Pressable>
           ) : null}
         </View>
         {rowBuilderHint ? <Text style={styles.decisionInlineHint}>{rowBuilderHint}</Text> : null}
@@ -9979,6 +10132,64 @@ const styles = StyleSheet.create({
     color: colors.red,
     fontWeight: "700",
     lineHeight: 18,
+  },
+  decisionTimelineBlockList: {
+    gap: 10,
+  },
+  decisionTimelineBlockCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  decisionTimelineBlockHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  decisionTimelineBlockHeaderMain: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+  },
+  decisionTimelineBlockTime: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  decisionTimelineBlockCategory: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    textTransform: "uppercase",
+    color: colors.link,
+    backgroundColor: "#f4f0ff",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    overflow: "hidden",
+  },
+  decisionTimelineBlockDetail: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text,
+  },
+  decisionTimelineBlockDetailMuted: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted,
+    fontStyle: "italic",
+  },
+  decisionTimelineBlockEmpty: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted,
   },
   decisionExplainerCard: {
     marginBottom: 18,
