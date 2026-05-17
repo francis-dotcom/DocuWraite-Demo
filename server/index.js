@@ -103,6 +103,7 @@ app.put("/api/workspace-state/:clientId", (req, res) => {
       selectedTargetId: data.selectedTargetId || null,
       checkedNodes: data.checkedNodes || {},
       includeInFinalMap: data.includeInFinalMap || {},
+      choiceSelections: data.choiceSelections || {},
       stagedAssignments: data.stagedAssignments || [],
       collapsedSections: data.collapsedSections || null,
       updatedAt: data.updatedAt || new Date().toISOString(),

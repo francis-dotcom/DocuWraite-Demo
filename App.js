@@ -908,12 +908,34 @@ function titleCaseDecisionLabel(value = "") {
 }
 
 function getDecisionConditionDisplayText(condition = "") {
-  return titleCaseDecisionLabel(condition);
+  const raw = String(condition || "").replace(/[`]/g, "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  const includesMatch = raw.match(/^(.+?)\s+includes\s+(.+)$/i);
+  if (includesMatch) {
+    const field = titleCaseDecisionLabel(includesMatch[1]);
+    const values = includesMatch[2]
+      .split(/\s+or\s+/i)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => `"${part}"`)
+      .join(" or ");
+    return `${field} includes ${values}`;
+  }
+
+  const selectedMatch = raw.match(/^(.+?)-selected$/i);
+  if (selectedMatch) {
+    return `${titleCaseDecisionLabel(selectedMatch[1])} was selected`;
+  }
+
+  return titleCaseDecisionLabel(raw);
 }
 
 function getDecisionNodeDisplayTitle(node = {}) {
   if (node.conditions?.length && !node.question) {
-    return `Only If ${getDecisionConditionDisplayText(node.conditions[0])}`;
+    return "Conditional Rule";
   }
 
   return titleCaseDecisionLabel(node.title || node.id || "Decision Node");
@@ -925,14 +947,30 @@ function getDecisionNodeDisplayQuestion(node = {}) {
   }
 
   if (node.conditions?.length) {
-    return `Apply the next rule only when ${getDecisionConditionDisplayText(node.conditions[0]).toLowerCase()}.`;
+    return `Runs when ${getDecisionConditionDisplayText(node.conditions[0])}.`;
   }
 
   return "";
 }
 
+function getDecisionConditionalNote(node = {}) {
+  if (!node.conditions?.length || node.question) {
+    return "";
+  }
+
+  return "This is a trigger rule. You do not answer it directly. It activates the next rule when the condition above is true.";
+}
+
+function isDecisionConditionalNode(node = {}) {
+  return Boolean(node.conditions?.length && !node.question);
+}
+
 function getDecisionNodeDisplayChoices(node = {}) {
   return (node.choices || []).filter(Boolean);
+}
+
+function getDecisionNodeSelectedChoices(node = {}, choiceSelections = {}) {
+  return choiceSelections[buildDecisionNodeSelectionKey(node)] || [];
 }
 
 function createAssignedWorkflowSteps(assignedNodes = []) {
@@ -940,7 +978,9 @@ function createAssignedWorkflowSteps(assignedNodes = []) {
     .filter((node) => node?.question)
     .map((node) => {
       const displayQuestion = getDecisionNodeDisplayQuestion(node);
-      const suggestions = normalizeDecisionNodeChoices(node.choices || []);
+      const suggestions = normalizeDecisionNodeChoices(
+        node.selectedChoices?.length ? node.selectedChoices : node.choices || []
+      );
       return {
         stepKey: node.stepKey || buildDecisionNodeStepKey(node),
         kind: inferDecisionNodeKind(suggestions),
@@ -1064,6 +1104,7 @@ function expandAssignedDecisionNodes(selectedNodesPayload = [], options = {}) {
           ...node,
           stepKey: buildDecisionNodeStepKey(node),
           includeInFinal: Boolean(payload.includeInFinal),
+          selectedChoices: payload.selectedChoices || [],
           rootNodeId: rootNode.id,
           assignmentDepth: selectedDepth,
           includeMode,
@@ -4879,6 +4920,7 @@ function DecisionEngineScreen({
   );
   const [checkedNodes, setCheckedNodes] = useState(initialSelectionState?.checkedNodes || {});
   const [includeInFinalMap, setIncludeInFinalMap] = useState(initialSelectionState?.includeInFinalMap || {});
+  const [choiceSelections, setChoiceSelections] = useState(initialSelectionState?.choiceSelections || {});
   const [newBlockStartHour, setNewBlockStartHour] = useState(7);
   const [newBlockEndHour, setNewBlockEndHour] = useState(8);
   const [scheduleBuilderHint, setScheduleBuilderHint] = useState("");
@@ -5059,7 +5101,9 @@ function DecisionEngineScreen({
     }
   }, [scopedTargets, selectedTargetKey]);
 
-  const sections = selectedLibraryData.nodes.reduce((acc, node) => {
+  const visibleLibraryNodes = selectedLibraryData.nodes.filter((node) => !isDecisionConditionalNode(node));
+
+  const sections = visibleLibraryNodes.reduce((acc, node) => {
     const sectionKey = node.section || "Uncategorized";
     if (!acc[sectionKey]) {
       acc[sectionKey] = [];
@@ -5068,7 +5112,7 @@ function DecisionEngineScreen({
     return acc;
   }, {});
 
-  const allNodes = selectedLibraryData.nodes;
+  const allNodes = visibleLibraryNodes;
   const selectedCount = allNodes.filter((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]).length;
 
   useEffect(() => {
@@ -5090,11 +5134,13 @@ function DecisionEngineScreen({
       selectedTargetKey,
       checkedNodes,
       includeInFinalMap,
+      choiceSelections,
       stagedAssignments,
       collapsedSections: expandedDecisionPanel,
     });
   }, [
     checkedNodes,
+    choiceSelections,
     expandedDecisionPanel,
     includeInFinalMap,
     includeMode,
@@ -5113,12 +5159,42 @@ function DecisionEngineScreen({
     }));
   };
 
+  const toggleNodeChoice = (node, choice) => {
+    const nodeKey = buildDecisionNodeSelectionKey(node);
+    const isMultiSelect = inferDecisionNodeMultiSelect(getDecisionNodeDisplayQuestion(node), getDecisionNodeDisplayChoices(node));
+
+    setCheckedNodes((prev) => ({
+      ...prev,
+      [nodeKey]: true,
+    }));
+
+    setChoiceSelections((prev) => {
+      const currentChoices = prev[nodeKey] || [];
+      const alreadySelected = currentChoices.includes(choice);
+      let nextChoices;
+
+      if (isMultiSelect) {
+        nextChoices = alreadySelected
+          ? currentChoices.filter((item) => item !== choice)
+          : [...currentChoices, choice];
+      } else {
+        nextChoices = alreadySelected ? [] : [choice];
+      }
+
+      return {
+        ...prev,
+        [nodeKey]: nextChoices,
+      };
+    });
+  };
+
   const toggleSection = (sectionKey) => {
     const sectionNodes = sections[sectionKey] || [];
-    const sectionSelected = sectionNodes.every((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]);
+    const selectableNodes = sectionNodes.filter((node) => !isDecisionConditionalNode(node));
+    const sectionSelected = selectableNodes.every((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]);
     setCheckedNodes((prev) => {
       const next = { ...prev };
-      sectionNodes.forEach((node) => {
+      selectableNodes.forEach((node) => {
         next[buildDecisionNodeSelectionKey(node)] = !sectionSelected;
       });
       return next;
@@ -5260,7 +5336,11 @@ function DecisionEngineScreen({
       return;
     }
 
-    const payload = selectedKeys.map((key) => ({ key, includeInFinal: Boolean(includeInFinalMap[key]) }));
+    const payload = selectedKeys.map((key) => ({
+      key,
+      includeInFinal: Boolean(includeInFinalMap[key]),
+      selectedChoices: choiceSelections[key] || [],
+    }));
     onStageAssignment?.({
       id: `staged-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       selectedLibrary,
@@ -5283,6 +5363,13 @@ function DecisionEngineScreen({
       return next;
     });
     setIncludeInFinalMap((prev) => {
+      const next = { ...prev };
+      payload.forEach(({ key }) => {
+        delete next[key];
+      });
+      return next;
+    });
+    setChoiceSelections((prev) => {
       const next = { ...prev };
       payload.forEach(({ key }) => {
         delete next[key];
@@ -5575,7 +5662,7 @@ function DecisionEngineScreen({
                 style={styles.decisionSectionAction}
               >
                 <Text style={styles.decisionSectionActionText}>
-                  {sectionNodes.every((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]) ? "Clear" : "Select all"}
+                  {sectionNodes.filter((node) => !isDecisionConditionalNode(node)).every((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]) ? "Clear" : "Select all"}
                 </Text>
               </Pressable>
             </View>
@@ -5584,17 +5671,33 @@ function DecisionEngineScreen({
             sectionNodes.map((node) => (
               <Pressable
                 key={buildDecisionNodeSelectionKey(node)}
-                onPress={() => toggleNode(buildDecisionNodeSelectionKey(node))}
+                onPress={() => {
+                  if (isDecisionConditionalNode(node)) {
+                    return;
+                  }
+                  toggleNode(buildDecisionNodeSelectionKey(node));
+                }}
                 style={styles.decisionNodeRow}
               >
                 <View
                   style={[
                     styles.decisionNodeCheckbox,
-                    checkedNodes[buildDecisionNodeSelectionKey(node)] && styles.decisionNodeCheckboxActive,
+                    (checkedNodes[buildDecisionNodeSelectionKey(node)] || isDecisionConditionalNode(node)) &&
+                      styles.decisionNodeCheckboxActive,
+                    (checkedNodes[buildDecisionNodeSelectionKey(node)] || isDecisionConditionalNode(node)) &&
+                      isDecisionConditionalNode(node) &&
+                      styles.decisionNodeCheckboxConditionalActive,
                   ]}
                 >
-                  <Text style={styles.decisionNodeCheckboxLabel}>
-                    {checkedNodes[buildDecisionNodeSelectionKey(node)] ? "✓" : ""}
+                  <Text
+                    style={[
+                      styles.decisionNodeCheckboxLabel,
+                      (checkedNodes[buildDecisionNodeSelectionKey(node)] || isDecisionConditionalNode(node)) &&
+                        isDecisionConditionalNode(node) &&
+                        styles.decisionNodeCheckboxConditionalLabel,
+                    ]}
+                  >
+                    {checkedNodes[buildDecisionNodeSelectionKey(node)] || isDecisionConditionalNode(node) ? "✓" : ""}
                   </Text>
                 </View>
                 <View style={styles.decisionNodeContent}>
@@ -5602,14 +5705,33 @@ function DecisionEngineScreen({
                   {getDecisionNodeDisplayQuestion(node) ? (
                     <Text style={styles.decisionNodeQuestion}>{getDecisionNodeDisplayQuestion(node)}</Text>
                   ) : null}
+                  {getDecisionConditionalNote(node) ? (
+                    <Text style={styles.decisionConditionalNote}>{getDecisionConditionalNote(node)}</Text>
+                  ) : null}
                   {getDecisionNodeDisplayChoices(node).length ? (
                     <View style={styles.decisionChoiceBlock}>
                       <Text style={styles.decisionChoiceLabel}>Choices</Text>
                       <View style={styles.decisionChoiceList}>
                         {getDecisionNodeDisplayChoices(node).map((choice) => (
-                          <Text key={`${buildDecisionNodeSelectionKey(node)}-${choice}`} style={styles.decisionChoiceChip}>
-                            {choice}
-                          </Text>
+                          <Pressable
+                            key={`${buildDecisionNodeSelectionKey(node)}-${choice}`}
+                            onPress={() => toggleNodeChoice(node, choice)}
+                            style={[
+                              styles.decisionChoiceChip,
+                              getDecisionNodeSelectedChoices(node, choiceSelections).includes(choice) &&
+                                styles.decisionChoiceChipActive,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.decisionChoiceChipText,
+                                getDecisionNodeSelectedChoices(node, choiceSelections).includes(choice) &&
+                                  styles.decisionChoiceChipTextActive,
+                              ]}
+                            >
+                              {choice}
+                            </Text>
+                          </Pressable>
                         ))}
                       </View>
                     </View>
@@ -6287,6 +6409,7 @@ export default function App() {
     selectedTargetKey: "",
     checkedNodes: {},
     includeInFinalMap: {},
+    choiceSelections: {},
     stagedAssignments: [],
     collapsedSections: {},
   });
@@ -6332,6 +6455,7 @@ export default function App() {
         selectedTargetKey: "",
         checkedNodes: {},
         includeInFinalMap: {},
+        choiceSelections: {},
         stagedAssignments: [],
         collapsedSections: {},
       });
@@ -6348,6 +6472,7 @@ export default function App() {
           selectedTargetKey: "",
           checkedNodes: {},
           includeInFinalMap: {},
+          choiceSelections: {},
           stagedAssignments: [],
           collapsedSections: {},
         },
@@ -6383,6 +6508,7 @@ export default function App() {
           selectedTargetKey: state.selectionState?.selectedTargetKey || "",
           checkedNodes: state.selectionState?.checkedNodes || {},
           includeInFinalMap: state.selectionState?.includeInFinalMap || {},
+          choiceSelections: state.selectionState?.choiceSelections || {},
           stagedAssignments: state.selectionState?.stagedAssignments || [],
           collapsedSections: state.selectionState?.collapsedSections || {},
         };
@@ -6444,6 +6570,7 @@ export default function App() {
             : null,
           checkedNodes: decisionEngineSelectionState.checkedNodes,
           includeInFinalMap: decisionEngineSelectionState.includeInFinalMap,
+          choiceSelections: decisionEngineSelectionState.choiceSelections,
           stagedAssignments: decisionEngineSelectionState.stagedAssignments,
           collapsedSections: decisionEngineSelectionState.collapsedSections,
           updatedAt: new Date().toISOString(),
@@ -6577,9 +6704,11 @@ export default function App() {
 
     const nextCheckedNodes = {};
     const nextIncludeInFinalMap = {};
+    const nextChoiceSelections = {};
     (assignment.selectedNodesPayload || []).forEach((node) => {
       nextCheckedNodes[node.key] = true;
       nextIncludeInFinalMap[node.key] = Boolean(node.includeInFinal);
+      nextChoiceSelections[node.key] = node.selectedChoices || [];
     });
 
     setDecisionEngineSelectionState((prev) => ({
@@ -6591,6 +6720,7 @@ export default function App() {
       selectedTargetKey: assignment.target?.key || prev.selectedTargetKey,
       checkedNodes: nextCheckedNodes,
       includeInFinalMap: nextIncludeInFinalMap,
+      choiceSelections: nextChoiceSelections,
       stagedAssignments: (prev.stagedAssignments || []).filter((item) => item.id !== assignment.id),
     }));
   };
@@ -6635,6 +6765,7 @@ export default function App() {
           title: getDecisionNodeDisplayTitle(node),
           question: getDecisionNodeDisplayQuestion(node),
           choices: node.choices || [],
+          selectedChoices: node.selectedChoices || [],
           section: node.section,
           library: node.library,
           stepKey: node.stepKey,
@@ -6651,7 +6782,10 @@ export default function App() {
             includeMode: assignment.includeMode || "selective-branch",
           });
           const questionList = expandedNodes
-            .map((node) => `${node.includeInFinal ? "[FINAL] " : ""}- ${getDecisionNodeDisplayQuestion(node) || getDecisionNodeDisplayTitle(node)}`)
+            .map((node) => {
+              const selectedChoiceText = node.selectedChoices?.length ? ` [${node.selectedChoices.join(", ")}]` : "";
+              return `${node.includeInFinal ? "[FINAL] " : ""}- ${getDecisionNodeDisplayQuestion(node) || getDecisionNodeDisplayTitle(node)}${selectedChoiceText}`;
+            })
             .join("\n");
           return `${assignment.selectedLibrary}\n${questionList}`;
         })
@@ -6710,6 +6844,7 @@ export default function App() {
       ...prev,
       checkedNodes: {},
       includeInFinalMap: {},
+      choiceSelections: {},
       stagedAssignments: [],
     }));
   };
@@ -7705,10 +7840,17 @@ const styles = StyleSheet.create({
     borderColor: colors.topPurple,
     backgroundColor: colors.topPurple,
   },
+  decisionNodeCheckboxConditionalActive: {
+    borderColor: "#d7a400",
+    backgroundColor: "#ffe082",
+  },
   decisionNodeCheckboxLabel: {
     color: "#ffffff",
     fontSize: 12,
     fontWeight: "700",
+  },
+  decisionNodeCheckboxConditionalLabel: {
+    color: "#5f4700",
   },
   decisionNodeContent: {
     flex: 1,
@@ -7724,6 +7866,13 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginBottom: 8,
     lineHeight: 18,
+  },
+  decisionConditionalNote: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.muted,
+    marginTop: -2,
+    marginBottom: 8,
   },
   decisionChoiceBlock: {
     marginBottom: 8,
@@ -7742,14 +7891,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   decisionChoiceChip: {
-    fontSize: 11,
-    color: colors.text,
     backgroundColor: "#f7f3ff",
     borderWidth: 1,
     borderColor: colors.lightBorder,
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 4,
+  },
+  decisionChoiceChipActive: {
+    backgroundColor: colors.topPurple,
+    borderColor: colors.topPurple,
+  },
+  decisionChoiceChipText: {
+    fontSize: 11,
+    color: colors.text,
+  },
+  decisionChoiceChipTextActive: {
+    color: "#ffffff",
+    fontWeight: "700",
   },
   decisionConditionList: {
     flexDirection: "row",

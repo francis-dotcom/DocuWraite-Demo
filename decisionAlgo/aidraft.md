@@ -36,7 +36,7 @@
   - Not observed
   - Not applicable
 
-### c1. IF `high-risk-answer`
+### c1. IF `row-note-content includes Safety or health detail`
 
 ### c2. row-note-guardrails
 
@@ -92,7 +92,7 @@
   - Not observed
   - Not applicable
 
-### c1. IF `high-risk-answer`
+### c1. IF `block-summary-content includes Alerts or health detail`
 
 ### c2. block-summary-guardrails
 
@@ -148,7 +148,7 @@
   - Not observed
   - Not applicable
 
-### c1. IF `high-risk-answer`
+### c1. IF `final-note-content includes Health and safety supports`
 
 ### c2. final-note-guardrails
 
@@ -204,7 +204,7 @@
   - Not observed
   - Not applicable
 
-### c1. IF `high-risk-answer`
+### c1. IF `handoff-content includes Unresolved items or Pending health tasks`
 
 ### c2. handoff-guardrails
 
@@ -260,7 +260,7 @@
   - Not observed
   - Not applicable
 
-### c1. IF `high-risk-answer`
+### c1. IF `contradiction-and-safety-check includes Check unresolved high-risk items or Check escalation mismatch`
 
 ### c2. ai-blocking-policy
 
