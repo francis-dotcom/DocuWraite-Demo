@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Image,
+  LayoutAnimation,
   Modal,
   Pressable,
   SafeAreaView,
@@ -10,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
   useWindowDimensions,
   Platform,
@@ -1637,14 +1640,27 @@ function DocuWraiteDraftContextToggles({ toggles = {}, onToggle, fieldContext = 
   );
 }
 
-/** Floating toast overlay — rendered at screen level, not inside the comment workflow dock. */
-function DocuWraiteDraftContextQuestionToast({ toggles = {}, fieldContext = {}, responses = {}, onSaveResponse }) {
+const DRAFT_CONTEXT_QUESTION_TRANSITION_MS = 220;
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+function runDraftContextQuestionLayoutAnimation() {
+  LayoutAnimation.configureNext({
+    duration: DRAFT_CONTEXT_QUESTION_TRANSITION_MS,
+    update: { type: LayoutAnimation.Types.easeInEaseOut },
+    create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+    delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+  });
+}
+
+function useDraftContextQuestionState(toggles, fieldContext, responses) {
   const resolvedToggles = normalizeDraftContextToggles(toggles);
   const togglesWithTrees = getDraftContextTogglesNeedingQuestions(resolvedToggles);
   const active = getFirstIncompleteDraftContextQuestion(resolvedToggles, responses, fieldContext);
   const pendingTrees = countIncompleteDraftContextQuestions(resolvedToggles, responses, fieldContext);
   const [textDraft, setTextDraft] = useState("");
-  const [toastDismissed, setToastDismissed] = useState(false);
 
   useEffect(() => {
     if (!active?.responseKey) {
@@ -1654,15 +1670,125 @@ function DocuWraiteDraftContextQuestionToast({ toggles = {}, fieldContext = {}, 
     setTextDraft(String(responses[active.responseKey] || ""));
   }, [active?.responseKey, responses]);
 
-  useEffect(() => {
-    if (active) {
-      setToastDismissed(false);
-    }
-  }, [active?.responseKey, active?.toggleKey]);
+  return {
+    resolvedToggles,
+    togglesWithTrees,
+    active,
+    pendingTrees,
+    textDraft,
+    setTextDraft,
+  };
+}
+
+function DocuWraiteDraftContextQuestionBody({
+  active,
+  pendingTrees,
+  responses,
+  textDraft,
+  onTextDraftChange,
+  onSaveResponse,
+  compact = false,
+}) {
+  if (!active) {
+    return null;
+  }
+
+  const suggestionCount = (active.suggestions || []).length;
+  const scrollChoices = !compact && suggestionCount > 4;
+
+  const choices =
+    active.kind === "text" ? (
+      <>
+        <TextInput
+          value={textDraft}
+          onChangeText={onTextDraftChange}
+          placeholder="Type your answer"
+          placeholderTextColor="#888888"
+          multiline
+          style={styles.docuWraiteDraftContextQuestionTextInput}
+        />
+        <Pressable style={styles.docuWraiteWorkflowNext} onPress={() => onSaveResponse(textDraft)}>
+          <Text style={styles.docuWraiteWorkflowNextText}>Continue</Text>
+        </Pressable>
+      </>
+    ) : (
+      <View style={styles.docuWraiteWorkflowSuggestionList}>
+        {(active.suggestions || []).map((suggestion) => {
+          const isSelected = responses[active.responseKey] === suggestion;
+          return (
+            <Pressable
+              key={`${active.responseKey}-${suggestion}`}
+              style={[
+                styles.docuWraiteWorkflowSuggestion,
+                isSelected && styles.docuWraiteWorkflowSuggestionActive,
+              ]}
+              onPress={() => onSaveResponse(suggestion)}
+            >
+              <Text
+                style={[
+                  styles.docuWraiteWorkflowSuggestionText,
+                  isSelected && styles.docuWraiteWorkflowSuggestionTextActive,
+                ]}
+              >
+                {suggestion}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+
+  return (
+    <View key={active.responseKey} style={styles.docuWraiteDraftContextQuestionBody}>
+      <Text style={styles.docuWraiteDraftContextQuestionsSource}>
+        {`Because “${active.treeLabel}” is ON`}
+      </Text>
+      <Text style={styles.docuWraiteDraftContextQuestionsPrompt}>{active.question}</Text>
+      {scrollChoices ? (
+        <ScrollView
+          style={styles.docuWraiteDraftContextQuestionOptionsScroll}
+          contentContainerStyle={styles.docuWraiteDraftContextQuestionOptionsContent}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+          keyboardShouldPersistTaps="handled"
+        >
+          {choices}
+        </ScrollView>
+      ) : (
+        choices
+      )}
+      {compact ? (
+        <Text style={styles.docuWraiteDraftContextQuestionsInlineMeta}>
+          {`${pendingTrees} item${pendingTrees === 1 ? "" : "s"} left before Generate note`}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** Centered modal — first question or when reopened from inline. */
+function DocuWraiteDraftContextQuestionModal({
+  visible,
+  toggles,
+  fieldContext,
+  responses,
+  onSaveResponse,
+  onMoveInline,
+}) {
+  const { togglesWithTrees, active, pendingTrees, textDraft, setTextDraft } = useDraftContextQuestionState(
+    toggles,
+    fieldContext,
+    responses
+  );
+  const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
 
   useEffect(() => {
-    setToastDismissed(false);
-  }, [togglesWithTrees.join(",")]);
+    Animated.timing(opacity, {
+      toValue: visible ? 1 : 0,
+      duration: DRAFT_CONTEXT_QUESTION_TRANSITION_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [visible, opacity]);
 
   if (!togglesWithTrees.length || !active) {
     return null;
@@ -1672,102 +1798,103 @@ function DocuWraiteDraftContextQuestionToast({ toggles = {}, fieldContext = {}, 
     if (!active?.responseKey || !String(value || "").trim()) {
       return;
     }
-    onSaveResponse?.(active.responseKey, String(value).trim());
+    runDraftContextQuestionLayoutAnimation();
+    onSaveResponse(active.responseKey, String(value).trim());
     setTextDraft("");
+    onMoveInline?.();
   };
 
-  const toastVisible = !toastDismissed;
-
   return (
-    <Modal
-      transparent
-      visible={toastVisible}
-      animationType="fade"
-      onRequestClose={() => setToastDismissed(true)}
-    >
+    <Modal transparent visible={visible} animationType="none" onRequestClose={onMoveInline}>
       <View style={styles.docuWraiteDraftContextToastRoot} pointerEvents="box-none">
-        <Pressable
-          style={styles.docuWraiteDraftContextToastBackdrop}
-          onPress={() => setToastDismissed(true)}
-        />
+        <Pressable style={styles.docuWraiteDraftContextToastBackdrop} onPress={onMoveInline} />
         <View style={styles.docuWraiteDraftContextToastCenter} pointerEvents="box-none">
-          <View style={styles.docuWraiteDraftContextToastCard} pointerEvents="auto">
-          <View style={styles.docuWraiteDraftContextModalHeader}>
-            <View style={styles.docuWraiteDraftContextToastTitleWrap}>
-              <Text style={styles.docuWraiteDraftContextQuestionsHeading}>
-                Questions for ticked items
-              </Text>
-              <Text style={styles.docuWraiteDraftContextQuestionsHint}>
-                {`${pendingTrees} item${pendingTrees === 1 ? "" : "s"} to answer before Generate note`}
-              </Text>
-            </View>
-            <Pressable
-              hitSlop={8}
-              onPress={() => setToastDismissed(true)}
-              style={styles.docuWraiteDraftContextModalClose}
-            >
-              <Text style={styles.docuWraiteDraftContextModalCloseText}>✕</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.docuWraiteDraftContextQuestionsSource}>
-            {`Because “${active.treeLabel}” is ON`}
-          </Text>
-          <Text style={styles.docuWraiteDraftContextQuestionsPrompt}>{active.question}</Text>
-          <ScrollView
-            style={styles.docuWraiteDraftContextToastScroll}
-            contentContainerStyle={styles.docuWraiteDraftContextModalScrollContent}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator
-            keyboardShouldPersistTaps="handled"
-          >
-            {active.kind === "text" ? (
-              <>
-                <TextInput
-                  value={textDraft}
-                  onChangeText={setTextDraft}
-                  placeholder="Type your answer"
-                  placeholderTextColor="#888888"
-                  multiline
-                  style={styles.docuWraiteWorkflowFollowUpInput}
-                />
-                <Pressable
-                  style={styles.docuWraiteWorkflowNext}
-                  onPress={() => saveResponse(textDraft)}
-                >
-                  <Text style={styles.docuWraiteWorkflowNextText}>Continue</Text>
-                </Pressable>
-              </>
-            ) : (
-              <View style={styles.docuWraiteWorkflowSuggestionList}>
-                {(active.suggestions || []).map((suggestion) => {
-                  const isSelected = responses[active.responseKey] === suggestion;
-                  return (
-                    <Pressable
-                      key={`${active.responseKey}-${suggestion}`}
-                      style={[
-                        styles.docuWraiteWorkflowSuggestion,
-                        isSelected && styles.docuWraiteWorkflowSuggestionActive,
-                      ]}
-                      onPress={() => saveResponse(suggestion)}
-                    >
-                      <Text
-                        style={[
-                          styles.docuWraiteWorkflowSuggestionText,
-                          isSelected && styles.docuWraiteWorkflowSuggestionTextActive,
-                        ]}
-                      >
-                        {suggestion}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+          <Animated.View style={[styles.docuWraiteDraftContextToastCard, { opacity }]} pointerEvents="auto">
+            <View style={styles.docuWraiteDraftContextModalHeader}>
+              <View style={styles.docuWraiteDraftContextToastTitleWrap}>
+                <Text style={styles.docuWraiteDraftContextQuestionsHeading}>
+                  Questions for ticked items
+                </Text>
+                <Text style={styles.docuWraiteDraftContextQuestionsHint}>
+                  {`${pendingTrees} item${pendingTrees === 1 ? "" : "s"} to answer before Generate note`}
+                </Text>
               </View>
-            )}
-          </ScrollView>
-          </View>
+              <Pressable hitSlop={8} onPress={onMoveInline} style={styles.docuWraiteDraftContextModalClose}>
+                <Text style={styles.docuWraiteDraftContextModalCloseText}>✕</Text>
+              </Pressable>
+            </View>
+            <DocuWraiteDraftContextQuestionBody
+              active={active}
+              pendingTrees={pendingTrees}
+              responses={responses}
+              textDraft={textDraft}
+              onTextDraftChange={setTextDraft}
+              onSaveResponse={saveResponse}
+            />
+          </Animated.View>
         </View>
       </View>
     </Modal>
+  );
+}
+
+/** Inline card in workflow panel — continues after modal handoff. */
+function DocuWraiteDraftContextQuestionInline({
+  visible,
+  toggles,
+  fieldContext,
+  responses,
+  onSaveResponse,
+  onExpandModal,
+}) {
+  const { togglesWithTrees, active, pendingTrees, textDraft, setTextDraft } = useDraftContextQuestionState(
+    toggles,
+    fieldContext,
+    responses
+  );
+  const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: visible ? 1 : 0,
+      duration: DRAFT_CONTEXT_QUESTION_TRANSITION_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [visible, opacity]);
+
+  if (!visible || !togglesWithTrees.length || !active) {
+    return null;
+  }
+
+  const saveResponse = (value) => {
+    if (!active?.responseKey || !String(value || "").trim()) {
+      return;
+    }
+    runDraftContextQuestionLayoutAnimation();
+    onSaveResponse(active.responseKey, String(value).trim());
+    setTextDraft("");
+  };
+
+  return (
+    <Animated.View style={[styles.docuWraiteDraftContextQuestionInlineCard, { opacity }]}>
+      <View style={styles.docuWraiteDraftContextModalHeader}>
+        <View style={styles.docuWraiteDraftContextToastTitleWrap}>
+          <Text style={styles.docuWraiteDraftContextQuestionsHeading}>Ticked item question</Text>
+        </View>
+        <Pressable hitSlop={8} onPress={onExpandModal} style={styles.docuWraiteDraftContextInlineExpand}>
+          <Text style={styles.docuWraiteDraftContextInlineExpandText}>Expand</Text>
+        </Pressable>
+      </View>
+      <DocuWraiteDraftContextQuestionBody
+        active={active}
+        pendingTrees={pendingTrees}
+        responses={responses}
+        textDraft={textDraft}
+        onTextDraftChange={setTextDraft}
+        onSaveResponse={saveResponse}
+        compact
+      />
+    </Animated.View>
   );
 }
 
@@ -3774,6 +3901,8 @@ function DocuWraiteGuidedWorkflowPanel({
   onInsert,
   onGenerateDraft,
   onDraftContextToggle,
+  onDraftContextQuestionModeChange,
+  onDraftContextSaveResponse,
   onDismiss,
 }) {
   const [activeReadinessRemediationKey, setActiveReadinessRemediationKey] = useState(null);
@@ -3823,6 +3952,12 @@ function DocuWraiteGuidedWorkflowPanel({
     draftContextResponses,
     fieldContextForDraft
   );
+  const draftContextQuestionMode = workflowState?.draftContextQuestionMode === "inline" ? "inline" : "modal";
+  const showInlineDraftContextQuestion =
+    useAssignedNodeWorkflow &&
+    stepMeta?.kind === "draft" &&
+    draftContextQuestionMode === "inline" &&
+    Boolean(pendingDraftContextQuestion);
   const whyItems =
     aiStep?.whyItems?.length > 0 ? aiStep.whyItems : communityOutingWhyItMatters;
   const readinessIssues = stepMeta?.kind === "readiness" ? collectReadinessIssues(stepMeta, workflowMeta) : [];
@@ -4007,13 +4142,28 @@ function DocuWraiteGuidedWorkflowPanel({
     onAnswer(changes, { advance: true });
   };
 
+  const draftContextQuestionInline = showInlineDraftContextQuestion ? (
+    <DocuWraiteDraftContextQuestionInline
+      visible
+      toggles={draftContextToggles}
+      fieldContext={fieldContextForDraft}
+      responses={draftContextResponses}
+      onSaveResponse={onDraftContextSaveResponse}
+      onExpandModal={() => onDraftContextQuestionModeChange?.("modal")}
+    />
+  ) : null;
+
   return (
     <View style={styles.docuWraiteWorkflowCard}>
       <ScrollView
-        style={styles.docuWraiteWorkflowCardScroll}
+        style={[
+          styles.docuWraiteWorkflowCardScroll,
+          showInlineDraftContextQuestion && styles.docuWraiteWorkflowCardScrollCompact,
+        ]}
         contentContainerStyle={styles.docuWraiteWorkflowCardScrollContent}
-        nestedScrollEnabled
-        showsVerticalScrollIndicator
+        nestedScrollEnabled={!showInlineDraftContextQuestion}
+        showsVerticalScrollIndicator={!showInlineDraftContextQuestion}
+        keyboardShouldPersistTaps="handled"
       >
       <Text style={styles.docuWraiteWorkflowEyebrow}>{workflowEyebrow}</Text>
       {progressLabel ? <Text style={styles.docuWraiteWorkflowProgress}>{progressLabel}</Text> : null}
@@ -4390,12 +4540,13 @@ function DocuWraiteGuidedWorkflowPanel({
                 fieldContext={fieldContextForDraft}
                 currentNote={fieldNote}
               />
+              {draftContextQuestionInline}
               {assignedDraftError ? (
                 <Text style={styles.docuWraiteWorkflowAiNotice}>{assignedDraftError}</Text>
               ) : null}
-              {pendingDraftContextQuestion ? (
+              {pendingDraftContextQuestion && draftContextQuestionMode === "modal" ? (
                 <Text style={styles.docuWraiteWorkflowAiNotice}>
-                  Answer the question toast for each ON item before generating.
+                  Answer the centered question, or close it to continue inline here.
                 </Text>
               ) : null}
               <Pressable
@@ -4429,6 +4580,7 @@ function DocuWraiteGuidedWorkflowPanel({
                     fieldContext={fieldContextForDraft}
                     currentNote={fieldNote}
                   />
+                  {draftContextQuestionInline}
                 </>
               ) : null}
               <Text style={styles.docuWraiteWorkflowDraftText}>{generatedNote}</Text>
@@ -4597,6 +4749,8 @@ function DocumentationCommentField({
   onWorkflowInsert,
   onWorkflowGenerateDraft,
   onWorkflowDraftContextToggle,
+  onWorkflowDraftContextQuestionModeChange,
+  onWorkflowDraftContextSaveResponse,
   onAssistActivity,
   onAssignQuestions,
 }) {
@@ -4709,6 +4863,8 @@ function DocumentationCommentField({
               onInsert={onWorkflowInsert}
               onGenerateDraft={onWorkflowGenerateDraft}
               onDraftContextToggle={onWorkflowDraftContextToggle}
+              onDraftContextQuestionModeChange={onWorkflowDraftContextQuestionModeChange}
+              onDraftContextSaveResponse={onWorkflowDraftContextSaveResponse}
               onDismiss={onAssistDismiss}
             />
           ) : (
@@ -5209,6 +5365,7 @@ function DocumentationEntryScreen({
           fieldContext: assist.fieldContext || {},
           localSteps,
           draftContextToggles: getDefaultDraftContextToggles(),
+          draftContextQuestionMode: "modal",
           ai: {
             enabled: !useLocalWorkflow,
             loading: !useLocalWorkflow,
@@ -5711,19 +5868,54 @@ function DocumentationEntryScreen({
         const draftContextResponses = nextValue
           ? priorResponses
           : clearDraftContextResponsesForToggle(priorResponses, toggleKey);
+        const nextToggles = {
+          ...normalizeDraftContextToggles(current.draftContextToggles),
+          [toggleKey]: nextValue,
+        };
+        const treeKeys = getDraftContextTogglesNeedingQuestions(nextToggles);
 
         return {
           ...current,
-          draftContextToggles: {
-            ...normalizeDraftContextToggles(current.draftContextToggles),
-            [toggleKey]: nextValue,
-          },
+          draftContextToggles: nextToggles,
+          draftContextQuestionMode:
+            nextValue && treeKeys.includes(toggleKey) ? "modal" : current.draftContextQuestionMode || "modal",
           answers: {
             ...current.answers,
             draftContextResponses,
             aiDraftNote: "",
           },
           assignedDraftFollowUp: "",
+        };
+      });
+    },
+    onWorkflowDraftContextQuestionModeChange: (mode) => {
+      runDraftContextQuestionLayoutAnimation();
+      setDocuWraiteWorkflow((current) => {
+        if (!current || current.fieldId !== fieldId || current.workflowId !== "assigned-nodes") {
+          return current;
+        }
+
+        return {
+          ...current,
+          draftContextQuestionMode: mode === "inline" ? "inline" : "modal",
+        };
+      });
+    },
+    onWorkflowDraftContextSaveResponse: (responseKey, value) => {
+      setDocuWraiteWorkflow((current) => {
+        if (!current || current.fieldId !== fieldId || current.workflowId !== "assigned-nodes") {
+          return current;
+        }
+
+        return {
+          ...current,
+          answers: {
+            ...current.answers,
+            draftContextResponses: {
+              ...(current.answers?.draftContextResponses || {}),
+              [responseKey]: value,
+            },
+          },
         };
       });
     },
@@ -6364,7 +6556,22 @@ function DocumentationEntryScreen({
       </View>
 
       {docuWraiteWorkflow?.workflowId === "assigned-nodes" ? (
-        <DocuWraiteDraftContextQuestionToast
+        <DocuWraiteDraftContextQuestionModal
+          visible={
+            docuWraiteWorkflow.draftContextQuestionMode !== "inline" &&
+            Boolean(
+              getFirstIncompleteDraftContextQuestion(
+                normalizeDraftContextToggles(docuWraiteWorkflow.draftContextToggles),
+                docuWraiteWorkflow.answers?.draftContextResponses || {},
+                {
+                  ...(docuWraiteWorkflow.fieldContext || {}),
+                  shiftIntelligence:
+                    docuWraiteWorkflow.fieldContext?.shiftIntelligence ||
+                    getShiftIntelligenceRuntime(clientProfile, session),
+                }
+              )
+            )
+          }
           toggles={normalizeDraftContextToggles(docuWraiteWorkflow.draftContextToggles)}
           fieldContext={{
             ...(docuWraiteWorkflow.fieldContext || {}),
@@ -6389,6 +6596,16 @@ function DocumentationEntryScreen({
                   },
                 },
               };
+            });
+          }}
+          onMoveInline={() => {
+            runDraftContextQuestionLayoutAnimation();
+            setDocuWraiteWorkflow((current) => {
+              if (!current || current.workflowId !== "assigned-nodes") {
+                return current;
+              }
+
+              return { ...current, draftContextQuestionMode: "inline" };
             });
           }}
         />
@@ -11589,6 +11806,9 @@ const styles = StyleSheet.create({
   docuWraiteWorkflowCardScroll: {
     maxHeight: 572,
   },
+  docuWraiteWorkflowCardScrollCompact: {
+    maxHeight: 420,
+  },
   docuWraiteWorkflowCardScrollContent: {
     rowGap: 2,
     paddingBottom: 4,
@@ -11782,7 +12002,6 @@ const styles = StyleSheet.create({
   docuWraiteDraftContextToastCard: {
     width: "100%",
     maxWidth: 360,
-    maxHeight: 480,
     alignSelf: "center",
     borderRadius: 14,
     borderWidth: 1,
@@ -11797,14 +12016,58 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 30,
   },
+  docuWraiteDraftContextQuestionBody: {
+    rowGap: 8,
+  },
+  docuWraiteDraftContextQuestionTextInput: {
+    minHeight: 56,
+    maxHeight: 96,
+    borderWidth: 1,
+    borderColor: "#c4b5fd",
+    borderRadius: 6,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#1a1a1a",
+  },
+  docuWraiteDraftContextQuestionOptionsScroll: {
+    maxHeight: 200,
+  },
+  docuWraiteDraftContextQuestionOptionsContent: {
+    rowGap: 6,
+    paddingBottom: 2,
+  },
+  docuWraiteDraftContextQuestionInlineCard: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#d8c4f5",
+    backgroundColor: "#faf8ff",
+    width: "100%",
+  },
+  docuWraiteDraftContextInlineExpand: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
+  },
+  docuWraiteDraftContextInlineExpandText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#7c3aed",
+  },
+  docuWraiteDraftContextQuestionsInlineMeta: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: "#6b5c80",
+    marginTop: 4,
+  },
   docuWraiteDraftContextToastTitleWrap: {
     flex: 1,
     rowGap: 2,
     paddingRight: 8,
-  },
-  docuWraiteDraftContextToastScroll: {
-    maxHeight: 260,
-    marginTop: 4,
   },
   docuWraiteDraftContextModalHeader: {
     flexDirection: "row",
