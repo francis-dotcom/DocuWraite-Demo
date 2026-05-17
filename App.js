@@ -934,6 +934,10 @@ function getAssignedWorkflowStepsForField(fieldContext = {}) {
 }
 
 function fieldHasAssignedDecisionWorkflow(fieldContext = {}) {
+  if ((fieldContext.assignedNodes || []).length) {
+    return true;
+  }
+
   const steps = getAssignedWorkflowStepsForField(fieldContext);
   return steps.some((step) => step.kind !== "draft");
 }
@@ -2724,6 +2728,10 @@ const communityOutingResponseSuggestions = [
 ];
 
 function detectDocuWraiteGuidedWorkflow(fieldContext, value, clientProfile = null) {
+  if ((fieldContext.assignedNodes || []).length) {
+    return "assigned-nodes";
+  }
+
   if (fieldHasAssignedDecisionWorkflow(fieldContext)) {
     return "assigned-nodes";
   }
@@ -3838,28 +3846,8 @@ function DocumentationCommentField({
     onAssistToggle?.();
   };
 
-  const hasAssignedDecisionWork = fieldHasAssignedDecisionWorkflow(fieldContext);
-
   return (
     <View style={styles.docCommentField}>
-      {hasAssignedDecisionWork ? (
-        <View style={styles.decisionAssignedSummaryCard}>
-          <Text style={styles.decisionAssignedSummaryTitle}>Locked from Decision Engine</Text>
-          {fieldContext.assignedNodeSummary ? (
-            <Text style={styles.decisionAssignedSummaryText}>{fieldContext.assignedNodeSummary}</Text>
-          ) : null}
-          <Text style={styles.decisionAssignedSummaryHint}>
-            Tap the help bubble to answer your assigned library questions only — for example, &quot;Which ADL supports were provided?&quot;
-          </Text>
-        </View>
-      ) : fieldContext.fieldKind === "time" ? (
-        <View style={styles.decisionMissingAssignmentCard}>
-          <Text style={styles.decisionMissingAssignmentTitle}>No assigned library questions yet</Text>
-          <Text style={styles.decisionMissingAssignmentText}>
-            This block is still using Behavior guidance from the schedule builder. Lock baseplan (or another library) to this time block in Decision Engine, then tap Final Assign to Case Note.
-          </Text>
-        </View>
-      ) : null}
       <View style={styles.docCommentInputWrap}>
         <TextInput
           value={value}
@@ -4290,9 +4278,10 @@ function DocumentationEntryScreen({
         const localSteps = assist.localWorkflowSteps?.length
           ? assist.localWorkflowSteps
           : getAssignedWorkflowStepsForField(assist.fieldContext || {});
+        const hasAssignedNodes = (assist.fieldContext?.assignedNodes || []).length > 0;
         const useLocalWorkflow =
           assist.workflowId === "assigned-nodes" &&
-          localSteps.some((step) => step.kind !== "draft");
+          (localSteps.some((step) => step.kind !== "draft") || hasAssignedNodes);
 
         const startingWorkflow = {
           fieldId: assist.fieldId,
@@ -4323,8 +4312,9 @@ function DocumentationEntryScreen({
   };
 
   const openDocuWraiteWorkflow = (fieldId, fieldContext, value) => {
+    const hasAssignedNodes = (fieldContext.assignedNodes || []).length > 0;
     const localWorkflowSteps = getAssignedWorkflowStepsForField(fieldContext);
-    const workflowId = fieldHasAssignedDecisionWorkflow(fieldContext)
+    const workflowId = hasAssignedNodes
       ? "assigned-nodes"
       : detectDocuWraiteGuidedWorkflow(fieldContext, value, clientProfile);
 
@@ -4333,9 +4323,10 @@ function DocumentationEntryScreen({
     }
 
     const useAssignedWorkflow =
-      workflowId === "assigned-nodes" && localWorkflowSteps.some((step) => step.kind !== "draft");
+      workflowId === "assigned-nodes" &&
+      (localWorkflowSteps.some((step) => step.kind !== "draft") || hasAssignedNodes);
 
-    if ((fieldContext.assignedNodes || []).length && !useAssignedWorkflow) {
+    if (hasAssignedNodes && !localWorkflowSteps.some((step) => step.kind !== "draft")) {
       const alertMessage =
         "Assigned questions did not load for this block. Go to Decision Engine, lock your library to this time block, then tap Final Assign to Case Note.";
       if (Platform.OS === "web" && typeof window !== "undefined" && typeof window.alert === "function") {
@@ -4586,14 +4577,23 @@ function DocumentationEntryScreen({
       docuWraiteWorkflow?.fieldId === fieldId ||
       (docuWraiteAssist?.fieldId === fieldId && docuWraiteExpanded),
     onHelpBubblePress: () => {
-      const hasAssignedWork = fieldHasAssignedDecisionWorkflow(fieldContext);
+      const hasAssignedNodes = (fieldContext.assignedNodes || []).length > 0;
 
-      if (hasAssignedWork) {
+      if (hasAssignedNodes) {
         setDocuWraiteAssist(null);
         setDocuWraiteWorkflow(null);
         setDocuWraiteExpanded(false);
         openDocuWraiteWorkflow(fieldId, fieldContext, value);
         return;
+      }
+
+      if (
+        docuWraiteWorkflow?.fieldId === fieldId &&
+        docuWraiteWorkflow?.workflowId === "behavior-support"
+      ) {
+        setDocuWraiteAssist(null);
+        setDocuWraiteWorkflow(null);
+        setDocuWraiteExpanded(false);
       }
 
       if (docuWraiteWorkflow?.fieldId === fieldId || docuWraiteAssist?.fieldId === fieldId) {
@@ -7714,17 +7714,44 @@ export default function App() {
     handleSelectClient(client.id);
   };
 
+  const buildCaseNoteDocumentationSession = (config = {}) => {
+    let session = createDocumentationSession({
+      title: config.title || "Case Note Entry",
+      program: config.program || "Case Note",
+      sessionType: "case-note",
+      clientProfile: activeClientProfile,
+      timeBlocksOverride: decisionEngineTimeBlocks,
+      rowsOverride: decisionEngineRows,
+    });
+    const finalizedAssignments = decisionEngineSelectionState.finalizedAssignments || [];
+
+    if (finalizedAssignments.length) {
+      session = applyFinalizedAssignmentsToDocumentationSession(session, finalizedAssignments);
+    }
+
+    return session;
+  };
+
   const openDocumentation = (config) => {
-    const timeBlocksOverride =
-      config.sessionType === "case-note" ? decisionEngineTimeBlocks : null;
-    const rowsOverride =
-      config.sessionType === "case-note" ? decisionEngineRows : null;
+    if (config.sessionType === "case-note") {
+      if (documentationSession?.sessionType === "case-note") {
+        const finalizedAssignments = decisionEngineSelectionState.finalizedAssignments || [];
+        if (finalizedAssignments.length) {
+          setDocumentationSession((current) =>
+            applyFinalizedAssignmentsToDocumentationSession(current, finalizedAssignments)
+          );
+        }
+        return;
+      }
+
+      setDocumentationSession(buildCaseNoteDocumentationSession(config));
+      return;
+    }
+
     setDocumentationSession(
       createDocumentationSession({
         ...config,
         clientProfile: activeClientProfile,
-        timeBlocksOverride,
-        rowsOverride,
       })
     );
   };
@@ -7744,9 +7771,6 @@ export default function App() {
     }
 
     if (item === "Case Note") {
-      if (documentationSession?.sessionType === "case-note") {
-        return;
-      }
       openDocumentation({ title: "Case Note Entry", program: "Case Note", sessionType: "case-note" });
       return;
     }
@@ -8608,56 +8632,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: "#831843",
-  },
-  decisionAssignedSummaryCard: {
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "#fce7f3",
-    borderWidth: 1,
-    borderColor: "#f9a8d4",
-  },
-  decisionAssignedSummaryTitle: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: "#9d174d",
-    marginBottom: 6,
-  },
-  decisionAssignedSummaryText: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: "#831843",
-    marginBottom: 6,
-  },
-  decisionAssignedSummaryHint: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: "#9d174d",
-  },
-  decisionMissingAssignmentCard: {
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "#fff7ed",
-    borderWidth: 1,
-    borderColor: "#fdba74",
-  },
-  decisionMissingAssignmentTitle: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: "#9a3412",
-    marginBottom: 4,
-  },
-  decisionMissingAssignmentText: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: "#7c2d12",
   },
   decisionScheduleBuilderRow: {
     flexDirection: "row",
