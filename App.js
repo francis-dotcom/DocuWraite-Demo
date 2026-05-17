@@ -926,7 +926,23 @@ function getTimeBlockSource(blockOrLabel, clientProfile = null) {
   }
 }
 
+function getAssignedWorkflowStepsForField(fieldContext = {}) {
+  if (fieldContext.assignedWorkflowSteps?.length) {
+    return fieldContext.assignedWorkflowSteps;
+  }
+  return createAssignedWorkflowSteps(fieldContext.assignedNodes || []);
+}
+
+function fieldHasAssignedDecisionWorkflow(fieldContext = {}) {
+  const steps = getAssignedWorkflowStepsForField(fieldContext);
+  return steps.some((step) => step.kind !== "draft");
+}
+
 function getTimeBlockWorkflowId(blockOrLabel, clientProfile = null) {
+  if (typeof blockOrLabel === "object" && (blockOrLabel?.assignedNodes || []).length) {
+    return "assigned-nodes";
+  }
+
   if (typeof blockOrLabel === "object" && String(blockOrLabel?.workflowId || "").trim()) {
     return String(blockOrLabel.workflowId).trim();
   }
@@ -2704,11 +2720,11 @@ const communityOutingResponseSuggestions = [
 ];
 
 function detectDocuWraiteGuidedWorkflow(fieldContext, value, clientProfile = null) {
-  if (fieldContext.assignedWorkflowSteps?.length) {
+  if (fieldHasAssignedDecisionWorkflow(fieldContext)) {
     return "assigned-nodes";
   }
 
-  if (fieldContext.workflowId) {
+  if (fieldContext.workflowId && fieldContext.workflowId !== "assigned-nodes") {
     return fieldContext.workflowId;
   }
 
@@ -3818,8 +3834,21 @@ function DocumentationCommentField({
     onAssistToggle?.();
   };
 
+  const hasAssignedDecisionWork = fieldHasAssignedDecisionWorkflow(fieldContext);
+
   return (
     <View style={styles.docCommentField}>
+      {hasAssignedDecisionWork ? (
+        <View style={styles.decisionAssignedSummaryCard}>
+          <Text style={styles.decisionAssignedSummaryTitle}>Locked from Decision Engine</Text>
+          {fieldContext.assignedNodeSummary ? (
+            <Text style={styles.decisionAssignedSummaryText}>{fieldContext.assignedNodeSummary}</Text>
+          ) : null}
+          <Text style={styles.decisionAssignedSummaryHint}>
+            Tap the help bubble to answer your assigned library questions only — not the block category workflow.
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.docCommentInputWrap}>
         <TextInput
           value={value}
@@ -4233,8 +4262,12 @@ function DocumentationEntryScreen({
           return current;
         }
 
-        const localSteps = assist.localWorkflowSteps || assist.fieldContext?.assignedWorkflowSteps || [];
-        const useLocalWorkflow = assist.workflowId === "assigned-nodes" && localSteps.length > 0;
+        const localSteps = assist.localWorkflowSteps?.length
+          ? assist.localWorkflowSteps
+          : getAssignedWorkflowStepsForField(assist.fieldContext || {});
+        const useLocalWorkflow =
+          assist.workflowId === "assigned-nodes" &&
+          localSteps.some((step) => step.kind !== "draft");
 
         const startingWorkflow = {
           fieldId: assist.fieldId,
@@ -4265,11 +4298,16 @@ function DocumentationEntryScreen({
   };
 
   const openDocuWraiteWorkflow = (fieldId, fieldContext, value) => {
-    const workflowId = detectDocuWraiteGuidedWorkflow(fieldContext, value, clientProfile);
+    const localWorkflowSteps = getAssignedWorkflowStepsForField(fieldContext);
+    const workflowId = fieldHasAssignedDecisionWorkflow(fieldContext)
+      ? "assigned-nodes"
+      : detectDocuWraiteGuidedWorkflow(fieldContext, value, clientProfile);
 
     if (!workflowId) {
       return false;
     }
+
+    const useAssignedWorkflow = workflowId === "assigned-nodes" && localWorkflowSteps.length > 0;
 
     showDocuWraiteAssist({
       fieldId,
@@ -4277,13 +4315,12 @@ function DocumentationEntryScreen({
       mode: "workflow",
       workflowId,
       fieldContext,
-      localWorkflowSteps: workflowId === "assigned-nodes" ? fieldContext.assignedWorkflowSteps || [] : [],
+      localWorkflowSteps: useAssignedWorkflow ? localWorkflowSteps : [],
       title: getWorkflowEyebrow(workflowId),
-      message:
-        workflowId === "assigned-nodes"
-          ? "DocuWraite will ask the assigned decision-tree questions for this block."
-          : "DocuWraite will guide this note with care-plan questions.",
-      trigger: "focus",
+      message: useAssignedWorkflow
+        ? "DocuWraite will ask only the questions you locked from the Decision Engine library for this block."
+        : "DocuWraite will guide this note with care-plan questions.",
+      trigger: "manual",
     });
     return true;
   };
@@ -4418,6 +4455,10 @@ function DocumentationEntryScreen({
       if (activity === "blur" || activity === "change") {
         return;
       }
+    }
+
+    if ((fieldContext.assignedNodes || []).length) {
+      return;
     }
 
     if (activity === "focus") {
@@ -5404,6 +5445,8 @@ function DecisionEngineScreen({
   const [newBlockWorkflowId, setNewBlockWorkflowId] = useState(initialBlockDraftState.workflowId);
   const [blockDraftsByWorkflow, setBlockDraftsByWorkflow] = useState(initialBlockDraftState.drafts);
   const [scheduleBuilderHint, setScheduleBuilderHint] = useState("");
+  const [scheduleBuilderGuideNote, setScheduleBuilderGuideNote] = useState("");
+  const [rowBuilderGuideNote, setRowBuilderGuideNote] = useState("");
   const [blockBuilderHint, setBlockBuilderHint] = useState("");
   const [newRowWorkflowId, setNewRowWorkflowId] = useState(initialRowDraftState.workflowId);
   const [rowDraftsByWorkflow, setRowDraftsByWorkflow] = useState(initialRowDraftState.drafts);
@@ -5908,6 +5951,7 @@ function DecisionEngineScreen({
     const nextLabel = buildScheduleBlockLabel(newBlockStartHour, newBlockEndHour);
     if (timeBlocks.some((block) => block.label === nextLabel)) {
       setScheduleBuilderHint("That timeline block already exists.");
+      setScheduleBuilderGuideNote("");
       return;
     }
 
@@ -5932,6 +5976,9 @@ function DecisionEngineScreen({
     onScheduleChange?.([...timeBlocks, nextBlock]);
     setSelectedTargetKey(`time:${nextBlock.id}`);
     setScheduleBuilderHint("");
+    setScheduleBuilderGuideNote(
+      `Added ${nextLabel}. Next: add more time blocks with different hours, add row notes in Row Builder, select work from the library, then scroll down to lock this block and stage for Final Assign.`
+    );
     setBlockDraftsByWorkflow((prev) => ({
       ...prev,
       [newBlockWorkflowId]: "",
@@ -5944,6 +5991,9 @@ function DecisionEngineScreen({
     onScheduleChange?.(nextBlocks);
     if (selectedTargetKey === `time:${blockId}`) {
       setSelectedTargetKey(nextBlocks[0] ? `time:${nextBlocks[0].id}` : "");
+    }
+    if (!nextBlocks.length) {
+      setScheduleBuilderGuideNote("");
     }
   };
 
@@ -6004,6 +6054,9 @@ function DecisionEngineScreen({
     };
     onRowsChange?.([...rowTargets, nextRow]);
     setSelectedTargetKey(`row:${nextRow.id}`);
+    setRowBuilderGuideNote(
+      `Added row "${String(newRowDescription).trim()}". Next: add more rows, add time blocks above, select work from the library, then scroll down to lock this row and stage for Final Assign.`
+    );
     setRowDraftsByWorkflow((prev) => ({
       ...prev,
       [newRowWorkflowId]: "",
@@ -6046,6 +6099,9 @@ function DecisionEngineScreen({
     onRowsChange?.(nextRows);
     if (selectedTargetKey === `row:${rowId}`) {
       setSelectedTargetKey(nextRows[0] ? `row:${nextRows[0].id}` : "");
+    }
+    if (!nextRows.length) {
+      setRowBuilderGuideNote("");
     }
   };
 
@@ -6255,6 +6311,12 @@ function DecisionEngineScreen({
           ))}
         </View>
         {scheduleBuilderHint ? <Text style={styles.decisionInlineHint}>{scheduleBuilderHint}</Text> : null}
+        {scheduleBuilderGuideNote ? (
+          <View style={styles.decisionGuideNote}>
+            <Text style={styles.decisionGuideNoteTitle}>What&apos;s next?</Text>
+            <Text style={styles.decisionGuideNoteText}>{scheduleBuilderGuideNote}</Text>
+          </View>
+        ) : null}
         <Text style={styles.decisionBuilderListLabel}>Timeline blocks</Text>
         <View style={styles.decisionScheduleChipRow}>
           {timeBlocks.map((block) => (
@@ -6326,6 +6388,12 @@ function DecisionEngineScreen({
           ) : null}
         </View>
         {rowBuilderHint ? <Text style={styles.decisionInlineHint}>{rowBuilderHint}</Text> : null}
+        {rowBuilderGuideNote ? (
+          <View style={styles.decisionGuideNote}>
+            <Text style={styles.decisionGuideNoteTitle}>What&apos;s next?</Text>
+            <Text style={styles.decisionGuideNoteText}>{rowBuilderGuideNote}</Text>
+          </View>
+        ) : null}
         <View style={styles.decisionWorkflowChipRow}>
           {workflowOptions.map((option) => (
             <Pressable
@@ -8471,6 +8539,56 @@ const styles = StyleSheet.create({
     color: colors.red,
     fontSize: 12,
     fontWeight: "700",
+  },
+  decisionGuideNote: {
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#fce7f3",
+    borderWidth: 1,
+    borderColor: "#f9a8d4",
+  },
+  decisionGuideNoteTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "#9d174d",
+    marginBottom: 4,
+  },
+  decisionGuideNoteText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#831843",
+  },
+  decisionAssignedSummaryCard: {
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#fce7f3",
+    borderWidth: 1,
+    borderColor: "#f9a8d4",
+  },
+  decisionAssignedSummaryTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "#9d174d",
+    marginBottom: 6,
+  },
+  decisionAssignedSummaryText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#831843",
+    marginBottom: 6,
+  },
+  decisionAssignedSummaryHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#9d174d",
   },
   decisionScheduleBuilderRow: {
     flexDirection: "row",
