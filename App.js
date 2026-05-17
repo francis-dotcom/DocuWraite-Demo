@@ -737,6 +737,14 @@ function getCaseNoteDocumentationItems() {
   }));
 }
 
+function getDecisionEngineDefaultRows(clientProfile = null, workflowId = "behavior-support") {
+  const rows = clientProfile
+    ? buildCaseNoteDocumentationItems(clientProfile)
+    : getCaseNoteDocumentationItems();
+  const matchingRows = rows.filter((row) => row.workflowId === workflowId);
+  return matchingRows.length ? [matchingRows[0]] : rows.slice(0, 1);
+}
+
 function createTimeBlockEntry(block, index) {
   return {
     ...block,
@@ -991,6 +999,69 @@ function getDecisionSectionFilterLabel(sectionKey = "") {
   }
 
   return normalized.replace(/^[A-Z]\.\s+/, "");
+}
+
+function getDecisionNoteTypeKey(nodeOrSection = "") {
+  const section =
+    typeof nodeOrSection === "string"
+      ? nodeOrSection
+      : nodeOrSection?.section || nodeOrSection?.title || "";
+  const normalized = String(section || "").trim().toLowerCase();
+
+  if (
+    normalized.includes("row note") ||
+    normalized.includes("case note row") ||
+    normalized.includes("behavior") ||
+    normalized.includes("adl") ||
+    normalized.includes("meal") ||
+    normalized.includes("communication") ||
+    normalized.includes("community")
+  ) {
+    return "case-note-row";
+  }
+
+  if (
+    normalized.includes("block summary") ||
+    normalized.includes("block time") ||
+    normalized.includes("runtime") ||
+    normalized.includes("schedule") ||
+    normalized.includes("appointments")
+  ) {
+    return "block-time";
+  }
+
+  if (normalized.includes("final case note") || normalized.includes("final note")) {
+    return "final-note";
+  }
+
+  if (normalized.includes("handoff")) {
+    return "handover-note";
+  }
+
+  if (normalized.includes("language") || normalized.includes("safety control")) {
+    return "ai-controls";
+  }
+
+  return "other";
+}
+
+function getDecisionNoteTypeLabel(noteTypeKey = "") {
+  switch (noteTypeKey) {
+    case "block-time":
+      return "Block time";
+    case "case-note-row":
+      return "Case-note row";
+    case "final-note":
+      return "Final note";
+    case "handover-note":
+      return "Handover note";
+    case "ai-controls":
+      return "AI controls";
+    case "other":
+      return "Other";
+    default:
+      return "All note types";
+  }
 }
 
 function getDecisionNodeSelectedChoices(node = {}, choiceSelections = {}) {
@@ -5021,7 +5092,7 @@ function DecisionEngineScreen({
   const [newBlockStartHour, setNewBlockStartHour] = useState(7);
   const [newBlockEndHour, setNewBlockEndHour] = useState(8);
   const [scheduleBuilderHint, setScheduleBuilderHint] = useState("");
-  const [newRowWorkflowId, setNewRowWorkflowId] = useState("behavior-support");
+  const [newRowWorkflowId, setNewRowWorkflowId] = useState(rowTargets[0]?.workflowId || "behavior-support");
   const [rowDraftsByWorkflow, setRowDraftsByWorkflow] = useState({});
   const [rowBuilderHint, setRowBuilderHint] = useState("");
   const [rowPromptPopoverVisible, setRowPromptPopoverVisible] = useState(false);
@@ -5063,6 +5134,12 @@ function DecisionEngineScreen({
       setTargetType(initialTargetKey.startsWith("row:") ? "case-note-row" : "time-block");
     }
   }, [initialTargetKey, assignmentTargets]);
+
+  useEffect(() => {
+    if (rowTargets.length === 1 && rowTargets[0]?.workflowId && newRowWorkflowId !== rowTargets[0].workflowId) {
+      setNewRowWorkflowId(rowTargets[0].workflowId);
+    }
+  }, [newRowWorkflowId, rowTargets]);
 
   useEffect(() => {
     if (newBlockEndHour <= newBlockStartHour) {
@@ -5210,15 +5287,15 @@ function DecisionEngineScreen({
   const libraryNodes = selectedLibraryData.nodes.filter((node) => !isDecisionConditionalNode(node));
   const noteTypeDropdownOptions = [
     { value: "all", label: "All note types" },
-    ...Array.from(new Set(libraryNodes.map((node) => node.section || "Uncategorized")))
+    ...Array.from(new Set(libraryNodes.map((node) => getDecisionNoteTypeKey(node))))
       .filter(Boolean)
-      .map((sectionKey) => ({
-        value: sectionKey,
-        label: getDecisionSectionFilterLabel(sectionKey),
+      .map((noteTypeKey) => ({
+        value: noteTypeKey,
+        label: getDecisionNoteTypeLabel(noteTypeKey),
       })),
   ];
   const noteTypeScopedLibraryNodes = libraryNodes.filter(
-    (node) => selectedNoteType === "all" || (node.section || "Uncategorized") === selectedNoteType
+    (node) => selectedNoteType === "all" || getDecisionNoteTypeKey(node) === selectedNoteType
   );
   const branchDropdownOptions = getDecisionBranchOptions(noteTypeScopedLibraryNodes);
   const depthDropdownOptions = DECISION_DEPTH_OPTIONS;
@@ -5503,12 +5580,6 @@ function DecisionEngineScreen({
     const selectedTargetOption = assignmentTargets.find((target) => target.key === selectedTargetKey);
     if (!selectedTargetOption) {
       setAssignmentHint("Choose a target before locking this library.");
-      return;
-    }
-
-    const missingChoiceKeys = getMissingDecisionChoiceNodeKeys(selectedKeys, choiceSelections);
-    if (missingChoiceKeys.length) {
-      setAssignmentHint("Pick at least one choice for every selected question before locking this library.");
       return;
     }
 
@@ -5933,7 +6004,10 @@ function DecisionEngineScreen({
                   ) : null}
                   {getDecisionNodeDisplayChoices(node).length ? (
                     <View style={styles.decisionChoiceBlock}>
-                      <Text style={styles.decisionChoiceLabel}>Choices</Text>
+                      <Text style={styles.decisionChoiceLabel}>DSP answer options</Text>
+                      <Text style={styles.decisionChoiceHelper}>
+                        Leave these unselected to keep all options for the DSP. Select only if you want to narrow the options shown later.
+                      </Text>
                       <View style={styles.decisionChoiceList}>
                         {getDecisionNodeDisplayChoices(node).map((choice) => (
                           <Pressable
@@ -5957,11 +6031,6 @@ function DecisionEngineScreen({
                           </Pressable>
                         ))}
                       </View>
-                      {checkedNodes[buildDecisionNodeSelectionKey(node)] &&
-                      nodeRequiresDecisionChoice(node) &&
-                      !getDecisionNodeSelectedChoices(node, choiceSelections).length ? (
-                        <Text style={styles.decisionChoiceWarning}>No choice selected yet.</Text>
-                      ) : null}
                     </View>
                   ) : null}
                   {node.conditions?.length ? (
@@ -6020,7 +6089,7 @@ function DecisionEngineScreen({
               <View style={styles.decisionStagedCardTop}>
                 <Text style={styles.decisionStagedTitle}>{assignment.summary || buildStagedAssignmentSummary(assignment)}</Text>
                 <Text style={styles.decisionStagedMeta}>
-                  {`${getDecisionLibraryDisplayName(assignment.selectedLibrary)} • ${getDecisionOptionLabel(noteTypeDropdownOptions, assignment.selectedNoteType || "all") || "All note types"} • Branch ${assignment.selectedBranchKey || "?"} • ${assignment.selectedDepth} deep • ${assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch"}`}
+                  {`${getDecisionLibraryDisplayName(assignment.selectedLibrary)} • ${getDecisionNoteTypeLabel(assignment.selectedNoteType || "all")} • Branch ${assignment.selectedBranchKey || "?"} • ${assignment.selectedDepth} deep • ${assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch"}`}
                 </Text>
               </View>
               <View style={styles.decisionStagedActionRow}>
@@ -6066,7 +6135,7 @@ function DecisionEngineScreen({
               <View style={styles.decisionStagedCardTop}>
                 <Text style={styles.decisionStagedTitle}>{assignment.summary || buildStagedAssignmentSummary(assignment)}</Text>
                 <Text style={styles.decisionStagedMeta}>
-                  {`${getDecisionLibraryDisplayName(assignment.selectedLibrary)} • ${getDecisionOptionLabel(noteTypeDropdownOptions, assignment.selectedNoteType || "all") || "All note types"} • Branch ${assignment.selectedBranchKey || "?"} • ${assignment.selectedDepth} deep • ${assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch"}`}
+                  {`${getDecisionLibraryDisplayName(assignment.selectedLibrary)} • ${getDecisionNoteTypeLabel(assignment.selectedNoteType || "all")} • Branch ${assignment.selectedBranchKey || "?"} • ${assignment.selectedDepth} deep • ${assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch"}`}
                 </Text>
               </View>
               <View style={styles.decisionStagedActionRow}>
@@ -6662,6 +6731,7 @@ export default function App() {
     program: "Case Note",
     sessionType: "case-note",
     clientProfile: activeClientProfile,
+    rowsOverride: getDecisionEngineDefaultRows(activeClientProfile),
   });
   const [decisionEngineTimeBlocks, setDecisionEngineTimeBlocks] = useState(defaultCaseNoteTemplate.timeBlocks);
   const [decisionEngineRows, setDecisionEngineRows] = useState(defaultCaseNoteTemplate.rows);
@@ -6730,6 +6800,7 @@ export default function App() {
       program: "Case Note",
       sessionType: "case-note",
       clientProfile: activeClientProfile,
+      rowsOverride: getDecisionEngineDefaultRows(activeClientProfile),
     });
 
     setDecisionStateHydrated(false);
@@ -7068,21 +7139,6 @@ export default function App() {
   const handleFinalizeAssignments = () => {
     const stagedAssignments = decisionEngineSelectionState.stagedAssignments || [];
     if (!stagedAssignments.length) {
-      return;
-    }
-
-    const stagedAssignmentsMissingChoices = stagedAssignments.some((assignment) => {
-      const selectedKeys = (assignment.selectedNodesPayload || []).map((node) => node.key).filter(Boolean);
-      const selectionMap = (assignment.selectedNodesPayload || []).reduce((acc, node) => {
-        acc[node.key] = node.selectedChoices || [];
-        return acc;
-      }, {});
-      return getMissingDecisionChoiceNodeKeys(selectedKeys, selectionMap).length > 0;
-    });
-
-    if (stagedAssignmentsMissingChoices) {
-      setSelectedModule("Decision Engine");
-      setDecisionEngineHint("Some staged questions still have no selected choice. Fix those before final assign.");
       return;
     }
 
@@ -8297,20 +8353,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: colors.headerText,
-    marginBottom: 6,
+    marginBottom: 4,
     textTransform: "uppercase",
     letterSpacing: 0.3,
+  },
+  decisionChoiceHelper: {
+    marginBottom: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.muted,
   },
   decisionChoiceList: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-  },
-  decisionChoiceWarning: {
-    marginTop: 8,
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.red,
   },
   decisionChoiceChip: {
     backgroundColor: "#f7f3ff",
