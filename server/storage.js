@@ -127,6 +127,10 @@ db.exec(`
     workspace_state_id INTEGER NOT NULL,
     block_key TEXT NOT NULL,
     label TEXT NOT NULL,
+    description TEXT,
+    source TEXT,
+    workflow_id TEXT,
+    theme TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -290,6 +294,22 @@ if (!tableHasColumn("decision_workspace_states", "selected_note_type")) {
   db.exec("ALTER TABLE decision_workspace_states ADD COLUMN selected_note_type TEXT");
 }
 
+if (!tableHasColumn("decision_time_blocks", "description")) {
+  db.exec("ALTER TABLE decision_time_blocks ADD COLUMN description TEXT");
+}
+
+if (!tableHasColumn("decision_time_blocks", "source")) {
+  db.exec("ALTER TABLE decision_time_blocks ADD COLUMN source TEXT");
+}
+
+if (!tableHasColumn("decision_time_blocks", "workflow_id")) {
+  db.exec("ALTER TABLE decision_time_blocks ADD COLUMN workflow_id TEXT");
+}
+
+if (!tableHasColumn("decision_time_blocks", "theme")) {
+  db.exec("ALTER TABLE decision_time_blocks ADD COLUMN theme TEXT");
+}
+
 const upsertLibraryStatement = db.prepare(`
   INSERT INTO decision_libraries (slug, name, version, is_active, updated_at)
   VALUES (?, ?, ?, 1, ?)
@@ -437,13 +457,17 @@ const insertTimeBlockStatement = db.prepare(`
     workspace_state_id,
     block_key,
     label,
+    description,
+    source,
+    workflow_id,
+    theme,
     sort_order,
     updated_at
-  ) VALUES (?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const getTimeBlocksByWorkspaceStatement = db.prepare(`
-  SELECT block_key, label
+  SELECT block_key, label, description, source, workflow_id, theme
   FROM decision_time_blocks
   WHERE workspace_state_id = ?
   ORDER BY sort_order, id
@@ -1004,6 +1028,10 @@ function getWorkspaceState(clientId) {
     timeBlocks: getTimeBlocksByWorkspaceStatement.all(row.id).map((item) => ({
       id: item.block_key,
       label: item.label,
+      description: item.description,
+      source: item.source,
+      workflowId: item.workflow_id,
+      theme: item.theme,
     })),
     rows: getRowsByWorkspaceStatement.all(row.id).map((item) => ({
       id: item.row_key,
@@ -1078,6 +1106,10 @@ function saveWorkspaceState({
         workspaceStateId,
         block.id || `block-${index + 1}`,
         block.label || "",
+        block.description || null,
+        block.source || null,
+        block.workflowId || null,
+        block.theme || null,
         index,
         updatedAt
       );
