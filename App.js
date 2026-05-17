@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   Pressable,
@@ -786,6 +787,93 @@ function buildScheduleBlockId(startHour = 7, endHour = 8, index = 0) {
   return `block-${startHour}-${endHour}-${index}`;
 }
 
+function parseScheduleBlockHours(block = {}) {
+  const idMatch = String(block.id || "").match(/^block-(\d+)-(\d+)-/);
+  if (idMatch) {
+    return {
+      startHour: Number(idMatch[1]),
+      endHour: Number(idMatch[2]),
+    };
+  }
+
+  return { startHour: 7, endHour: 8 };
+}
+
+function buildBuilderDraftSeedFromTarget(
+  targetKey = "",
+  timeBlocks = [],
+  rowTargets = [],
+  fallbackLabel = "",
+  fallbackDescription = ""
+) {
+  if (!targetKey) {
+    return null;
+  }
+
+  if (targetKey.startsWith("time:")) {
+    const blockId = targetKey.slice("time:".length);
+    const block = timeBlocks.find((entry) => entry.id === blockId);
+    const blockDescription = String(block?.description || fallbackDescription || "").trim();
+    if (!block && !blockDescription) {
+      return null;
+    }
+
+    const { startHour, endHour } = parseScheduleBlockHours(block || { id: blockId });
+    return {
+      blockDescription,
+      blockWorkflowId: block?.workflowId || "behavior-support",
+      blockStartHour: startHour,
+      blockEndHour: endHour,
+    };
+  }
+
+  if (targetKey.startsWith("row:")) {
+    const rowId = targetKey.slice("row:".length);
+    const row = rowTargets.find((entry) => entry.id === rowId);
+    const rowDescription = String(row?.description || fallbackDescription || fallbackLabel || "").trim();
+    if (!rowDescription) {
+      return null;
+    }
+
+    return {
+      rowDescription,
+      rowWorkflowId: row?.workflowId || "behavior-support",
+    };
+  }
+
+  return null;
+}
+
+function buildInitialBlockDraftState(seed = null, defaultWorkflowId = "behavior-support") {
+  if (!seed?.blockDescription) {
+    return {
+      drafts: {},
+      workflowId: seed?.blockWorkflowId || defaultWorkflowId,
+    };
+  }
+
+  const workflowId = seed.blockWorkflowId || defaultWorkflowId;
+  return {
+    drafts: { [workflowId]: seed.blockDescription },
+    workflowId,
+  };
+}
+
+function buildInitialRowDraftState(seed = null, defaultWorkflowId = "behavior-support") {
+  if (!seed?.rowDescription) {
+    return {
+      drafts: {},
+      workflowId: seed?.rowWorkflowId || defaultWorkflowId,
+    };
+  }
+
+  const workflowId = seed.rowWorkflowId || defaultWorkflowId;
+  return {
+    drafts: { [workflowId]: seed.rowDescription },
+    workflowId,
+  };
+}
+
 function getTimeBlockPrompt(blockOrLabel, clientProfile = null) {
   if (typeof blockOrLabel === "object" && String(blockOrLabel?.description || "").trim()) {
     return String(blockOrLabel.description).trim();
@@ -1302,6 +1390,147 @@ function buildDecisionEngineCaseNoteRecord(stagedAssignments = []) {
       })),
     },
   };
+}
+
+function clearDocumentationTargetAssignmentFields(target = {}) {
+  return {
+    ...target,
+    assignedNodes: [],
+    assignedNodeSummary: "",
+    assignedNodeConfig: undefined,
+  };
+}
+
+function buildTargetAssignmentDataFromGroup(assignmentGroup = []) {
+  const mappedAssignedNodes = assignmentGroup.flatMap((assignment) => {
+    const expandedNodes = expandAssignedDecisionNodes(assignment.selectedNodesPayload || [], {
+      selectedDepth: assignment.selectedDepth || 1,
+      includeMode: assignment.includeMode || "selective-branch",
+    });
+
+    return expandedNodes.map((node) => ({
+      id: node.id,
+      title: getDecisionNodeDisplayTitle(node),
+      question: getDecisionNodeDisplayQuestion(node),
+      choices: node.choices || [],
+      selectedChoices: node.selectedChoices || [],
+      section: node.section,
+      library: node.library,
+      stepKey: node.stepKey,
+      includeInFinal: Boolean(node.includeInFinal),
+      assignmentDepth: node.assignmentDepth,
+      includeMode: node.includeMode,
+    }));
+  });
+
+  const assignedNodeSummary = assignmentGroup
+    .map((assignment) => {
+      const expandedNodes = expandAssignedDecisionNodes(assignment.selectedNodesPayload || [], {
+        selectedDepth: assignment.selectedDepth || 1,
+        includeMode: assignment.includeMode || "selective-branch",
+      });
+      const questionList = expandedNodes
+        .map((node) => {
+          const selectedChoiceText = node.selectedChoices?.length ? ` [${node.selectedChoices.join(", ")}]` : "";
+          return `${node.includeInFinal ? "[FINAL] " : ""}- ${getDecisionNodeDisplayQuestion(node) || getDecisionNodeDisplayTitle(node)}${selectedChoiceText}`;
+        })
+        .join("\n");
+      return `${getDecisionLibraryDisplayName(assignment.selectedLibrary)}\n${questionList}`;
+    })
+    .join("\n\n");
+
+  return {
+    assignedNodes: mappedAssignedNodes,
+    assignedNodeSummary,
+    assignedNodeConfig: {
+      stagedAssignments: assignmentGroup.map((assignment) => ({
+        id: assignment.id,
+        selectedLibrary: assignment.selectedLibrary,
+        selectedDepth: assignment.selectedDepth,
+        includeMode: assignment.includeMode,
+        selectedBranchKey: assignment.selectedBranchKey,
+        target: assignment.target,
+        selectedCount: assignment.selectedCount,
+      })),
+    },
+  };
+}
+
+function groupFinalizedAssignmentsByTarget(finalizedAssignments = []) {
+  return finalizedAssignments.reduce((acc, assignment) => {
+    if (!assignment?.target?.targetId) {
+      return acc;
+    }
+
+    const targetKey = `${assignment.target.type}:${assignment.target.targetId}`;
+    if (!acc[targetKey]) {
+      acc[targetKey] = [];
+    }
+    acc[targetKey].push(assignment);
+    return acc;
+  }, {});
+}
+
+function applyFinalizedAssignmentsToDocumentationSession(session, finalizedAssignments = []) {
+  if (!session || session.sessionType !== "case-note") {
+    return session;
+  }
+
+  const assignmentsByTarget = groupFinalizedAssignmentsByTarget(finalizedAssignments);
+
+  return {
+    ...session,
+    decisionEngineNote: buildDecisionEngineCaseNoteRecord(finalizedAssignments),
+    timeBlocks: (session.timeBlocks || []).map((block) => {
+      const assignmentGroup = assignmentsByTarget[`time-block:${block.id}`];
+      if (!assignmentGroup?.length) {
+        return clearDocumentationTargetAssignmentFields(block);
+      }
+
+      return {
+        ...block,
+        comment: "",
+        ...buildTargetAssignmentDataFromGroup(assignmentGroup),
+      };
+    }),
+    rows: (session.rows || []).map((row) => {
+      const assignmentGroup = assignmentsByTarget[`case-note-row:${row.id}`];
+      if (!assignmentGroup?.length) {
+        return clearDocumentationTargetAssignmentFields(row);
+      }
+
+      return {
+        ...row,
+        comment: "",
+        ...buildTargetAssignmentDataFromGroup(assignmentGroup),
+      };
+    }),
+  };
+}
+
+function runDecisionEngineConfirmAction({
+  title,
+  message,
+  confirmLabel = "Delete",
+  cancelLabel = "Cancel",
+  onConfirm,
+}) {
+  if (!onConfirm) {
+    return;
+  }
+
+  if (Platform.OS === "web" && typeof window !== "undefined" && typeof window.confirm === "function") {
+    const accepted = window.confirm([title, message].filter(Boolean).join("\n\n"));
+    if (accepted) {
+      onConfirm();
+    }
+    return;
+  }
+
+  Alert.alert(title, message, [
+    { text: cancelLabel, style: "cancel" },
+    { text: confirmLabel, style: "destructive", onPress: onConfirm },
+  ]);
 }
 
 function getDecisionLibraryDisplayName(librarySlug = "") {
@@ -1959,12 +2188,16 @@ function createDocumentationSession({
   rowsOverride = null,
 }) {
   const isCaseNote = sessionType === "case-note";
-  const timeBlocks = timeBlocksOverride || clientProfile?.documentationTimeBlocks || documentationTimeBlocks;
-  const rows = rowsOverride || (clientProfile
-    ? (isCaseNote ? buildCaseNoteDocumentationItems(clientProfile) : buildMeasurableDocumentationItems(clientProfile))
-    : isCaseNote
-      ? getCaseNoteDocumentationItems()
-      : getMeasurableDocumentationItems());
+  const timeBlocks =
+    timeBlocksOverride ??
+    (isCaseNote ? [] : clientProfile?.documentationTimeBlocks || documentationTimeBlocks);
+  const rows =
+    rowsOverride ??
+    (clientProfile
+      ? (isCaseNote ? [] : buildMeasurableDocumentationItems(clientProfile))
+      : isCaseNote
+        ? []
+        : getMeasurableDocumentationItems());
 
   return {
     title,
@@ -3508,6 +3741,8 @@ function DocumentationCommentField({
   assist,
   assistExpanded,
   workflow,
+  showHelpBubble = false,
+  onHelpBubblePress,
   onAssistToggle,
   onAssistDismiss,
   onAssistApply,
@@ -3530,7 +3765,6 @@ function DocumentationCommentField({
     const theme = detectDocuWraiteWorkflowTheme(nextValue);
     if (theme && theme !== previousThemeRef.current) {
       previousThemeRef.current = theme;
-      onAssistActivity?.(fieldId, { ...fieldContext, theme }, nextValue, "workflow");
     }
     onAssistActivity?.(fieldId, fieldContext, nextValue, "change");
     if (/[.!?]\s*$/.test(nextValue.trim()) || /\n\s*$/.test(nextValue)) {
@@ -3575,7 +3809,14 @@ function DocumentationCommentField({
     setWordingAssist(null);
   };
 
-  const showAssistChrome = !!assist;
+  const showAssistChrome = showHelpBubble || !!assist;
+  const handleHelpBubblePress = () => {
+    if (onHelpBubblePress) {
+      onHelpBubblePress();
+      return;
+    }
+    onAssistToggle?.();
+  };
 
   return (
     <View style={styles.docCommentField}>
@@ -3604,7 +3845,9 @@ function DocumentationCommentField({
           ]}
           maxLength={DOCUMENTATION_CHAR_LIMIT}
         />
-        {showAssistChrome ? <DocuWraiteBubble assist={assist} onToggle={onAssistToggle} /> : null}
+        {showAssistChrome ? (
+          <DocuWraiteBubble assist={assist || { fieldId }} onToggle={handleHelpBubblePress} />
+        ) : null}
       </View>
       {workflow || (assist?.mode !== "workflow" && assistExpanded) ? (
         <View style={styles.docuWraiteAssistDock}>
@@ -3735,47 +3978,51 @@ function DocumentationFormTable({
         <Text style={[styles.docTableHeaderCell, styles.docDescriptionColumn]}>Description</Text>
         <Text style={[styles.docTableHeaderCell, styles.docScoresColumn]}>Scores/Comments</Text>
       </View>
-      {rows.map((row) => (
-        <View key={row.id} style={[styles.docTableRow, isPhone && styles.docTableRowStacked]}>
-          <View style={[styles.docDescriptionColumn, styles.docDescriptionCell]}>
-            {row.source ? <Text style={styles.docRowSource}>{row.source}</Text> : null}
-            <Text style={styles.docRowDescription}>{row.description}</Text>
+      {rows.map((row) => {
+        const rowFieldContext = {
+          fieldKind: "row",
+          score: row.score,
+          description: row.description,
+          source: row.source,
+          workflowId: row.workflowId,
+          theme: row.theme,
+          shiftIntelligence: runtimeShiftIntelligence,
+          assignedNodes: row.assignedNodes || [],
+          assignedNodeSummary: row.assignedNodeSummary || "",
+          assignedWorkflowSteps: createAssignedWorkflowSteps(row.assignedNodes || []),
+        };
+
+        return (
+          <View key={row.id} style={[styles.docTableRow, isPhone && styles.docTableRowStacked]}>
+            <View style={[styles.docDescriptionColumn, styles.docDescriptionCell]}>
+              {row.source ? <Text style={styles.docRowSource}>{row.source}</Text> : null}
+              <Text style={styles.docRowDescription}>{row.description}</Text>
+            </View>
+            <View style={[styles.docScoresColumn, styles.docScoresCell]}>
+              <DocumentationDropdown
+                value={row.score}
+                options={supportLevelOptions}
+                placeholder={scorePlaceholder}
+                onChange={(score) => onScoreChange(row.id, score)}
+                dropdownId={`row-${row.id}-score`}
+                activeDropdown={activeDropdown}
+                onToggleDropdown={onToggleDropdown}
+              />
+              <DocumentationCommentField
+                fieldId={`row-${row.id}`}
+                fieldContext={rowFieldContext}
+                value={row.comment}
+                onChange={(comment) => onCommentChange(row.id, comment)}
+                expanded={!!expandedAreas[`row-${row.id}`]}
+                onToggleExpanded={() => onToggleExpanded(`row-${row.id}`)}
+                {...getCommentAssistProps(`row-${row.id}`, rowFieldContext, row.comment)}
+                onAssistActivity={onCommentAssistActivity}
+                onAssignQuestions={onAssignQuestions ? () => onAssignQuestions(row) : null}
+              />
+            </View>
           </View>
-          <View style={[styles.docScoresColumn, styles.docScoresCell]}>
-            <DocumentationDropdown
-              value={row.score}
-              options={supportLevelOptions}
-              placeholder={scorePlaceholder}
-              onChange={(score) => onScoreChange(row.id, score)}
-              dropdownId={`row-${row.id}-score`}
-              activeDropdown={activeDropdown}
-              onToggleDropdown={onToggleDropdown}
-            />
-            <DocumentationCommentField
-              fieldId={`row-${row.id}`}
-              fieldContext={{
-                fieldKind: "row",
-                score: row.score,
-                description: row.description,
-                source: row.source,
-                workflowId: row.workflowId,
-                theme: row.theme,
-                shiftIntelligence: runtimeShiftIntelligence,
-                assignedNodes: row.assignedNodes || [],
-                assignedNodeSummary: row.assignedNodeSummary || "",
-                assignedWorkflowSteps: createAssignedWorkflowSteps(row.assignedNodes || []),
-              }}
-              value={row.comment}
-              onChange={(comment) => onCommentChange(row.id, comment)}
-              expanded={!!expandedAreas[`row-${row.id}`]}
-              onToggleExpanded={() => onToggleExpanded(`row-${row.id}`)}
-              {...getCommentAssistProps(`row-${row.id}`)}
-              onAssistActivity={onCommentAssistActivity}
-              onAssignQuestions={onAssignQuestions ? () => onAssignQuestions(row) : null}
-            />
-          </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -4174,10 +4421,6 @@ function DocumentationEntryScreen({
     }
 
     if (activity === "focus") {
-      if (openDocuWraiteWorkflow(fieldId, fieldContext, value)) {
-        return;
-      }
-      evaluateDocuWraiteAssist(fieldId, fieldContext, value, "focus");
       return;
     }
 
@@ -4195,7 +4438,7 @@ function DocumentationEntryScreen({
       return;
     }
 
-    if (activity === "sentence-end" || activity === "workflow") {
+    if (activity === "sentence-end") {
       evaluateDocuWraiteAssist(fieldId, fieldContext, value, activity);
     }
   };
@@ -4246,7 +4489,8 @@ function DocumentationEntryScreen({
     }
   };
 
-  const getCommentAssistProps = (fieldId) => ({
+  const getCommentAssistProps = (fieldId, fieldContext, value = "") => ({
+    showHelpBubble: true,
     assist:
       docuWraiteAssist?.fieldId === fieldId
         ? docuWraiteAssist
@@ -4263,6 +4507,13 @@ function DocumentationEntryScreen({
     assistExpanded:
       docuWraiteWorkflow?.fieldId === fieldId ||
       (docuWraiteAssist?.fieldId === fieldId && docuWraiteExpanded),
+    onHelpBubblePress: () => {
+      if (docuWraiteWorkflow?.fieldId === fieldId || docuWraiteAssist?.fieldId === fieldId) {
+        setDocuWraiteExpanded((current) => !current);
+        return;
+      }
+      openDocuWraiteWorkflow(fieldId, fieldContext, value);
+    },
     onAssistToggle: () => {
       if (docuWraiteAssist?.fieldId === fieldId) {
         setDocuWraiteExpanded((current) => !current);
@@ -4838,12 +5089,23 @@ function DocumentationEntryScreen({
                     assignedWorkflowSteps: createAssignedWorkflowSteps(block.assignedNodes || []),
                   }}
                   value={block.comment}
-                onChange={(comment) => updateTimeBlock(block.id, { comment })}
-                expanded={!!expandedAreas[`time-${block.id}`]}
-                onToggleExpanded={() => toggleExpanded(`time-${block.id}`)}
-                {...getCommentAssistProps(`time-${block.id}`)}
-                onAssistActivity={handleCommentAssistActivity}
-              />
+                  onChange={(comment) => updateTimeBlock(block.id, { comment })}
+                  expanded={!!expandedAreas[`time-${block.id}`]}
+                  onToggleExpanded={() => toggleExpanded(`time-${block.id}`)}
+                  {...getCommentAssistProps(`time-${block.id}`, {
+                    fieldKind: "time",
+                    score: block.score,
+                    label: block.label,
+                    description: getTimeBlockPrompt(block, clientProfile),
+                    source: getTimeBlockSource(block, clientProfile),
+                    workflowId: getTimeBlockWorkflowId(block, clientProfile),
+                    shiftIntelligence: runtimeShiftIntelligence,
+                    assignedNodes: block.assignedNodes || [],
+                    assignedNodeSummary: block.assignedNodeSummary || "",
+                    assignedWorkflowSteps: createAssignedWorkflowSteps(block.assignedNodes || []),
+                  }, block.comment)}
+                  onAssistActivity={handleCommentAssistActivity}
+                />
             </View>
           </View>
         ))}
@@ -4894,7 +5156,15 @@ function DocumentationEntryScreen({
               onChange={(shiftSummary) => patchSession({ shiftSummary })}
               expanded={!!expandedAreas.summary}
               onToggleExpanded={() => toggleExpanded("summary")}
-              {...getCommentAssistProps("summary")}
+              {...getCommentAssistProps("summary", {
+                fieldKind: "summary",
+                score: "",
+                description: isCaseNoteSession ? "Final Case Note" : "End of Shift Summary",
+                source: isCaseNoteSession ? "Case Note Final" : "Shift Summary",
+                workflowId: isCaseNoteSession ? "case-note-final" : null,
+                shiftIntelligence: runtimeShiftIntelligence,
+                sourceEntries: isCaseNoteSession ? buildCaseNoteFinalFieldContext().sourceEntries : undefined,
+              }, session.shiftSummary)}
               onAssistActivity={handleCommentAssistActivity}
             />
           </View>
@@ -5123,14 +5393,20 @@ function DecisionEngineScreen({
   const [checkedNodes, setCheckedNodes] = useState(initialSelectionState?.checkedNodes || {});
   const [includeInFinalMap, setIncludeInFinalMap] = useState(initialSelectionState?.includeInFinalMap || {});
   const [choiceSelections, setChoiceSelections] = useState(initialSelectionState?.choiceSelections || {});
-  const [newBlockStartHour, setNewBlockStartHour] = useState(7);
-  const [newBlockEndHour, setNewBlockEndHour] = useState(8);
-  const [newBlockWorkflowId, setNewBlockWorkflowId] = useState("behavior-support");
-  const [blockDraftsByWorkflow, setBlockDraftsByWorkflow] = useState({});
+  const initialBuilderSeed = initialSelectionState?.builderDraftSeed || null;
+  const initialBlockDraftState = buildInitialBlockDraftState(initialBuilderSeed);
+  const initialRowDraftState = buildInitialRowDraftState(
+    initialBuilderSeed,
+    rowTargets[0]?.workflowId || "behavior-support"
+  );
+  const [newBlockStartHour, setNewBlockStartHour] = useState(initialBuilderSeed?.blockStartHour ?? 7);
+  const [newBlockEndHour, setNewBlockEndHour] = useState(initialBuilderSeed?.blockEndHour ?? 8);
+  const [newBlockWorkflowId, setNewBlockWorkflowId] = useState(initialBlockDraftState.workflowId);
+  const [blockDraftsByWorkflow, setBlockDraftsByWorkflow] = useState(initialBlockDraftState.drafts);
   const [scheduleBuilderHint, setScheduleBuilderHint] = useState("");
   const [blockBuilderHint, setBlockBuilderHint] = useState("");
-  const [newRowWorkflowId, setNewRowWorkflowId] = useState(rowTargets[0]?.workflowId || "behavior-support");
-  const [rowDraftsByWorkflow, setRowDraftsByWorkflow] = useState({});
+  const [newRowWorkflowId, setNewRowWorkflowId] = useState(initialRowDraftState.workflowId);
+  const [rowDraftsByWorkflow, setRowDraftsByWorkflow] = useState(initialRowDraftState.drafts);
   const [rowBuilderHint, setRowBuilderHint] = useState("");
   const [blockPromptPopoverVisible, setBlockPromptPopoverVisible] = useState(false);
   const [blockPromptSuggestions, setBlockPromptSuggestions] = useState([]);
@@ -5143,6 +5419,8 @@ function DecisionEngineScreen({
   const [assignmentHint, setAssignmentHint] = useState("");
   const libraryHelpButtonRef = useRef(null);
   const rowWorkflowTouchedRef = useRef(false);
+  const blockPromptRequestRef = useRef(0);
+  const rowPromptRequestRef = useRef(0);
   const workflowOptions = [
     { workflowId: "behavior-support", label: "Behavior", theme: "behavior", promptCategory: "behavior" },
     { workflowId: "morning-adl", label: "ADL", theme: "hygiene", promptCategory: "adl" },
@@ -5177,6 +5455,51 @@ function DecisionEngineScreen({
       setTargetType(initialTargetKey.startsWith("row:") ? "case-note-row" : "time-block");
     }
   }, [initialTargetKey, assignmentTargets]);
+
+  useEffect(() => {
+    const fallbackLabel =
+      targetType === "case-note-row"
+        ? rowTargets.find((row) => `row:${row.id}` === selectedTargetKey)?.description || ""
+        : "";
+    const seed = buildBuilderDraftSeedFromTarget(
+      selectedTargetKey,
+      timeBlocks,
+      rowTargets,
+      fallbackLabel
+    );
+
+    if (!seed) {
+      return;
+    }
+
+    if (seed.blockDescription) {
+      const workflowId = seed.blockWorkflowId || "behavior-support";
+      setNewBlockWorkflowId(workflowId);
+      setBlockDraftsByWorkflow((prev) => {
+        if (prev[workflowId] === seed.blockDescription) {
+          return prev;
+        }
+        return { ...prev, [workflowId]: seed.blockDescription };
+      });
+      if (Number.isFinite(seed.blockStartHour)) {
+        setNewBlockStartHour(seed.blockStartHour);
+      }
+      if (Number.isFinite(seed.blockEndHour)) {
+        setNewBlockEndHour(seed.blockEndHour);
+      }
+    }
+
+    if (seed.rowDescription) {
+      const workflowId = seed.rowWorkflowId || "behavior-support";
+      setNewRowWorkflowId(workflowId);
+      setRowDraftsByWorkflow((prev) => {
+        if (prev[workflowId] === seed.rowDescription) {
+          return prev;
+        }
+        return { ...prev, [workflowId]: seed.rowDescription };
+      });
+    }
+  }, [selectedTargetKey, targetType, timeBlocks, rowTargets]);
 
   useEffect(() => {
     if (
@@ -5261,81 +5584,95 @@ function DecisionEngineScreen({
     }
   }, [onScheduleChange, timeBlocks]);
 
-  useEffect(() => {
-    const selectedWorkflow = workflowOptions.find((option) => option.workflowId === newBlockWorkflowId);
+  const loadBlockPromptSuggestions = useCallback((workflowId = newBlockWorkflowId) => {
+    const selectedWorkflow = workflowOptions.find((option) => option.workflowId === workflowId);
     const categoryKey = selectedWorkflow?.promptCategory;
+    const requestId = blockPromptRequestRef.current + 1;
+    blockPromptRequestRef.current = requestId;
 
     if (!categoryKey) {
       setBlockPromptSuggestions([]);
       setBlockPromptError("");
       setBlockPromptLoading(false);
-      return undefined;
+      return;
     }
 
-    let cancelled = false;
     setBlockPromptLoading(true);
     setBlockPromptError("");
 
     fetch(`${docuWraiteApiBaseUrl}/api/row-prompts/${categoryKey}`)
       .then((response) => response.json())
       .then((payload) => {
-        if (cancelled) {
+        if (blockPromptRequestRef.current !== requestId) {
           return;
         }
         setBlockPromptSuggestions(Array.isArray(payload?.prompts) ? payload.prompts : []);
         setBlockPromptLoading(false);
       })
       .catch(() => {
-        if (cancelled) {
+        if (blockPromptRequestRef.current !== requestId) {
           return;
         }
         setBlockPromptSuggestions([]);
         setBlockPromptError("Suggestions unavailable right now.");
         setBlockPromptLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [newBlockWorkflowId]);
 
-  useEffect(() => {
-    const selectedWorkflow = workflowOptions.find((option) => option.workflowId === newRowWorkflowId);
+  const loadRowPromptSuggestions = useCallback((workflowId = newRowWorkflowId) => {
+    const selectedWorkflow = workflowOptions.find((option) => option.workflowId === workflowId);
     const categoryKey = selectedWorkflow?.promptCategory;
+    const requestId = rowPromptRequestRef.current + 1;
+    rowPromptRequestRef.current = requestId;
 
     if (!categoryKey) {
       setRowPromptSuggestions([]);
       setRowPromptError("");
       setRowPromptLoading(false);
-      return undefined;
+      return;
     }
 
-    let cancelled = false;
     setRowPromptLoading(true);
     setRowPromptError("");
 
     fetch(`${docuWraiteApiBaseUrl}/api/row-prompts/${categoryKey}`)
       .then((response) => response.json())
       .then((payload) => {
-        if (cancelled) {
+        if (rowPromptRequestRef.current !== requestId) {
           return;
         }
         setRowPromptSuggestions(Array.isArray(payload?.prompts) ? payload.prompts : []);
         setRowPromptLoading(false);
       })
       .catch(() => {
-        if (cancelled) {
+        if (rowPromptRequestRef.current !== requestId) {
           return;
         }
         setRowPromptSuggestions([]);
         setRowPromptError("Suggestions unavailable right now.");
         setRowPromptLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [newRowWorkflowId]);
+
+  const toggleBlockPromptHelp = () => {
+    if (blockPromptPopoverVisible) {
+      setBlockPromptPopoverVisible(false);
+      return;
+    }
+
+    setBlockPromptPopoverVisible(true);
+    loadBlockPromptSuggestions(newBlockWorkflowId);
+  };
+
+  const toggleRowPromptHelp = () => {
+    if (rowPromptPopoverVisible) {
+      setRowPromptPopoverVisible(false);
+      return;
+    }
+
+    setRowPromptPopoverVisible(true);
+    loadRowPromptSuggestions(newRowWorkflowId);
+  };
 
   useEffect(() => {
     const libraryIsAvailable = availableDecisionLibraries.some((lib) => lib.library === selectedLibrary);
@@ -5454,6 +5791,10 @@ function DecisionEngineScreen({
   }, [selectedLibrary]);
 
   useEffect(() => {
+    const fallbackLabel =
+      targetType === "case-note-row"
+        ? rowTargets.find((row) => `row:${row.id}` === selectedTargetKey)?.description || ""
+        : "";
     onSelectionStateChange?.({
       selectedLibrary,
       selectedNoteType,
@@ -5465,6 +5806,12 @@ function DecisionEngineScreen({
       checkedNodes,
       includeInFinalMap,
       choiceSelections,
+      builderDraftSeed: buildBuilderDraftSeedFromTarget(
+        selectedTargetKey,
+        timeBlocks,
+        rowTargets,
+        fallbackLabel
+      ),
       stagedAssignments,
       finalizedAssignments,
       collapsedSections: expandedDecisionPanel,
@@ -5477,6 +5824,7 @@ function DecisionEngineScreen({
     includeInFinalMap,
     includeMode,
     onSelectionStateChange,
+    rowTargets,
     selectedBranchKey,
     selectedDepth,
     selectedLibrary,
@@ -5484,6 +5832,7 @@ function DecisionEngineScreen({
     selectedTargetKey,
     stagedAssignments,
     targetType,
+    timeBlocks,
   ]);
 
   const toggleNode = (nodeKey) => {
@@ -5547,6 +5896,11 @@ function DecisionEngineScreen({
   };
 
   const addScheduleBlock = () => {
+    if (!String(newBlockDescription).trim()) {
+      setBlockBuilderHint("Add a block description before adding this time block.");
+      return;
+    }
+
     if (newBlockEndHour <= newBlockStartHour) {
       return;
     }
@@ -5595,9 +5949,13 @@ function DecisionEngineScreen({
 
   const handleBlockWorkflowOptionPress = (workflowId) => {
     setNewBlockWorkflowId(workflowId);
+    setBlockPromptPopoverVisible(false);
+    setBlockPromptSuggestions([]);
+    setBlockPromptError("");
+    setBlockPromptLoading(false);
     const nextDraft = blockDraftsByWorkflow[workflowId] || "";
     if (!String(nextDraft).trim()) {
-      setBlockBuilderHint("Pick a suggestion below or type your own block description.");
+      setBlockBuilderHint("Tap the help bubble to load suggestions, or type your own block description.");
     } else {
       setBlockBuilderHint("");
     }
@@ -5656,9 +6014,13 @@ function DecisionEngineScreen({
   const handleWorkflowOptionPress = (workflowId) => {
     rowWorkflowTouchedRef.current = true;
     setNewRowWorkflowId(workflowId);
+    setRowPromptPopoverVisible(false);
+    setRowPromptSuggestions([]);
+    setRowPromptError("");
+    setRowPromptLoading(false);
     const nextDraft = rowDraftsByWorkflow[workflowId] || "";
     if (!String(nextDraft).trim()) {
-      setRowBuilderHint("Pick a suggestion below or type your own row description.");
+      setRowBuilderHint("Tap the help bubble to load suggestions, or type your own row description.");
     } else {
       setRowBuilderHint("");
     }
@@ -5717,6 +6079,15 @@ function DecisionEngineScreen({
       return;
     }
 
+    const matchedBlock =
+      selectedTargetOption.type === "time-block"
+        ? timeBlocks.find((block) => block.id === selectedTargetOption.targetId)
+        : null;
+    const matchedRow =
+      selectedTargetOption.type === "case-note-row"
+        ? rowTargets.find((row) => row.id === selectedTargetOption.targetId)
+        : null;
+
     const payload = selectedKeys.map((key) => ({
       key,
       includeInFinal: Boolean(includeInFinalMap[key]),
@@ -5733,6 +6104,8 @@ function DecisionEngineScreen({
       selectedNodesPayload: payload,
       target: {
         ...selectedTargetOption,
+        description: String(matchedBlock?.description || matchedRow?.description || "").trim(),
+        workflowId: matchedBlock?.workflowId || matchedRow?.workflowId || "",
       },
       summary: `${selectedLibraryLabel} • ${buildDecisionTargetDisplayLabel(selectedTargetOption)}`,
       displayLibrary: selectedLibraryLabel,
@@ -5807,34 +6180,40 @@ function DecisionEngineScreen({
           </Pressable>
         </View>
         <View style={styles.rowPromptAnchor}>
-          <TextInput
-            value={newBlockDescription}
-            onChangeText={(text) => {
-              setBlockDraftsByWorkflow((prev) => ({
-                ...prev,
-                [newBlockWorkflowId]: text,
-              }));
-              setBlockPromptPopoverVisible(true);
-              if (String(text).trim()) {
-                setBlockBuilderHint("");
-              }
-            }}
-            onFocus={() => setBlockPromptPopoverVisible(true)}
-            onBlur={() => {
-              setTimeout(() => {
-                setBlockPromptPopoverVisible(false);
-              }, 120);
-            }}
-            placeholder="Describe what DSP should document in this time block."
-            placeholderTextColor="#888888"
-            style={styles.decisionRowInput}
-          />
+          <View style={styles.decisionPromptInputWrap}>
+            <TextInput
+              value={newBlockDescription}
+              onChangeText={(text) => {
+                setBlockDraftsByWorkflow((prev) => ({
+                  ...prev,
+                  [newBlockWorkflowId]: text,
+                }));
+                if (String(text).trim()) {
+                  setBlockBuilderHint("");
+                }
+              }}
+              placeholder="Describe what DSP should document in this time block."
+              placeholderTextColor="#888888"
+              style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap, styles.decisionRowInputWithAssist]}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Show suggested block prompts"
+              onPress={toggleBlockPromptHelp}
+              style={styles.docuWraiteWrap}
+            >
+              <DocuWraiteBubbleGlyph />
+            </Pressable>
+          </View>
           {blockPromptPopoverVisible ? (
             <View style={[styles.rowPromptPopover, isPhone && styles.rowPromptPopoverPhone]}>
               <Text style={styles.rowPromptTitle}>Suggested prompts</Text>
               <Text style={styles.rowPromptLead}>Tap a suggestion to insert it, or keep typing your own custom block note.</Text>
               {blockPromptLoading ? <Text style={styles.rowPromptStatus}>Loading suggestions...</Text> : null}
               {!blockPromptLoading && blockPromptError ? <Text style={styles.rowPromptStatus}>{blockPromptError}</Text> : null}
+              {!blockPromptLoading && !blockPromptError && !blockPromptSuggestions.length ? (
+                <Text style={styles.rowPromptStatus}>No suggestions available for this workflow.</Text>
+              ) : null}
               {!blockPromptLoading && !blockPromptError && blockPromptSuggestions.length ? (
                 <ScrollView style={styles.rowPromptPopoverScroll} nestedScrollEnabled>
                   <View style={styles.rowPromptSuggestionList}>
@@ -5894,34 +6273,40 @@ function DecisionEngineScreen({
           Create the case-note rows themselves here, then assign markdown questions to them.
         </Text>
         <View style={styles.rowPromptAnchor}>
-          <TextInput
-            value={newRowDescription}
-            onChangeText={(text) => {
-              setRowDraftsByWorkflow((prev) => ({
-                ...prev,
-                [newRowWorkflowId]: text,
-              }));
-              setRowPromptPopoverVisible(true);
-              if (String(text).trim()) {
-                setRowBuilderHint("");
-              }
-            }}
-            onFocus={() => setRowPromptPopoverVisible(true)}
-            onBlur={() => {
-              setTimeout(() => {
-                setRowPromptPopoverVisible(false);
-              }, 120);
-            }}
-            placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
-            placeholderTextColor="#888888"
-            style={styles.decisionRowInput}
-          />
+          <View style={styles.decisionPromptInputWrap}>
+            <TextInput
+              value={newRowDescription}
+              onChangeText={(text) => {
+                setRowDraftsByWorkflow((prev) => ({
+                  ...prev,
+                  [newRowWorkflowId]: text,
+                }));
+                if (String(text).trim()) {
+                  setRowBuilderHint("");
+                }
+              }}
+              placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
+              placeholderTextColor="#888888"
+              style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap, styles.decisionRowInputWithAssist]}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Show suggested row prompts"
+              onPress={toggleRowPromptHelp}
+              style={styles.docuWraiteWrap}
+            >
+              <DocuWraiteBubbleGlyph />
+            </Pressable>
+          </View>
           {rowPromptPopoverVisible ? (
             <View style={[styles.rowPromptPopover, isPhone && styles.rowPromptPopoverPhone]}>
               <Text style={styles.rowPromptTitle}>Suggested prompts</Text>
               <Text style={styles.rowPromptLead}>Tap a suggestion to insert it, or keep typing your own custom row.</Text>
               {rowPromptLoading ? <Text style={styles.rowPromptStatus}>Loading suggestions...</Text> : null}
               {!rowPromptLoading && rowPromptError ? <Text style={styles.rowPromptStatus}>{rowPromptError}</Text> : null}
+              {!rowPromptLoading && !rowPromptError && !rowPromptSuggestions.length ? (
+                <Text style={styles.rowPromptStatus}>No suggestions available for this workflow.</Text>
+              ) : null}
               {!rowPromptLoading && !rowPromptError && rowPromptSuggestions.length ? (
                 <ScrollView style={styles.rowPromptPopoverScroll} nestedScrollEnabled>
                   <View style={styles.rowPromptSuggestionList}>
@@ -6352,13 +6737,15 @@ function DecisionEngineScreen({
                   style={[styles.decisionStagedAction, styles.decisionStagedDelete]}
                   onPress={() => onDeleteFinalizedAssignment?.(assignment.id)}
                 >
-                  <Text style={styles.decisionStagedDeleteText}>Delete</Text>
+                  <Text style={styles.decisionStagedDeleteText}>To Staged</Text>
                 </Pressable>
               </View>
             </View>
           ))
         ) : (
-          <Text style={styles.decisionStagedEmpty}>After final assign, saved engine selections live here for later review and edit.</Text>
+          <Text style={styles.decisionStagedEmpty}>
+            After final assign, saved selections live here. Use To Staged to move one back for editing, or Edit to load it in the library.
+          </Text>
         )}
       </View>
     </Card>
@@ -6949,12 +7336,14 @@ export default function App() {
     checkedNodes: {},
     includeInFinalMap: {},
     choiceSelections: {},
+    builderDraftSeed: null,
     stagedAssignments: [],
     finalizedAssignments: [],
     collapsedSections: {},
   });
   const [decisionEngineHint, setDecisionEngineHint] = useState("");
   const [decisionStateHydrated, setDecisionStateHydrated] = useState(false);
+  const [decisionEngineSelectionLoadToken, setDecisionEngineSelectionLoadToken] = useState(0);
   const lastLoadedStateRef = useRef(null);
   const workspaceStatus = documentationSession
     ? documentationSession.title
@@ -7027,6 +7416,7 @@ export default function App() {
         checkedNodes: {},
         includeInFinalMap: {},
         choiceSelections: {},
+        builderDraftSeed: null,
         stagedAssignments: [],
         finalizedAssignments: [],
         collapsedSections: {},
@@ -7047,6 +7437,7 @@ export default function App() {
           checkedNodes: {},
           includeInFinalMap: {},
           choiceSelections: {},
+          builderDraftSeed: null,
           stagedAssignments: [],
           finalizedAssignments: [],
           collapsedSections: {},
@@ -7089,6 +7480,7 @@ export default function App() {
           checkedNodes: state.selectionState?.checkedNodes || {},
           includeInFinalMap: state.selectionState?.includeInFinalMap || {},
           choiceSelections: state.selectionState?.choiceSelections || {},
+          builderDraftSeed: state.selectionState?.builderDraftSeed || null,
           stagedAssignments: state.selectionState?.stagedAssignments || [],
           finalizedAssignments: state.selectionState?.finalizedAssignments || [],
           collapsedSections: state.selectionState?.collapsedSections || {},
@@ -7237,6 +7629,9 @@ export default function App() {
     }
 
     if (item === "Case Note") {
+      if (documentationSession?.sessionType === "case-note") {
+        return;
+      }
       openDocumentation({ title: "Case Note Entry", program: "Case Note", sessionType: "case-note" });
       return;
     }
@@ -7284,17 +7679,80 @@ export default function App() {
   };
 
   const handleDeleteStagedAssignment = (assignmentId) => {
-    setDecisionEngineSelectionState((prev) => ({
-      ...prev,
-      stagedAssignments: (prev.stagedAssignments || []).filter((assignment) => assignment.id !== assignmentId),
-    }));
+    const assignment = (decisionEngineSelectionState.stagedAssignments || []).find(
+      (entry) => entry.id === assignmentId
+    );
+    if (!assignment) {
+      return;
+    }
+
+    const targetLabel = buildDecisionTargetDisplayLabel(assignment.target);
+    const libraryLabel = getDecisionLibraryDisplayName(assignment.selectedLibrary);
+
+    runDecisionEngineConfirmAction({
+      title: "Delete staged assignment?",
+      message: `This will remove ${libraryLabel} from staged and clear its assigned questions from the DSP Case Note for ${targetLabel}.`,
+      confirmLabel: "Delete",
+      onConfirm: () => {
+        const nextFinalizedAssignments = decisionEngineSelectionState.finalizedAssignments || [];
+
+        setDecisionEngineSelectionState((prev) => ({
+          ...prev,
+          stagedAssignments: (prev.stagedAssignments || []).filter((entry) => entry.id !== assignmentId),
+        }));
+
+        if (documentationSession?.sessionType === "case-note") {
+          setDocumentationSession((prev) =>
+            applyFinalizedAssignmentsToDocumentationSession(prev, nextFinalizedAssignments)
+          );
+        }
+
+        setDecisionEngineHint(
+          `Deleted staged assignment for ${targetLabel} and removed it from the DSP Case Note.`
+        );
+      },
+    });
   };
 
   const handleDeleteFinalizedAssignment = (assignmentId) => {
+    const assignment = (decisionEngineSelectionState.finalizedAssignments || []).find(
+      (entry) => entry.id === assignmentId
+    );
+    if (!assignment) {
+      return;
+    }
+
+    const targetLabel = buildDecisionTargetDisplayLabel(assignment.target);
+    const libraryLabel = getDecisionLibraryDisplayName(assignment.selectedLibrary);
+    const assignmentKey = buildDecisionAssignmentUniquenessKey(assignment);
+    const nextFinalizedAssignments = (decisionEngineSelectionState.finalizedAssignments || []).filter(
+      (entry) => entry.id !== assignmentId
+    );
+
     setDecisionEngineSelectionState((prev) => ({
       ...prev,
-      finalizedAssignments: (prev.finalizedAssignments || []).filter((assignment) => assignment.id !== assignmentId),
+      finalizedAssignments: nextFinalizedAssignments,
+      stagedAssignments: [
+        ...(prev.stagedAssignments || []).filter(
+          (entry) => buildDecisionAssignmentUniquenessKey(entry) !== assignmentKey
+        ),
+        assignment,
+      ],
     }));
+
+    if (documentationSession?.sessionType === "case-note") {
+      setDocumentationSession((prev) =>
+        applyFinalizedAssignmentsToDocumentationSession(prev, nextFinalizedAssignments)
+      );
+    }
+
+    const message = `${libraryLabel} for ${targetLabel} was moved back to staged and removed from the DSP Case Note. Final assign again when you are ready.`;
+    if (Platform.OS === "web" && typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    } else {
+      Alert.alert("Moved back to staged", message, [{ text: "OK" }]);
+    }
+    setDecisionEngineHint(message);
   };
 
   const loadAssignmentIntoDecisionEngine = (assignment, sourceListKey = "stagedAssignments") => {
@@ -7311,6 +7769,21 @@ export default function App() {
       nextChoiceSelections[node.key] = node.selectedChoices || [];
     });
 
+    const restoredTargetKey =
+      assignment.target?.key ||
+      (assignment.target?.type === "case-note-row" && assignment.target?.targetId
+        ? `row:${assignment.target.targetId}`
+        : assignment.target?.targetId
+          ? `time:${assignment.target.targetId}`
+          : "");
+    const builderDraftSeed = buildBuilderDraftSeedFromTarget(
+      restoredTargetKey,
+      decisionEngineTimeBlocks,
+      decisionEngineRows,
+      assignment.target?.type === "case-note-row" ? assignment.target?.label || "" : "",
+      assignment.target?.description || ""
+    );
+
     setDecisionEngineSelectionState((prev) => ({
       ...prev,
       selectedLibrary: assignment.selectedLibrary || prev.selectedLibrary,
@@ -7319,10 +7792,11 @@ export default function App() {
       includeMode: assignment.includeMode || prev.includeMode,
       selectedBranchKey: assignment.selectedBranchKey || prev.selectedBranchKey,
       targetType: assignment.target?.type || prev.targetType,
-      selectedTargetKey: assignment.target?.key || prev.selectedTargetKey,
+      selectedTargetKey: restoredTargetKey || prev.selectedTargetKey,
       checkedNodes: nextCheckedNodes,
       includeInFinalMap: nextIncludeInFinalMap,
       choiceSelections: nextChoiceSelections,
+      builderDraftSeed: builderDraftSeed || null,
       stagedAssignments:
         sourceListKey === "stagedAssignments"
           ? (prev.stagedAssignments || []).filter((item) => item.id !== assignment.id)
@@ -7332,6 +7806,10 @@ export default function App() {
           ? (prev.finalizedAssignments || []).filter((item) => item.id !== assignment.id)
           : prev.finalizedAssignments || [],
     }));
+    setDecisionEngineSelectionLoadToken((token) => token + 1);
+    setDecisionEngineHint(
+      `Loaded ${sourceListKey === "finalizedAssignments" ? "finalized" : "staged"} assignment into the library. Update selections and lock again.`
+    );
   };
 
   const handleEditStagedAssignment = (assignment) => {
@@ -7367,76 +7845,6 @@ export default function App() {
       rowsOverride: scopedRows,
     });
 
-    const assignmentsByTarget = stagedAssignments.reduce((acc, assignment) => {
-      if (!assignment?.target?.targetId) {
-        return acc;
-      }
-
-      const targetKey = `${assignment.target.type}:${assignment.target.targetId}`;
-      if (!acc[targetKey]) {
-        acc[targetKey] = [];
-      }
-      acc[targetKey].push(assignment);
-      return acc;
-    }, {});
-
-    const buildTargetAssignmentData = (assignmentGroup = []) => {
-      const mappedAssignedNodes = assignmentGroup.flatMap((assignment) => {
-        const expandedNodes = expandAssignedDecisionNodes(assignment.selectedNodesPayload || [], {
-          selectedDepth: assignment.selectedDepth || 1,
-          includeMode: assignment.includeMode || "selective-branch",
-          selectedBranch: assignment.selectedBranchKey || "",
-        });
-
-        return expandedNodes.map((node) => ({
-          id: node.id,
-          title: getDecisionNodeDisplayTitle(node),
-          question: getDecisionNodeDisplayQuestion(node),
-          choices: node.choices || [],
-          selectedChoices: node.selectedChoices || [],
-          section: node.section,
-          library: node.library,
-          stepKey: node.stepKey,
-          includeInFinal: Boolean(node.includeInFinal),
-          assignmentDepth: node.assignmentDepth,
-          includeMode: node.includeMode,
-        }));
-      });
-
-      const assignedNodeSummary = assignmentGroup
-        .map((assignment) => {
-          const expandedNodes = expandAssignedDecisionNodes(assignment.selectedNodesPayload || [], {
-            selectedDepth: assignment.selectedDepth || 1,
-            includeMode: assignment.includeMode || "selective-branch",
-            selectedBranch: assignment.selectedBranchKey || "",
-          });
-          const questionList = expandedNodes
-            .map((node) => {
-              const selectedChoiceText = node.selectedChoices?.length ? ` [${node.selectedChoices.join(", ")}]` : "";
-              return `${node.includeInFinal ? "[FINAL] " : ""}- ${getDecisionNodeDisplayQuestion(node) || getDecisionNodeDisplayTitle(node)}${selectedChoiceText}`;
-            })
-            .join("\n");
-          return `${getDecisionLibraryDisplayName(assignment.selectedLibrary)}\n${questionList}`;
-        })
-        .join("\n\n");
-
-      return {
-        assignedNodes: mappedAssignedNodes,
-        assignedNodeSummary,
-        assignedNodeConfig: {
-          stagedAssignments: assignmentGroup.map((assignment) => ({
-            id: assignment.id,
-            selectedLibrary: assignment.selectedLibrary,
-            selectedDepth: assignment.selectedDepth,
-            includeMode: assignment.includeMode,
-            selectedBranchKey: assignment.selectedBranchKey,
-            target: assignment.target,
-            selectedCount: assignment.selectedCount,
-          })),
-        },
-      };
-    };
-
     const nextFinalizedAssignments = [...(decisionEngineSelectionState.finalizedAssignments || [])];
     stagedAssignments.forEach((assignment) => {
       const nextKey = buildDecisionAssignmentUniquenessKey(assignment);
@@ -7448,35 +7856,13 @@ export default function App() {
       nextFinalizedAssignments.push(...filteredAssignments);
     });
 
-    const session = {
-      ...baseSession,
-      statusMessage: "Decision Engine assignments loaded into the DSP Case Note.",
-      decisionEngineNote: buildDecisionEngineCaseNoteRecord(nextFinalizedAssignments),
-      timeBlocks: baseSession.timeBlocks.map((block) => {
-        const assignmentGroup = assignmentsByTarget[`time-block:${block.id}`];
-        if (!assignmentGroup?.length) {
-          return block;
-        }
-
-        return {
-          ...block,
-          comment: "",
-          ...buildTargetAssignmentData(assignmentGroup),
-        };
-      }),
-      rows: baseSession.rows.map((row) => {
-        const assignmentGroup = assignmentsByTarget[`case-note-row:${row.id}`];
-        if (!assignmentGroup?.length) {
-          return row;
-        }
-
-        return {
-          ...row,
-          comment: "",
-          ...buildTargetAssignmentData(assignmentGroup),
-        };
-      }),
-    };
+    const session = applyFinalizedAssignmentsToDocumentationSession(
+      {
+        ...baseSession,
+        statusMessage: "Decision Engine assignments loaded into the DSP Case Note.",
+      },
+      nextFinalizedAssignments
+    );
 
     setDocumentationSession(session);
     setSelectedModule("Decision Engine");
@@ -7494,6 +7880,7 @@ export default function App() {
       checkedNodes: {},
       includeInFinalMap: {},
       choiceSelections: {},
+      builderDraftSeed: null,
       stagedAssignments: [],
       finalizedAssignments: nextFinalizedAssignments,
       collapsedSections: {},
@@ -7649,9 +8036,9 @@ export default function App() {
                 </View>
               </View>
 
-              {showDecisionEngine ? (
+              {showDecisionEngine && decisionStateHydrated ? (
                 <DecisionEngineScreen
-                  key="decision-engine"
+                  key={`decision-engine-${activeClientId}-${decisionEngineSelectionLoadToken}`}
                   isPhone={isPhone}
                   onStageAssignment={handleStageAssignment}
                   stagedAssignments={decisionEngineSelectionState.stagedAssignments || []}
@@ -8060,6 +8447,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     marginBottom: 12,
+  },
+  decisionPromptInputWrap: {
+    position: "relative",
+    marginBottom: 12,
+    overflow: "visible",
+  },
+  decisionRowInputInPromptWrap: {
+    marginBottom: 0,
+  },
+  decisionRowInputWithAssist: {
+    paddingTop: 42,
+    paddingRight: 46,
   },
   decisionInlineHint: {
     alignSelf: "flex-start",
