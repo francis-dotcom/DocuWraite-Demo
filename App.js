@@ -1367,6 +1367,197 @@ function buildStagedAssignmentSummary(stagedAssignment = {}) {
   return `${getDecisionLibraryDisplayName(stagedAssignment.selectedLibrary || "library")} -> ${buildDecisionTargetDisplayLabel(stagedAssignment.target)} (${count} selected)`;
 }
 
+function truncateAssignmentPreviewText(text, maxLength = 42) {
+  const trimmed = String(text || "").replace(/\s+/g, " ").trim();
+  if (!trimmed || trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
+function buildDecisionAssignmentCardPreview(assignment = {}) {
+  const allNodes = decisionNodes.libraries.flatMap((lib) => lib.nodes || []);
+  const nodesByKey = new Map(allNodes.map((node) => [buildDecisionNodeSelectionKey(node), node]));
+  const payload = assignment.selectedNodesPayload || [];
+  const questionItems = payload.map((item) => {
+    const node = nodesByKey.get(item.key);
+    const question = node
+      ? getDecisionNodeDisplayQuestion(node) || getDecisionNodeDisplayTitle(node)
+      : item.key;
+    const choices = (item.selectedChoices || []).filter(Boolean);
+
+    return {
+      question,
+      choiceLabel: choices.length ? `DSP choices: ${choices.join(", ")}` : "DSP sees all choices",
+      includeInFinal: Boolean(item.includeInFinal),
+    };
+  });
+  const includedCount = payload.filter((item) => item.includeInFinal).length;
+  const excludedCount = payload.length - includedCount;
+  const targetDescription = String(assignment.target?.description || "").trim();
+  const scheduleWorkflowId = String(assignment.target?.workflowId || "").trim();
+  const libraryLabel = getDecisionLibraryDisplayName(assignment.selectedLibrary);
+  const targetLabel = buildDecisionTargetDisplayLabel(assignment.target);
+  const finalQuestionCount = questionItems.filter((item) => item.includeInFinal).length;
+  const excludedQuestionCount = questionItems.length - finalQuestionCount;
+
+  let compactQuestions = "";
+  if (questionItems.length === 1) {
+    const item = questionItems[0];
+    compactQuestions = `${truncateAssignmentPreviewText(item.question, 44)} (${item.includeInFinal ? "final" : "excl"})`;
+  } else if (questionItems.length > 1) {
+    compactQuestions = `${truncateAssignmentPreviewText(questionItems[0].question, 30)} +${questionItems.length - 1} more (${finalQuestionCount}F/${excludedQuestionCount}X)`;
+  }
+
+  return {
+    title: assignment.summary || buildStagedAssignmentSummary(assignment),
+    compactTitle: `${libraryLabel} · ${targetLabel}`,
+    compactStats: `${payload.length}q · ${includedCount}F · ${excludedCount}X`,
+    compactNote: targetDescription ? truncateAssignmentPreviewText(targetDescription, 32) : null,
+    compactQuestions,
+    settingsLine: [
+      getDecisionLibraryDisplayName(assignment.selectedLibrary),
+      getDecisionNoteTypeLabel(assignment.selectedNoteType || "all"),
+      assignment.selectedBranchKey ? `Branch ${assignment.selectedBranchKey}` : null,
+      `${assignment.selectedDepth ?? "?"} deep`,
+      assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch",
+    ]
+      .filter(Boolean)
+      .join(" • "),
+    statsLine: payload.length
+      ? `${payload.length} locked · ${includedCount} in final · ${excludedCount} excluded`
+      : "No questions locked",
+    targetDescription,
+    scheduleTagLine: scheduleWorkflowId
+      ? `Schedule builder tag: ${getWorkflowEyebrow(scheduleWorkflowId)}`
+      : null,
+    lockedAtLine: assignment.createdAt
+      ? `Locked ${new Date(assignment.createdAt).toLocaleString(undefined, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        })}`
+      : null,
+    questionItems,
+  };
+}
+
+function DecisionAssignmentCard({
+  assignment,
+  onEdit,
+  onDelete,
+  deleteLabel = "Delete",
+  expandAll = false,
+}) {
+  const preview = buildDecisionAssignmentCardPreview(assignment);
+  const [expanded, setExpanded] = useState(false);
+  const showDetails = expandAll || expanded;
+
+  useEffect(() => {
+    if (!expandAll) {
+      setExpanded(false);
+    }
+  }, [expandAll]);
+
+  const compactLineParts = [preview.compactTitle, preview.compactStats];
+  if (preview.compactNote) {
+    compactLineParts.push(preview.compactNote);
+  }
+
+  return (
+    <View style={[styles.decisionStagedCard, !showDetails && styles.decisionStagedCardCompact]}>
+      <Pressable
+        onPress={() => {
+          if (!expandAll) {
+            setExpanded((current) => !current);
+          }
+        }}
+        style={[styles.decisionStagedCardTop, !showDetails && styles.decisionStagedCardTopCompact]}
+        accessibilityRole="button"
+        accessibilityLabel={showDetails ? "Hide assignment details" : "Show assignment details"}
+      >
+        {showDetails ? (
+          <>
+            <Text style={styles.decisionStagedTitle}>{preview.title}</Text>
+            <Text style={styles.decisionStagedMeta}>{preview.settingsLine}</Text>
+            <Text style={styles.decisionStagedStats}>{preview.statsLine}</Text>
+            {preview.targetDescription ? (
+              <Text style={styles.decisionStagedDescription}>Block/row note: {preview.targetDescription}</Text>
+            ) : null}
+            {preview.scheduleTagLine ? (
+              <Text style={styles.decisionStagedScheduleTag}>{preview.scheduleTagLine}</Text>
+            ) : null}
+            {preview.lockedAtLine ? (
+              <Text style={styles.decisionStagedLockedAt}>{preview.lockedAtLine}</Text>
+            ) : null}
+            {preview.questionItems.length ? (
+              <ScrollView
+                style={styles.decisionStagedQuestionScroll}
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
+              >
+                <View style={styles.decisionStagedQuestionList}>
+                  <Text style={styles.decisionStagedQuestionHeading}>Assigned questions</Text>
+                  {preview.questionItems.map((item, index) => (
+                    <View key={`${assignment.id}-question-${index}`} style={styles.decisionStagedQuestionItem}>
+                      <Text style={styles.decisionStagedQuestionText}>
+                        {item.includeInFinal ? "[Final] " : "[Excluded] "}
+                        {item.question}
+                      </Text>
+                      <Text style={styles.decisionStagedQuestionDetail}>{item.choiceLabel}</Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Text style={styles.decisionStagedCompactLine} numberOfLines={2}>
+              {compactLineParts.join(" · ")}
+            </Text>
+            {preview.compactQuestions ? (
+              <Text style={styles.decisionStagedCompactQuestions} numberOfLines={2}>
+                {preview.compactQuestions}
+              </Text>
+            ) : null}
+          </>
+        )}
+        {!expandAll ? (
+          <Text style={styles.decisionStagedDetailsToggle}>{showDetails ? "Hide details" : "Details"}</Text>
+        ) : null}
+      </Pressable>
+      <View style={styles.decisionStagedActionRow}>
+        <Pressable style={styles.decisionStagedAction} onPress={() => onEdit?.(assignment)}>
+          <Text style={styles.decisionStagedActionText}>Edit</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.decisionStagedAction, styles.decisionStagedDelete]}
+          onPress={() => onDelete?.(assignment.id)}
+        >
+          <Text style={styles.decisionStagedDeleteText}>{deleteLabel}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function DecisionAssignmentPanelHeader({ title, countLabel, assignments, expandAll, onToggleExpandAll }) {
+  return (
+    <View style={styles.decisionSummaryRow}>
+      <View style={styles.decisionSummaryTitleGroup}>
+        <Text style={styles.decisionSummaryText}>{title}</Text>
+        <Text style={styles.decisionSummaryText}>{countLabel}</Text>
+      </View>
+      {assignments.length ? (
+        <Pressable onPress={onToggleExpandAll} style={styles.decisionExpandAllButton}>
+          <Text style={styles.decisionExpandAllText}>{expandAll ? "Collapse all" : "Expand all"}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 function buildDecisionAssignmentUniquenessKey(assignment = {}) {
   const library = assignment.selectedLibrary || "";
   const noteType = assignment.selectedNoteType || "all";
@@ -5507,6 +5698,8 @@ function DecisionEngineScreen({
   const [rowPromptLoading, setRowPromptLoading] = useState(false);
   const [rowPromptError, setRowPromptError] = useState("");
   const [assignmentHint, setAssignmentHint] = useState("");
+  const [stagedAssignmentsExpandAll, setStagedAssignmentsExpandAll] = useState(false);
+  const [finalizedAssignmentsExpandAll, setFinalizedAssignmentsExpandAll] = useState(false);
   const libraryHelpButtonRef = useRef(null);
   const rowWorkflowTouchedRef = useRef(false);
   const blockPromptRequestRef = useRef(0);
@@ -6782,35 +6975,31 @@ function DecisionEngineScreen({
         </Pressable>
       </View>
       <View style={styles.decisionStagedPanel}>
-        <View style={styles.decisionSummaryRow}>
-          <Text style={styles.decisionSummaryText}>Staged assignments</Text>
-          <Text style={styles.decisionSummaryText}>{`${stagedAssignments.length} staged`}</Text>
-        </View>
+        <DecisionAssignmentPanelHeader
+          title="Staged assignments"
+          countLabel={`${stagedAssignments.length} staged`}
+          assignments={stagedAssignments}
+          expandAll={stagedAssignmentsExpandAll}
+          onToggleExpandAll={() => setStagedAssignmentsExpandAll((current) => !current)}
+        />
         {stagedAssignments.length ? (
-          stagedAssignments.map((assignment) => (
-            <View key={assignment.id} style={styles.decisionStagedCard}>
-              <View style={styles.decisionStagedCardTop}>
-                <Text style={styles.decisionStagedTitle}>{assignment.summary || buildStagedAssignmentSummary(assignment)}</Text>
-                <Text style={styles.decisionStagedMeta}>
-                  {`${getDecisionLibraryDisplayName(assignment.selectedLibrary)} • ${getDecisionNoteTypeLabel(assignment.selectedNoteType || "all")} • Branch ${assignment.selectedBranchKey || "?"} • ${assignment.selectedDepth} deep • ${assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch"}`}
-                </Text>
-              </View>
-              <View style={styles.decisionStagedActionRow}>
-                <Pressable
-                  style={styles.decisionStagedAction}
-                  onPress={() => onEditStagedAssignment?.(assignment)}
-                >
-                  <Text style={styles.decisionStagedActionText}>Edit</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.decisionStagedAction, styles.decisionStagedDelete]}
-                  onPress={() => onDeleteStagedAssignment?.(assignment.id)}
-                >
-                  <Text style={styles.decisionStagedDeleteText}>Delete</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))
+          <>
+            {stagedAssignments.length > 1 ? (
+              <Text style={styles.decisionStagedCompactLegend}>
+                Compact view: F = in final, X = excluded. Tap a row or Expand all for full detail.
+              </Text>
+            ) : null}
+            {stagedAssignments.map((assignment) => (
+              <DecisionAssignmentCard
+                key={assignment.id}
+                assignment={assignment}
+                expandAll={stagedAssignmentsExpandAll}
+                onEdit={onEditStagedAssignment}
+                onDelete={onDeleteStagedAssignment}
+                deleteLabel="Delete"
+              />
+            ))}
+          </>
         ) : (
           <Text style={styles.decisionStagedEmpty}>Lock each library here first. Final assign will send all staged items to the Case Note together.</Text>
         )}
@@ -6828,35 +7017,31 @@ function DecisionEngineScreen({
         </Pressable>
       </View>
       <View style={styles.decisionStagedPanel}>
-        <View style={styles.decisionSummaryRow}>
-          <Text style={styles.decisionSummaryText}>Finalized assignments</Text>
-          <Text style={styles.decisionSummaryText}>{`${finalizedAssignments.length} final`}</Text>
-        </View>
+        <DecisionAssignmentPanelHeader
+          title="Finalized assignments"
+          countLabel={`${finalizedAssignments.length} final`}
+          assignments={finalizedAssignments}
+          expandAll={finalizedAssignmentsExpandAll}
+          onToggleExpandAll={() => setFinalizedAssignmentsExpandAll((current) => !current)}
+        />
         {finalizedAssignments.length ? (
-          finalizedAssignments.map((assignment) => (
-            <View key={assignment.id} style={styles.decisionStagedCard}>
-              <View style={styles.decisionStagedCardTop}>
-                <Text style={styles.decisionStagedTitle}>{assignment.summary || buildStagedAssignmentSummary(assignment)}</Text>
-                <Text style={styles.decisionStagedMeta}>
-                  {`${getDecisionLibraryDisplayName(assignment.selectedLibrary)} • ${getDecisionNoteTypeLabel(assignment.selectedNoteType || "all")} • Branch ${assignment.selectedBranchKey || "?"} • ${assignment.selectedDepth} deep • ${assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch"}`}
-                </Text>
-              </View>
-              <View style={styles.decisionStagedActionRow}>
-                <Pressable
-                  style={styles.decisionStagedAction}
-                  onPress={() => onEditFinalizedAssignment?.(assignment)}
-                >
-                  <Text style={styles.decisionStagedActionText}>Edit</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.decisionStagedAction, styles.decisionStagedDelete]}
-                  onPress={() => onDeleteFinalizedAssignment?.(assignment.id)}
-                >
-                  <Text style={styles.decisionStagedDeleteText}>To Staged</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))
+          <>
+            {finalizedAssignments.length > 1 ? (
+              <Text style={styles.decisionStagedCompactLegend}>
+                Compact view: F = in final, X = excluded. Tap a row or Expand all for full detail.
+              </Text>
+            ) : null}
+            {finalizedAssignments.map((assignment) => (
+              <DecisionAssignmentCard
+                key={assignment.id}
+                assignment={assignment}
+                expandAll={finalizedAssignmentsExpandAll}
+                onEdit={onEditFinalizedAssignment}
+                onDelete={onDeleteFinalizedAssignment}
+                deleteLabel="To Staged"
+              />
+            ))}
+          </>
         ) : (
           <Text style={styles.decisionStagedEmpty}>
             After final assign, saved selections live here. Use To Staged to move one back for editing, or Edit to load it in the library.
@@ -9016,11 +9201,34 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+    gap: 8,
+  },
+  decisionSummaryTitleGroup: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
   },
   decisionSummaryText: {
     fontSize: 13,
     color: colors.text,
     fontWeight: "600",
+  },
+  decisionExpandAllButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  decisionExpandAllText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6b21a8",
+  },
+  decisionStagedCompactLegend: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.muted,
+    marginBottom: 8,
   },
   decisionSectionCard: {
     backgroundColor: "#ffffff",
@@ -9244,9 +9452,37 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     marginBottom: 10,
   },
+  decisionStagedCardCompact: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 6,
+  },
   decisionStagedCardTop: {
     marginBottom: 10,
     gap: 4,
+  },
+  decisionStagedCardTopCompact: {
+    marginBottom: 6,
+  },
+  decisionStagedCompactLine: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  decisionStagedCompactQuestions: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.muted,
+  },
+  decisionStagedDetailsToggle: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6b21a8",
+  },
+  decisionStagedQuestionScroll: {
+    maxHeight: 140,
   },
   decisionStagedTitle: {
     fontSize: 13,
@@ -9256,6 +9492,54 @@ const styles = StyleSheet.create({
   decisionStagedMeta: {
     fontSize: 12,
     color: colors.muted,
+  },
+  decisionStagedStats: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.headerText,
+  },
+  decisionStagedDescription: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.headerText,
+  },
+  decisionStagedScheduleTag: {
+    fontSize: 11,
+    color: colors.muted,
+    fontStyle: "italic",
+  },
+  decisionStagedLockedAt: {
+    fontSize: 11,
+    color: colors.muted,
+  },
+  decisionStagedQuestionList: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.lightBorder,
+    gap: 8,
+  },
+  decisionStagedQuestionHeading: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: "#6b21a8",
+  },
+  decisionStagedQuestionItem: {
+    gap: 2,
+  },
+  decisionStagedQuestionText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600",
+    color: colors.headerText,
+  },
+  decisionStagedQuestionDetail: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.muted,
+    paddingLeft: 8,
   },
   decisionStagedActionRow: {
     flexDirection: "row",
