@@ -111,6 +111,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id TEXT NOT NULL UNIQUE,
     selected_library_id INTEGER,
+    selected_note_type TEXT,
     selected_depth INTEGER,
     include_mode TEXT,
     selected_target_type TEXT,
@@ -273,8 +274,20 @@ if (!tableHasColumn("decision_workspace_states", "staged_assignments_json")) {
   db.exec("ALTER TABLE decision_workspace_states ADD COLUMN staged_assignments_json TEXT");
 }
 
+if (!tableHasColumn("decision_workspace_states", "finalized_assignments_json")) {
+  db.exec("ALTER TABLE decision_workspace_states ADD COLUMN finalized_assignments_json TEXT");
+}
+
 if (!tableHasColumn("decision_workspace_states", "choice_selections_json")) {
   db.exec("ALTER TABLE decision_workspace_states ADD COLUMN choice_selections_json TEXT");
+}
+
+if (!tableHasColumn("decision_workspace_states", "selected_branch_key")) {
+  db.exec("ALTER TABLE decision_workspace_states ADD COLUMN selected_branch_key TEXT");
+}
+
+if (!tableHasColumn("decision_workspace_states", "selected_note_type")) {
+  db.exec("ALTER TABLE decision_workspace_states ADD COLUMN selected_note_type TEXT");
 }
 
 const upsertLibraryStatement = db.prepare(`
@@ -365,12 +378,15 @@ const getWorkspaceStateRowStatement = db.prepare(`
     ws.client_id,
     ws.selected_library_id,
     dl.slug AS selected_library_slug,
+    ws.selected_note_type,
     ws.selected_depth,
     ws.include_mode,
+    ws.selected_branch_key,
     ws.selected_target_type,
     ws.selected_target_id,
     ws.documentation_session_json,
     ws.staged_assignments_json,
+    ws.finalized_assignments_json,
     ws.choice_selections_json,
     ws.created_at,
     ws.updated_at
@@ -383,23 +399,29 @@ const upsertWorkspaceStateStatement = db.prepare(`
   INSERT INTO decision_workspace_states (
     client_id,
     selected_library_id,
+    selected_note_type,
     selected_depth,
     include_mode,
+    selected_branch_key,
     selected_target_type,
     selected_target_id,
     documentation_session_json,
     staged_assignments_json,
+    finalized_assignments_json,
     choice_selections_json,
     updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(client_id) DO UPDATE SET
     selected_library_id = excluded.selected_library_id,
+    selected_note_type = excluded.selected_note_type,
     selected_depth = excluded.selected_depth,
     include_mode = excluded.include_mode,
+    selected_branch_key = excluded.selected_branch_key,
     selected_target_type = excluded.selected_target_type,
     selected_target_id = excluded.selected_target_id,
     documentation_session_json = excluded.documentation_session_json,
     staged_assignments_json = excluded.staged_assignments_json,
+    finalized_assignments_json = excluded.finalized_assignments_json,
     choice_selections_json = excluded.choice_selections_json,
     updated_at = excluded.updated_at
   RETURNING id
@@ -973,6 +995,7 @@ function getWorkspaceState(clientId) {
     clientId: row.client_id,
     selectedLibraryId: row.selected_library_id,
     selectedLibrary: row.selected_library_slug,
+    selectedNoteType: row.selected_note_type,
     selectedDepth: row.selected_depth,
     includeMode: row.include_mode,
     selectedTargetType: row.selected_target_type,
@@ -991,8 +1014,10 @@ function getWorkspaceState(clientId) {
     })),
     selectionState: {
       selectedLibrary: row.selected_library_slug || uiPreferences?.last_selected_library || null,
+      selectedNoteType: row.selected_note_type || "all",
       selectedDepth: selectionSet?.selected_depth ?? row.selected_depth ?? null,
       includeMode: selectionSet?.include_mode || row.include_mode || null,
+      selectedBranchKey: row.selected_branch_key || null,
       targetType: selectionSet?.target_type || row.selected_target_type || uiPreferences?.last_target_type || null,
       selectedTargetKey:
         selectionSet?.target_type && selectionSet?.target_id
@@ -1002,6 +1027,7 @@ function getWorkspaceState(clientId) {
       includeInFinalMap,
       choiceSelections: parseJson(row.choice_selections_json, {}),
       stagedAssignments: parseJson(row.staged_assignments_json, []),
+      finalizedAssignments: parseJson(row.finalized_assignments_json, []),
       collapsedSections: parseJson(uiPreferences?.collapsed_sections_json, {}),
     },
     updatedAt: row.updated_at,
@@ -1014,14 +1040,17 @@ function saveWorkspaceState({
   rows = [],
   documentationSession = null,
   selectedLibrary = null,
+  selectedNoteType = "all",
   selectedDepth = null,
   includeMode = null,
+  selectedBranchKey = null,
   selectedTargetType = null,
   selectedTargetId = null,
   checkedNodes = {},
   includeInFinalMap = {},
   choiceSelections = {},
   stagedAssignments = [],
+  finalizedAssignments = [],
   collapsedSections = null,
   updatedAt = new Date().toISOString(),
 }) {
@@ -1030,12 +1059,15 @@ function saveWorkspaceState({
     const workspaceStateId = upsertWorkspaceStateStatement.get(
       clientId,
       selectedLibraryId,
+      selectedNoteType,
       selectedDepth,
       includeMode,
+      selectedBranchKey,
       selectedTargetType,
       selectedTargetId,
       documentationSession ? JSON.stringify(documentationSession) : null,
       JSON.stringify(stagedAssignments || []),
+      JSON.stringify(finalizedAssignments || []),
       JSON.stringify(choiceSelections || {}),
       updatedAt
     ).id;
@@ -1116,13 +1148,16 @@ function saveWorkspaceState({
         timeBlockCount: timeBlocks.length,
         rowCount: rows.length,
         selectedLibrary,
+        selectedNoteType,
         selectedDepth,
         includeMode,
+        selectedBranchKey,
         selectedTargetType,
         selectedTargetId,
         checkedNodeCount: Object.keys(checkedNodes).filter((key) => checkedNodes[key]).length,
         selectedChoiceNodeCount: Object.keys(choiceSelections || {}).filter((key) => (choiceSelections[key] || []).length).length,
         stagedAssignmentCount: Array.isArray(stagedAssignments) ? stagedAssignments.length : 0,
+        finalizedAssignmentCount: Array.isArray(finalizedAssignments) ? finalizedAssignments.length : 0,
       })
     );
 

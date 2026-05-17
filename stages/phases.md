@@ -12,7 +12,8 @@ Keep the current app logic as-is and build the new decision engine as a parallel
   - `runtime.md`
   - `branching.md`
   - `readiness.md`
-  - `aidraft.md`
+  - `aidraft/parser.md`
+  - `aidraft/guide.md`
 
 Goal:
 - stable content model

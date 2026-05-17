@@ -1,11 +1,9 @@
-# AI DRAFT
+# IntelliDraft Parser Source
 
 ## A. Row Note Draft
 
 ### a1. row-note-trigger
-
 - `Q:` When should AI generate a row note draft?
-
 - `Choices:`
   - After base questions are complete
   - After care-plan questions are complete
@@ -21,9 +19,7 @@
 ### b1. IF `row-note-generation-selected`
 
 ### b2. row-note-content
-
 - `Q:` What content must the row note draft include?
-
 - `Choices:`
   - Staff support rendered
   - Observed response
@@ -39,9 +35,7 @@
 ### c1. IF `row-note-content includes Safety or health detail`
 
 ### c2. row-note-guardrails
-
 - `Q:` If the row note includes high-risk content, what AI guardrail should apply?
-
 - `Choices:`
   - Require escalation language
   - Require supervisor-review language
@@ -59,9 +53,7 @@
 ## B. Block Summary Draft
 
 ### a1. block-summary-trigger
-
 - `Q:` When should AI generate a block summary draft?
-
 - `Choices:`
   - After all block questions are complete
   - After readiness passes
@@ -77,9 +69,7 @@
 ### b1. IF `block-summary-generation-selected`
 
 ### b2. block-summary-content
-
 - `Q:` What content must the block summary include?
-
 - `Choices:`
   - Main support rendered
   - Main observed response
@@ -95,9 +85,7 @@
 ### c1. IF `block-summary-content includes Alerts or health detail`
 
 ### c2. block-summary-guardrails
-
 - `Q:` If the block summary includes high-risk content, what AI rule should apply?
-
 - `Choices:`
   - Highlight safety response
   - Include escalation outcome
@@ -115,9 +103,7 @@
 ## C. Final Case Note Draft
 
 ### a1. final-note-trigger
-
 - `Q:` When should AI generate the final case note draft?
-
 - `Choices:`
   - After all row notes are complete
   - After readiness passes
@@ -133,9 +119,7 @@
 ### b1. IF `final-note-generation-selected`
 
 ### b2. final-note-content
-
 - `Q:` What content must the final case note include?
-
 - `Choices:`
   - Whole-shift support summary
   - Whole-shift response summary
@@ -151,9 +135,7 @@
 ### c1. IF `final-note-content includes Health and safety supports`
 
 ### c2. final-note-guardrails
-
 - `Q:` If the final note includes high-risk content, what AI rule should apply?
-
 - `Choices:`
   - Include escalation summary
   - Include supervisor-review detail
@@ -171,9 +153,7 @@
 ## D. Handoff Summary Draft
 
 ### a1. handoff-trigger
-
 - `Q:` When should AI generate a handoff summary?
-
 - `Choices:`
   - When carryover items exist
   - When unresolved health items exist
@@ -189,9 +169,7 @@
 ### b1. IF `handoff-generation-selected`
 
 ### b2. handoff-content
-
 - `Q:` What content must the handoff summary include?
-
 - `Choices:`
   - Unresolved items
   - Monitoring needs
@@ -207,9 +185,7 @@
 ### c1. IF `handoff-content includes Unresolved items or Pending health tasks`
 
 ### c2. handoff-guardrails
-
 - `Q:` If the handoff includes active risk, what AI rule should apply?
-
 - `Choices:`
   - Prioritize urgent items first
   - Highlight escalation already taken
@@ -227,9 +203,7 @@
 ## E. AI Language and Safety Controls
 
 ### a1. language-policy
-
 - `Q:` What AI language rule should apply to generated drafts?
-
 - `Choices:`
   - Neutral and factual
   - Compliance-focused
@@ -245,9 +219,7 @@
 ### b1. IF `language-policy-selected`
 
 ### b2. contradiction-and-safety-check
-
 - `Q:` What safety or contradiction check should AI run before finalizing the draft?
-
 - `Choices:`
   - Check missing support rendered
   - Check missing observed response
@@ -263,9 +235,7 @@
 ### c1. IF `contradiction-and-safety-check includes Check unresolved high-risk items or Check escalation mismatch`
 
 ### c2. ai-blocking-policy
-
 - `Q:` If AI detects unsafe or contradictory content, what should happen?
-
 - `Choices:`
   - Warn only
   - Route back to readiness

@@ -1,18 +1,25 @@
 const fs = require('fs').promises;
 const path = require('path');
 
+const LIBRARY_SOURCES = [
+  { library: 'aidraft', source: 'aidraft/parser.md' },
+  { library: 'baseplan', source: 'baseplan.md' },
+  { library: 'branching', source: 'branching.md' },
+  { library: 'careplan', source: 'careplan.md' },
+  { library: 'playbookR', source: 'playbookR.md' },
+  { library: 'readiness', source: 'readiness.md' },
+  { library: 'runtime', source: 'runtime.md' },
+];
+
 async function parseDecisionAlgo() {
   const rootDir = path.join(__dirname);
-  const files = await fs.readdir(rootDir);
-  const mdFiles = files.filter((file) => file.endsWith('.md'));
   const libraries = [];
 
-  for (const fileName of mdFiles) {
-    const filePath = path.join(rootDir, fileName);
+  for (const { library, source } of LIBRARY_SOURCES) {
+    const filePath = path.join(rootDir, source);
     const raw = await fs.readFile(filePath, 'utf8');
     const lines = raw.split(/\r?\n/);
 
-    const library = path.basename(fileName, '.md');
     let currentSection = null;
     let currentNode = null;
     const nodes = [];
@@ -64,7 +71,7 @@ async function parseDecisionAlgo() {
           choices: [],
           children: [],
           conditions,
-          source: fileName,
+          source,
         };
         continue;
       }
@@ -105,7 +112,7 @@ async function parseDecisionAlgo() {
     }
 
     flushNode();
-    libraries.push({ library, file: fileName, nodes });
+    libraries.push({ library, file: source, nodes });
   }
 
   const output = {
@@ -119,7 +126,7 @@ async function parseDecisionAlgo() {
 
   const outputPath = path.join(rootDir, 'nodes.json');
   await fs.writeFile(outputPath, JSON.stringify(output, null, 2), 'utf8');
-  console.log(`Parsed ${output.summary.nodeCount} nodes from ${output.summary.libraryCount} markdown files.`);
+  console.log(`Parsed ${output.summary.nodeCount} nodes from ${output.summary.libraryCount} library source files.`);
   console.log(`Output written to ${outputPath}`);
 }
 

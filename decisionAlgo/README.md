@@ -1,12 +1,15 @@
 # Decision Algo Reminder
 
-This folder contains the experimental decision-engine markdown source files.
+This folder contains the experimental decision-engine source files.
 
 ## What to remember
 
 - Run the parser with:
   - `node decisionAlgo/parse-md-to-nodes.js`
-- It reads all markdown files in `decisionAlgo/`
+- It reads only the library parser sources declared in `decisionAlgo/parse-md-to-nodes.js`
+- `aidraft` is split into:
+  - parser source: `decisionAlgo/aidraft/parser.md`
+  - human guide: `decisionAlgo/aidraft/guide.md`
 - It generates structured node JSON in `decisionAlgo/nodes.json`
 - The Decision Engine UI is inside the app (`App.js`), not a standalone localhost route
 

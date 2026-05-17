@@ -1,18 +1,13 @@
 {
-  "generatedAt": "2026-05-17T01:15:04.192Z",
+  "generatedAt": "2026-05-17T04:24:37.955Z",
   "summary": {
-    "libraryCount": 8,
+    "libraryCount": 7,
     "nodeCount": 504
   },
   "libraries": [
     {
-      "library": "README",
-      "file": "README.md",
-      "nodes": []
-    },
-    {
       "library": "aidraft",
-      "file": "aidraft.md",
+      "file": "aidraft/parser.md",
       "nodes": [
         {
           "id": "a1",
@@ -35,7 +30,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b1",
@@ -49,7 +44,7 @@
           "conditions": [
             "row-note-generation-selected"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b2",
@@ -72,7 +67,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c1",
@@ -86,7 +81,7 @@
           "conditions": [
             "row-note-content includes Safety or health detail"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c2",
@@ -109,7 +104,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "a1",
@@ -132,7 +127,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b1",
@@ -146,7 +141,7 @@
           "conditions": [
             "block-summary-generation-selected"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b2",
@@ -169,7 +164,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c1",
@@ -183,7 +178,7 @@
           "conditions": [
             "block-summary-content includes Alerts or health detail"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c2",
@@ -206,7 +201,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "a1",
@@ -229,7 +224,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b1",
@@ -243,7 +238,7 @@
           "conditions": [
             "final-note-generation-selected"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b2",
@@ -266,7 +261,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c1",
@@ -280,7 +275,7 @@
           "conditions": [
             "final-note-content includes Health and safety supports"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c2",
@@ -303,7 +298,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "a1",
@@ -326,7 +321,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b1",
@@ -340,7 +335,7 @@
           "conditions": [
             "handoff-generation-selected"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b2",
@@ -363,7 +358,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c1",
@@ -377,7 +372,7 @@
           "conditions": [
             "handoff-content includes Unresolved items or Pending health tasks"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c2",
@@ -400,7 +395,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "a1",
@@ -423,7 +418,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b1",
@@ -437,7 +432,7 @@
           "conditions": [
             "language-policy-selected"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "b2",
@@ -460,7 +455,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c1",
@@ -474,7 +469,7 @@
           "conditions": [
             "contradiction-and-safety-check includes Check unresolved high-risk items or Check escalation mismatch"
           ],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         },
         {
           "id": "c2",
@@ -497,7 +492,7 @@
           ],
           "children": [],
           "conditions": [],
-          "source": "aidraft.md"
+          "source": "aidraft/parser.md"
         }
       ]
     },
