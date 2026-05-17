@@ -898,18 +898,56 @@ function normalizeDecisionNodeChoices(choices = []) {
   return choices.map((choice) => (String(choice).trim() === "Other" ? "Other..." : choice));
 }
 
+function titleCaseDecisionLabel(value = "") {
+  return String(value || "")
+    .replace(/[`]/g, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\bai\b/gi, "AI")
+    .replace(/\bif\b/gi, "If")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function getDecisionConditionDisplayText(condition = "") {
+  return titleCaseDecisionLabel(condition);
+}
+
+function getDecisionNodeDisplayTitle(node = {}) {
+  if (node.conditions?.length && !node.question) {
+    return `Only If ${getDecisionConditionDisplayText(node.conditions[0])}`;
+  }
+
+  return titleCaseDecisionLabel(node.title || node.id || "Decision Node");
+}
+
+function getDecisionNodeDisplayQuestion(node = {}) {
+  if (node.question) {
+    return node.question;
+  }
+
+  if (node.conditions?.length) {
+    return `Apply the next rule only when ${getDecisionConditionDisplayText(node.conditions[0]).toLowerCase()}.`;
+  }
+
+  return "";
+}
+
+function getDecisionNodeDisplayChoices(node = {}) {
+  return (node.choices || []).filter(Boolean);
+}
+
 function createAssignedWorkflowSteps(assignedNodes = []) {
   const steps = assignedNodes
     .filter((node) => node?.question)
     .map((node) => {
+      const displayQuestion = getDecisionNodeDisplayQuestion(node);
       const suggestions = normalizeDecisionNodeChoices(node.choices || []);
       return {
         stepKey: node.stepKey || buildDecisionNodeStepKey(node),
         kind: inferDecisionNodeKind(suggestions),
-        question: node.question,
+        question: displayQuestion,
         suggestions,
         allowCustom: suggestions.includes("Other..."),
-        multiSelect: inferDecisionNodeMultiSelect(node.question, suggestions),
+        multiSelect: inferDecisionNodeMultiSelect(displayQuestion, suggestions),
         rationale: node.section ? `Assigned from ${node.library} / ${node.section}.` : `Assigned from ${node.library}.`,
         sourceNodeId: node.id,
         sourceLibrary: node.library,
@@ -5482,13 +5520,27 @@ function DecisionEngineScreen({
                   </Text>
                 </View>
                 <View style={styles.decisionNodeContent}>
-                  <Text style={styles.decisionNodeTitle}>{node.title || node.id}</Text>
-                  {node.question ? <Text style={styles.decisionNodeQuestion}>{node.question}</Text> : null}
+                  <Text style={styles.decisionNodeTitle}>{getDecisionNodeDisplayTitle(node)}</Text>
+                  {getDecisionNodeDisplayQuestion(node) ? (
+                    <Text style={styles.decisionNodeQuestion}>{getDecisionNodeDisplayQuestion(node)}</Text>
+                  ) : null}
+                  {getDecisionNodeDisplayChoices(node).length ? (
+                    <View style={styles.decisionChoiceBlock}>
+                      <Text style={styles.decisionChoiceLabel}>Choices</Text>
+                      <View style={styles.decisionChoiceList}>
+                        {getDecisionNodeDisplayChoices(node).map((choice) => (
+                          <Text key={`${buildDecisionNodeSelectionKey(node)}-${choice}`} style={styles.decisionChoiceChip}>
+                            {choice}
+                          </Text>
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
                   {node.conditions?.length ? (
                     <View style={styles.decisionConditionList}>
                       {node.conditions.map((condition) => (
                         <Text key={condition} style={styles.decisionConditionBadge}>
-                          {condition}
+                          {getDecisionConditionDisplayText(condition)}
                         </Text>
                       ))}
                     </View>
@@ -6413,8 +6465,8 @@ export default function App() {
     };
     const mappedAssignedNodes = selectedNodes.map((n) => ({
       id: n.id,
-      title: n.title,
-      question: n.question,
+      title: getDecisionNodeDisplayTitle(n),
+      question: getDecisionNodeDisplayQuestion(n),
       choices: n.choices || [],
       section: n.section,
       library: n.library,
@@ -7483,6 +7535,32 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginBottom: 8,
     lineHeight: 18,
+  },
+  decisionChoiceBlock: {
+    marginBottom: 8,
+  },
+  decisionChoiceLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.headerText,
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  decisionChoiceList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  decisionChoiceChip: {
+    fontSize: 11,
+    color: colors.text,
+    backgroundColor: "#f7f3ff",
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 4,
   },
   decisionConditionList: {
     flexDirection: "row",
