@@ -29,6 +29,16 @@ import {
 
 const decisionNodes = require("./decisionAlgo/nodes.json");
 
+const DECISION_LIBRARY_HELP = {
+  aidraft: "AI draft rules for when notes are generated, what they must include, and which safety guardrails apply.",
+  baseplan: "Core documentation questions that shape the base note structure.",
+  branching: "Branch logic that controls which follow-up questions appear next.",
+  careplan: "Care-plan-based questions and support rules pulled into documentation.",
+  playbookR: "Playbook and response guidance for support actions and workflows.",
+  readiness: "Checks that decide whether enough information is present to continue.",
+  runtime: "Live shift and situational questions used during actual documentation.",
+};
+
 const userProfilePhoto = require("./demoImages/dsp-user.png");
 const maryBetProfilePhoto = require("./demoImages/patient-mary-bet.png");
 const markBrentProfilePhoto = require("./demoImages/patient-mark-brent-ai.png");
@@ -4802,6 +4812,8 @@ function DecisionEngineScreen({
   const [selectedLibrary, setSelectedLibrary] = useState(
     initialSelectionState?.selectedLibrary || decisionNodes.libraries[0]?.library || ""
   );
+  const [showLibraryHelp, setShowLibraryHelp] = useState(false);
+  const [libraryHelpFrame, setLibraryHelpFrame] = useState(null);
   const [selectedDepth, setSelectedDepth] = useState(initialSelectionState?.selectedDepth || 2);
   const [includeMode, setIncludeMode] = useState(initialSelectionState?.includeMode || "full-branch");
   const [activeDecisionDropdown, setActiveDecisionDropdown] = useState(null);
@@ -4821,6 +4833,7 @@ function DecisionEngineScreen({
   const [rowPromptSuggestions, setRowPromptSuggestions] = useState([]);
   const [rowPromptLoading, setRowPromptLoading] = useState(false);
   const [rowPromptError, setRowPromptError] = useState("");
+  const libraryHelpButtonRef = useRef(null);
   const workflowOptions = [
     { workflowId: "behavior-support", label: "Behavior", theme: "behavior", promptCategory: "behavior" },
     { workflowId: "morning-adl", label: "ADL", theme: "hygiene", promptCategory: "adl" },
@@ -4943,6 +4956,9 @@ function DecisionEngineScreen({
   const selectedLibraryData =
     decisionNodes.libraries.find((lib) => lib.library === selectedLibrary) ??
     decisionNodes.libraries[0];
+  const selectedLibraryHelp =
+    DECISION_LIBRARY_HELP[selectedLibraryData?.library] ||
+    "Choose which decision rule set to browse for this assignment.";
   const timeBlockTargets = assignmentTargets.filter((target) => target.type === "time-block");
   const rowAssignmentTargets = assignmentTargets.filter((target) => target.type === "case-note-row");
   const scopedTargets = targetType === "case-note-row" ? rowAssignmentTargets : timeBlockTargets;
@@ -5143,6 +5159,23 @@ function DecisionEngineScreen({
     }
   };
 
+  const openLibraryHelp = useCallback(() => {
+    const node = libraryHelpButtonRef.current;
+    if (!node?.measureInWindow) {
+      setShowLibraryHelp(true);
+      return;
+    }
+
+    node.measureInWindow((x, y, width, height) => {
+      setLibraryHelpFrame({ x, y, width, height });
+      setShowLibraryHelp(true);
+    });
+  }, []);
+
+  const closeLibraryHelp = useCallback(() => {
+    setShowLibraryHelp(false);
+  }, []);
+
   return (
     <Card title="Decision Engine Library" containerStyle={styles.decisionCard} bodyStyle={styles.decisionCardBody}>
       <View
@@ -5292,7 +5325,20 @@ function DecisionEngineScreen({
         ]}
       >
         <View style={[styles.decisionFormField, styles.decisionFormFieldLibrary]}>
-          <Text style={styles.decisionToolbarLabel}>Library</Text>
+          <View style={styles.decisionLabelRow}>
+            <Text style={styles.decisionToolbarLabel}>Library</Text>
+            <Pressable
+              ref={libraryHelpButtonRef}
+              collapsable={false}
+              accessibilityRole="button"
+              accessibilityLabel="Explain decision library"
+              onHoverIn={openLibraryHelp}
+              onPress={() => (showLibraryHelp ? closeLibraryHelp() : openLibraryHelp())}
+              style={styles.decisionInfoButton}
+            >
+              <Feather name="help-circle" size={14} color={colors.muted} />
+            </Pressable>
+          </View>
           <DecisionDropdown
             value={selectedLibraryData.library}
             options={libraryDropdownOptions}
@@ -5365,6 +5411,26 @@ function DecisionEngineScreen({
           </View>
         </View>
       </View>
+
+      <Modal transparent visible={showLibraryHelp} animationType="fade" onRequestClose={closeLibraryHelp}>
+        <View style={styles.decisionLibraryHelpModalRoot}>
+          <Pressable style={styles.decisionLibraryHelpBackdrop} onPress={closeLibraryHelp} />
+          {libraryHelpFrame ? (
+            <View
+              style={[
+                styles.decisionLibraryTooltipModal,
+                {
+                  top: libraryHelpFrame.y + libraryHelpFrame.height + 8,
+                  left: Math.max(16, libraryHelpFrame.x - 8),
+                },
+              ]}
+            >
+              <Text style={styles.decisionLibraryTooltipTitle}>{selectedLibraryData.library}</Text>
+              <Text style={styles.decisionLibraryTooltipText}>{selectedLibraryHelp}</Text>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
 
       <View style={styles.decisionQuestionList}>
         <View style={styles.decisionSummaryRow}>
@@ -7130,6 +7196,57 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: "uppercase",
   },
+  decisionLabelRow: {
+    position: "relative",
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    overflow: "visible",
+    zIndex: 50,
+  },
+  decisionInfoButton: {
+    marginTop: -6,
+    padding: 2,
+    borderRadius: 999,
+    ...(Platform.OS === "web" ? { cursor: "help" } : {}),
+  },
+  decisionLibraryHelpModalRoot: {
+    flex: 1,
+  },
+  decisionLibraryHelpBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(49, 36, 71, 0.08)",
+  },
+  decisionLibraryTooltipModal: {
+    position: "absolute",
+    width: 280,
+    maxWidth: "86%",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    shadowColor: "#2f184f",
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 18,
+    zIndex: 120,
+  },
+  decisionLibraryTooltipTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.headerText,
+    marginBottom: 4,
+    textTransform: "none",
+  },
+  decisionLibraryTooltipText: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.text,
+  },
   decisionOptionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -7379,6 +7496,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
+  },
+  decisionNodeFinalRow: {
+    marginTop: 4,
+    alignItems: "flex-start",
+  },
+  includeFinalToggle: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 4,
+    backgroundColor: "#f4efff",
+    borderWidth: 1,
+    borderColor: "#d8c8fb",
+  },
+  includeFinalToggleActive: {
+    backgroundColor: "#e6f6ea",
+    borderColor: "#8dc8a1",
+  },
+  includeFinalToggleText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.headerText,
   },
   decisionAssignRow: {
     paddingHorizontal: 0,
