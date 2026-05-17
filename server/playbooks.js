@@ -14,6 +14,7 @@ const WORKFLOW_META = {
   "communication-support": { eyebrow: "Communication support" },
   "medication-support": { eyebrow: "Medication support" },
   "case-note-final": { eyebrow: "Final case note" },
+  "assigned-nodes": { eyebrow: "Assigned decision workflow" },
 };
 
 function getFieldTimeHint(fieldContext = {}) {
@@ -93,6 +94,17 @@ function getCaseNoteFinalStepOrder() {
   return ["summaryFocus", "why", "draft"];
 }
 
+function getAssignedNodesStepOrder() {
+  return ["draft"];
+}
+
+function renderAssignedNodesStep(stepKey) {
+  if (stepKey === "draft") {
+    return { stepKey, kind: "draft", question: "Generated documentation" };
+  }
+  return null;
+}
+
 const STEP_ORDERS = {
   "morning-adl": getMorningAdlStepOrder,
   "feeding-support": getFeedingStepOrder,
@@ -103,6 +115,7 @@ const STEP_ORDERS = {
   "communication-support": getCommunicationSupportStepOrder,
   "medication-support": getMedicationSupportStepOrder,
   "case-note-final": getCaseNoteFinalStepOrder,
+  "assigned-nodes": getAssignedNodesStepOrder,
 };
 
 function getStepOrder(workflowId, answers = {}) {
@@ -574,6 +587,7 @@ const STEP_RENDERERS = {
   "communication-support": renderCommunicationSupportStep,
   "medication-support": renderMedicationSupportStep,
   "case-note-final": renderCaseNoteFinalStep,
+  "assigned-nodes": renderAssignedNodesStep,
 };
 
 function renderPlaybookStep(workflowId, stepKey, patientName = "Mary Bet", fieldContext = {}, answers = {}) {

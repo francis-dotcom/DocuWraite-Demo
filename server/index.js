@@ -6,6 +6,7 @@ const OpenAI = require("openai");
 const { isSupportedWorkflow } = require("./playbooks");
 const { resolveWorkflowStep } = require("./playbookEngine");
 const { buildDraftNotePrompt } = require("./draftPrompt");
+const { ASSIGNED_NODES_SYSTEM_PROMPT } = require("./assignedNodesDraftPrompt");
 const {
   dbPath,
   getAssignmentsByClient,
@@ -125,17 +126,33 @@ app.get("/api/health", (_request, response) => {
   });
 });
 
-async function generateDraftStep({ answers, fieldContext, patientName, workflowId, meta }) {
+async function generateDraftStep({
+  answers,
+  fieldContext,
+  patientName,
+  workflowId,
+  meta,
+  draftContextToggles = null,
+  enabledDraftSections = null,
+}) {
+  const systemContent =
+    workflowId === "assigned-nodes"
+      ? ASSIGNED_NODES_SYSTEM_PROMPT
+      : "You write concise DSP documentation notes. Output only JSON with keys stepKey, question, kind, and draftNote.";
+
+  const includesCarePlan =
+    Array.isArray(enabledDraftSections) &&
+    enabledDraftSections.some((entry) => entry.includeCarePlanExcerpt);
+
   const completion = await openai.chat.completions.create({
     model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-    temperature: 0.2,
-    max_tokens: 320,
+    temperature: workflowId === "assigned-nodes" ? 0 : 0.2,
+    max_tokens: workflowId === "assigned-nodes" ? (includesCarePlan ? 520 : 400) : 320,
     response_format: { type: "json_object" },
     messages: [
       {
         role: "system",
-        content:
-          "You write concise DSP documentation notes. Output only JSON with keys stepKey, question, kind, and draftNote.",
+        content: systemContent,
       },
       {
         role: "user",
@@ -145,6 +162,8 @@ async function generateDraftStep({ answers, fieldContext, patientName, workflowI
           patientName,
           workflowId,
           workflowMeta: meta,
+          draftContextToggles: draftContextToggles || {},
+          enabledDraftSections,
         }),
       },
     ],
@@ -161,9 +180,60 @@ async function generateDraftStep({ answers, fieldContext, patientName, workflowI
     kind: "draft",
     question: "Generated documentation",
     draftNote: step.draftNote,
+    followUpQuestion: String(step.followUpQuestion || "").trim(),
+    prioritizedFacts: Array.isArray(step.prioritizedFacts) ? step.prioritizedFacts : [],
+    usedSectionKeys: Array.isArray(step.usedSectionKeys) ? step.usedSectionKeys : [],
     noteQuality: meta?.noteQuality || "compliant",
     auditTrail: meta?.auditTrail || [],
   };
+}
+
+async function respondWithAssignedNodesDraft(request, response) {
+  const {
+    answers = {},
+    fieldContext = {},
+    patientName = "Mary Bet",
+    currentNote = "",
+    draftContextToggles = {},
+    enabledDraftSections = [],
+  } = request.body || {};
+
+  if (!openai) {
+    response.status(503).json({
+      error: "OPENAI_API_KEY is not configured on the DocuWraite server.",
+    });
+    return;
+  }
+
+  const draftStep = await generateDraftStep({
+    answers,
+    fieldContext: { ...fieldContext, currentNote },
+    patientName,
+    workflowId: "assigned-nodes",
+    meta: { noteQuality: "compliant", auditTrail: [] },
+    draftContextToggles,
+    enabledDraftSections,
+  });
+
+  if (!draftStep?.draftNote) {
+    response.status(502).json({ error: "OpenAI did not return a draft note." });
+    return;
+  }
+
+  response.json({
+    step: draftStep,
+    meta: {
+      noteQuality: draftStep.noteQuality || "compliant",
+      auditTrail: draftStep.auditTrail || [],
+      usedSections: draftStep.usedSectionKeys?.length
+        ? draftStep.usedSectionKeys
+        : Array.isArray(enabledDraftSections)
+          ? enabledDraftSections.map((entry) => entry.key)
+          : [],
+      prioritizedFacts: draftStep.prioritizedFacts || [],
+      followUpQuestion: draftStep.followUpQuestion || "",
+    },
+  });
 }
 
 app.post("/api/docuwraite/workflow-step", async (request, response) => {
@@ -176,6 +246,17 @@ app.post("/api/docuwraite/workflow-step", async (request, response) => {
     currentNote = "",
     forcedStepKey = null,
   } = request.body || {};
+
+  if (workflowId === "assigned-nodes") {
+    try {
+      await respondWithAssignedNodesDraft(request, response);
+    } catch (error) {
+      response.status(500).json({
+        error: error?.message || "DocuWraite could not generate the assigned-node draft.",
+      });
+    }
+    return;
+  }
 
   if (!isSupportedWorkflow(workflowId)) {
     response.status(400).json({ error: `Unsupported workflow: ${workflowId || "unknown"}` });

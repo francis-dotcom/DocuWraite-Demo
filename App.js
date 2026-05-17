@@ -17,8 +17,15 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { Feather } from "@expo/vector-icons";
 import { carePlanText } from "./carePlanText";
-import { fetchDocuWraiteWorkflowStep } from "./docuWraiteAi";
+import { fetchAssignedNodesDraft, fetchDocuWraiteWorkflowStep } from "./docuWraiteAi";
 import { docuWraiteUseRuleBasedFallback, docuWraiteApiBaseUrl } from "./docuWraiteConfig";
+import {
+  clearDraftContextResponsesForToggle,
+  countIncompleteDraftContextQuestions,
+  formatDraftContextClarificationsForPrompt,
+  getDraftContextTogglesNeedingQuestions,
+  getFirstIncompleteDraftContextQuestion,
+} from "./decisionAlgo/draftContextQuestionTrees";
 import {
   buildCaseNoteDocumentationItems,
   buildMeasurableDocumentationItems,
@@ -43,6 +50,14 @@ const DECISION_LIBRARY_HELP = {
 const DECISION_LIBRARY_DISPLAY_NAMES = {
   aidraft: "IntelliDraft",
 };
+
+const DECISION_NOTE_TYPE_OPTIONS = [
+  { value: "final-note", label: "Final note" },
+  { value: "handover-note", label: "Handover note" },
+  { value: "row-note", label: "Row note" },
+  { value: "block-time", label: "Block time" },
+  { value: "orders", label: "Orders" },
+];
 
 const DECISION_EXCLUSIVE_STATUS_CHOICES = new Set([
   "skip",
@@ -1139,15 +1154,40 @@ function getDecisionSectionFilterLabel(sectionKey = "") {
   return normalized.replace(/^[A-Z]\.\s+/, "");
 }
 
-function getDecisionNoteTypeKey(nodeOrSection = "") {
+function getDecisionNoteTypeKey(nodeOrSection = "", librarySlug = "") {
   const section =
     typeof nodeOrSection === "string"
       ? nodeOrSection
       : nodeOrSection?.section || nodeOrSection?.title || "";
+  const library =
+    librarySlug ||
+    (typeof nodeOrSection === "object" ? nodeOrSection?.library || nodeOrSection?.sourceLibrary : "");
   const normalized = String(section || "").trim().toLowerCase();
 
   if (normalized.includes("row note") || normalized.includes("case note row")) {
-    return "case-note-row";
+    return "row-note";
+  }
+
+  if (
+    normalized.includes("final case note") ||
+    normalized.includes("final note") ||
+    normalized.includes("final case")
+  ) {
+    return "final-note";
+  }
+
+  if (normalized.includes("handoff") || normalized.includes("handover")) {
+    return "handover-note";
+  }
+
+  if (
+    normalized.includes("medication-support") ||
+    /\borders?\b/.test(normalized) ||
+    normalized.includes("mar ") ||
+    normalized.includes("medication order") ||
+    normalized.includes("prescription")
+  ) {
+    return "orders";
   }
 
   if (
@@ -1155,55 +1195,62 @@ function getDecisionNoteTypeKey(nodeOrSection = "") {
     normalized.includes("block time") ||
     normalized.includes("runtime") ||
     normalized.includes("schedule") ||
-    normalized.includes("appointments")
-  ) {
-    return "block-time";
-  }
-
-  if (
+    normalized.includes("appointments") ||
     normalized.includes("adl") ||
     normalized.includes("behavior") ||
     normalized.includes("meal") ||
+    normalized.includes("feeding") ||
     normalized.includes("communication") ||
     normalized.includes("community") ||
+    normalized.includes("outing") ||
     normalized.includes("hygiene") ||
-    normalized.includes("medication")
+    normalized.includes("leisure") ||
+    normalized.includes("return-home") ||
+    normalized.includes("return home") ||
+    normalized.includes("in-home") ||
+    normalized.includes("medication") ||
+    normalized.includes("playbook") ||
+    normalized.includes("readiness") ||
+    normalized.includes("branch")
   ) {
     return "block-time";
   }
 
-  if (normalized.includes("final case note") || normalized.includes("final note")) {
-    return "final-note";
+  if (library === "aidraft") {
+    if (normalized.includes("language") || normalized.includes("safety control")) {
+      return "block-time";
+    }
+    return "block-time";
   }
 
-  if (normalized.includes("handoff")) {
-    return "handover-note";
+  if (["baseplan", "careplan", "branching", "readiness", "playbookR", "runtime"].includes(library)) {
+    return "block-time";
   }
 
-  if (normalized.includes("language") || normalized.includes("safety control")) {
-    return "ai-controls";
-  }
+  return "block-time";
+}
 
-  return "other";
+function nodeMatchesDecisionNoteType(node, noteType, librarySlug = "") {
+  const activeNoteType = normalizeDecisionNoteType(noteType);
+  const nodeNoteType = getDecisionNoteTypeKey(node, librarySlug || node?.library);
+  return nodeNoteType === activeNoteType;
+}
+
+function normalizeDecisionNoteType(noteTypeKey = "") {
+  const key = String(noteTypeKey || "").trim();
+  if (!key || key === "all") {
+    return "block-time";
+  }
+  if (key === "case-note-row") {
+    return "row-note";
+  }
+  return DECISION_NOTE_TYPE_OPTIONS.some((option) => option.value === key) ? key : "block-time";
 }
 
 function getDecisionNoteTypeLabel(noteTypeKey = "") {
-  switch (noteTypeKey) {
-    case "block-time":
-      return "Block time";
-    case "case-note-row":
-      return "Case-note row";
-    case "final-note":
-      return "Final note";
-    case "handover-note":
-      return "Handover note";
-    case "ai-controls":
-      return "AI controls";
-    case "other":
-      return "Other";
-    default:
-      return "All note types";
-  }
+  const normalized = normalizeDecisionNoteType(noteTypeKey);
+  const match = DECISION_NOTE_TYPE_OPTIONS.find((option) => option.value === normalized);
+  return match?.label || "Block time";
 }
 
 function getDecisionNodeSelectedChoices(node = {}, choiceSelections = {}) {
@@ -1271,6 +1318,457 @@ function formatAssignedWorkflowAnswer(value) {
     return value.join(", ");
   }
   return String(value || "").trim();
+}
+
+function mapAssignedWorkflowAnswersForDraft(workflowSnapshot = {}) {
+  const answers = workflowSnapshot.answers || {};
+  const steps = (workflowSnapshot.localSteps || []).filter((step) => step.kind !== "draft");
+  const assignedResponses = {};
+
+  steps.forEach((step) => {
+    const value = getWorkflowAnswer(answers, step.stepKey);
+    const narration = String(
+      answers[step.narrationField || `${step.stepKey}Narration`] ||
+        answers[`${kebabToCamel(step.stepKey)}Narration`] ||
+        ""
+    ).trim();
+    const label = step.question || step.stepKey;
+
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      assignedResponses[label] = value;
+    }
+    if (narration) {
+      assignedResponses[`${label} (narration)`] = narration;
+    }
+  });
+
+  return {
+    ...answers,
+    assignedResponses,
+    draftContextResponses: answers.draftContextResponses || {},
+    assignedWorkflowId: "assigned-nodes",
+  };
+}
+
+const DEFAULT_DRAFT_CONTEXT_TOGGLES = {
+  assignedAnswers: true,
+  blockDescription: true,
+  shiftOverdue: false,
+  appointments: false,
+  medicationsDue: false,
+  alerts: false,
+  incompleteGoals: false,
+  carePlan: false,
+  existingComment: false,
+};
+
+const DRAFT_CONTEXT_PRIMARY_TOGGLE = {
+  key: "assignedAnswers",
+  label: "Assigned answers",
+  locked: true,
+};
+
+const DRAFT_CONTEXT_GRID_TOGGLES = [
+  { key: "shiftOverdue", label: "Shift overdue", intelKey: "overdue" },
+  { key: "appointments", label: "Appointments", intelKey: "appointments" },
+  { key: "medicationsDue", label: "Meds due", intelKey: "medicationsDue" },
+  { key: "carePlan", label: "Care plan", intelKey: null },
+  { key: "alerts", label: "Alerts", intelKey: "alerts" },
+  { key: "incompleteGoals", label: "Incomplete goals", intelKey: "incompleteGoals" },
+  { key: "blockDescription", label: "Block note", fieldKey: "description" },
+  { key: "existingComment", label: "This field", fieldKey: "currentNote" },
+];
+
+function getDefaultDraftContextToggles() {
+  return { ...DEFAULT_DRAFT_CONTEXT_TOGGLES };
+}
+
+function normalizeDraftContextToggles(toggles = {}) {
+  const resolved = { ...DEFAULT_DRAFT_CONTEXT_TOGGLES, ...toggles };
+  if (toggles.shiftIntelligence) {
+    resolved.shiftOverdue = true;
+    resolved.appointments = true;
+    resolved.medicationsDue = true;
+    resolved.alerts = true;
+    resolved.incompleteGoals = true;
+  }
+  return resolved;
+}
+
+function truncateDraftTogglePreview(text, maxLength = 52) {
+  const trimmed = String(text || "").replace(/\s+/g, " ").trim();
+  if (!trimmed) {
+    return "—";
+  }
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
+function getDraftContextTogglePreview(option, fieldContext = {}, currentNote = "") {
+  const intel = fieldContext.shiftIntelligence || {};
+
+  if (option.intelKey) {
+    const items = intel[option.intelKey];
+    if (!Array.isArray(items) || !items.length) {
+      return "None on shift card";
+    }
+    return truncateDraftTogglePreview(items.join(" · "));
+  }
+
+  if (option.key === "carePlan") {
+    return "Support plan excerpts";
+  }
+
+  if (option.fieldKey === "description") {
+    return truncateDraftTogglePreview(fieldContext.description || fieldContext.label || "");
+  }
+
+  if (option.fieldKey === "currentNote") {
+    return truncateDraftTogglePreview(currentNote);
+  }
+
+  return "—";
+}
+
+function chunkDraftTogglePairs(items = []) {
+  const rows = [];
+  for (let index = 0; index < items.length; index += 2) {
+    rows.push(items.slice(index, index + 2));
+  }
+  return rows;
+}
+
+function attachDraftContextClarifications(sectionEntry, toggleKey, draftContextResponses = {}) {
+  const clarifications = formatDraftContextClarificationsForPrompt(toggleKey, draftContextResponses);
+  if (!clarifications.length) {
+    return sectionEntry;
+  }
+  const { content } = sectionEntry;
+  if (Array.isArray(content)) {
+    return {
+      ...sectionEntry,
+      content: [...content, { dspClarifications: clarifications }],
+    };
+  }
+  if (content && typeof content === "object") {
+    return {
+      ...sectionEntry,
+      content: { ...content, dspClarifications: clarifications },
+    };
+  }
+  return {
+    ...sectionEntry,
+    content: { source: content, dspClarifications: clarifications },
+  };
+}
+
+function buildEnabledDraftSections(
+  toggles,
+  fieldContext = {},
+  currentNote = "",
+  mappedAnswers = {},
+  draftContextResponses = {}
+) {
+  const resolved = normalizeDraftContextToggles(toggles);
+  const intel = fieldContext.shiftIntelligence || getShiftIntelligenceRuntime(null, null);
+  const sections = [];
+  const finalize = (entry, toggleKey) =>
+    attachDraftContextClarifications(entry, toggleKey, draftContextResponses);
+
+  const pushListSection = (key, label, items) => {
+    if (!resolved[key]) {
+      return;
+    }
+    sections.push(
+      finalize(
+        {
+          key,
+          label,
+          content: Array.isArray(items) && items.length ? items : ["No items on shift card for this category."],
+        },
+        key
+      )
+    );
+  };
+
+  if (resolved.assignedAnswers) {
+    sections.push(
+      finalize(
+        {
+          key: "assignedAnswers",
+          label: "Assigned question answers",
+          content: mappedAnswers.assignedResponses || {},
+        },
+        "assignedAnswers"
+      )
+    );
+  }
+
+  if (resolved.blockDescription) {
+    sections.push(
+      finalize(
+        {
+          key: "blockDescription",
+          label: "Schedule block description",
+          content: String(fieldContext.description || fieldContext.label || "No block description.").trim(),
+        },
+        "blockDescription"
+      )
+    );
+  }
+
+  pushListSection("shiftOverdue", "Shift overdue", intel.overdue);
+  pushListSection("appointments", "Appointments", intel.appointments);
+  pushListSection("medicationsDue", "Meds due", intel.medicationsDue);
+  pushListSection("alerts", "Shift alerts", intel.alerts);
+  pushListSection("incompleteGoals", "Incomplete goals", intel.incompleteGoals);
+
+  if (resolved.alerts && Array.isArray(intel.activeRisks) && intel.activeRisks.length) {
+    sections.push(
+      finalize(
+        {
+          key: "activeRisks",
+          label: "Active risks",
+          content: intel.activeRisks,
+        },
+        "alerts"
+      )
+    );
+  }
+
+  if (resolved.carePlan) {
+    sections.push(
+      finalize({
+        key: "carePlan",
+        label: "Care plan excerpts",
+        includeCarePlanExcerpt: true,
+      }, "carePlan")
+    );
+  }
+
+  if (resolved.existingComment) {
+    sections.push(
+      finalize(
+        {
+          key: "existingComment",
+          label: "Text already in this field",
+          content: String(currentNote || "No text in this field yet.").trim(),
+        },
+        "existingComment"
+      )
+    );
+  }
+
+  return sections;
+}
+
+function isDraftToggleEnabledButEmpty(option, toggles, fieldContext, currentNote) {
+  if (!normalizeDraftContextToggles(toggles)[option.key]) {
+    return false;
+  }
+  if (option.key === "assignedAnswers" || option.key === "carePlan") {
+    return false;
+  }
+  const preview = getDraftContextTogglePreview(option, fieldContext, currentNote);
+  return preview === "None on shift card" || preview === "—";
+}
+
+function DocuWraiteDraftContextToggles({ toggles = {}, onToggle, fieldContext = {}, currentNote = "" }) {
+  const resolvedToggles = normalizeDraftContextToggles(toggles);
+  const gridRows = chunkDraftTogglePairs(DRAFT_CONTEXT_GRID_TOGGLES);
+
+  const renderChip = (option) => {
+    const isOn = Boolean(resolvedToggles[option.key]);
+    const isLocked = Boolean(option.locked);
+    const preview = getDraftContextTogglePreview(option, fieldContext, currentNote);
+
+    return (
+      <Pressable
+        key={option.key}
+        style={[
+          styles.docuWraiteDraftToggleChip,
+          isOn && styles.docuWraiteDraftToggleChipActive,
+          isLocked && styles.docuWraiteDraftToggleChipLocked,
+        ]}
+        onPress={() => {
+          if (!isLocked) {
+            onToggle?.(option.key, !isOn);
+          }
+        }}
+        disabled={isLocked}
+      >
+        <View style={styles.docuWraiteDraftToggleChipTop}>
+          <Text
+            style={[styles.docuWraiteDraftToggleChipLabel, isOn && styles.docuWraiteDraftToggleChipLabelActive]}
+          >
+            {option.label}
+          </Text>
+          {isOn ? <Text style={styles.docuWraiteDraftToggleChipOn}>ON</Text> : null}
+        </View>
+        <Text style={styles.docuWraiteDraftToggleChipPreview} numberOfLines={2}>
+          {option.key === "assignedAnswers" ? "Your library answers" : preview}
+        </Text>
+        {isDraftToggleEnabledButEmpty(option, resolvedToggles, fieldContext, currentNote) ? (
+          <Text style={styles.docuWraiteDraftToggleChipWarn}>ON — no shift data to send</Text>
+        ) : null}
+      </Pressable>
+    );
+  };
+
+  return (
+    <View style={styles.docuWraiteDraftToggleBox}>
+      <Text style={styles.docuWraiteDraftToggleHeading}>Include when generating</Text>
+      <View style={styles.docuWraiteDraftTogglePrimaryRow}>
+        {renderChip(DRAFT_CONTEXT_PRIMARY_TOGGLE)}
+      </View>
+      {gridRows.map((row, rowIndex) => (
+        <View key={`draft-toggle-row-${rowIndex}`} style={styles.docuWraiteDraftToggleGridRow}>
+          {row.map((option) => (
+            <View key={option.key} style={styles.docuWraiteDraftToggleGridCell}>
+              {renderChip(option)}
+            </View>
+          ))}
+          {row.length === 1 ? <View style={styles.docuWraiteDraftToggleGridCell} /> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Floating toast overlay — rendered at screen level, not inside the comment workflow dock. */
+function DocuWraiteDraftContextQuestionToast({ toggles = {}, fieldContext = {}, responses = {}, onSaveResponse }) {
+  const resolvedToggles = normalizeDraftContextToggles(toggles);
+  const togglesWithTrees = getDraftContextTogglesNeedingQuestions(resolvedToggles);
+  const active = getFirstIncompleteDraftContextQuestion(resolvedToggles, responses, fieldContext);
+  const pendingTrees = countIncompleteDraftContextQuestions(resolvedToggles, responses, fieldContext);
+  const [textDraft, setTextDraft] = useState("");
+  const [toastDismissed, setToastDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!active?.responseKey) {
+      setTextDraft("");
+      return;
+    }
+    setTextDraft(String(responses[active.responseKey] || ""));
+  }, [active?.responseKey, responses]);
+
+  useEffect(() => {
+    if (active) {
+      setToastDismissed(false);
+    }
+  }, [active?.responseKey, active?.toggleKey]);
+
+  useEffect(() => {
+    setToastDismissed(false);
+  }, [togglesWithTrees.join(",")]);
+
+  if (!togglesWithTrees.length || !active) {
+    return null;
+  }
+
+  const saveResponse = (value) => {
+    if (!active?.responseKey || !String(value || "").trim()) {
+      return;
+    }
+    onSaveResponse?.(active.responseKey, String(value).trim());
+    setTextDraft("");
+  };
+
+  const toastVisible = !toastDismissed;
+
+  return (
+    <Modal
+      transparent
+      visible={toastVisible}
+      animationType="fade"
+      onRequestClose={() => setToastDismissed(true)}
+    >
+      <View style={styles.docuWraiteDraftContextToastRoot} pointerEvents="box-none">
+        <Pressable
+          style={styles.docuWraiteDraftContextToastBackdrop}
+          onPress={() => setToastDismissed(true)}
+        />
+        <View style={styles.docuWraiteDraftContextToastCenter} pointerEvents="box-none">
+          <View style={styles.docuWraiteDraftContextToastCard} pointerEvents="auto">
+          <View style={styles.docuWraiteDraftContextModalHeader}>
+            <View style={styles.docuWraiteDraftContextToastTitleWrap}>
+              <Text style={styles.docuWraiteDraftContextQuestionsHeading}>
+                Questions for ticked items
+              </Text>
+              <Text style={styles.docuWraiteDraftContextQuestionsHint}>
+                {`${pendingTrees} item${pendingTrees === 1 ? "" : "s"} to answer before Generate note`}
+              </Text>
+            </View>
+            <Pressable
+              hitSlop={8}
+              onPress={() => setToastDismissed(true)}
+              style={styles.docuWraiteDraftContextModalClose}
+            >
+              <Text style={styles.docuWraiteDraftContextModalCloseText}>✕</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.docuWraiteDraftContextQuestionsSource}>
+            {`Because “${active.treeLabel}” is ON`}
+          </Text>
+          <Text style={styles.docuWraiteDraftContextQuestionsPrompt}>{active.question}</Text>
+          <ScrollView
+            style={styles.docuWraiteDraftContextToastScroll}
+            contentContainerStyle={styles.docuWraiteDraftContextModalScrollContent}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+          >
+            {active.kind === "text" ? (
+              <>
+                <TextInput
+                  value={textDraft}
+                  onChangeText={setTextDraft}
+                  placeholder="Type your answer"
+                  placeholderTextColor="#888888"
+                  multiline
+                  style={styles.docuWraiteWorkflowFollowUpInput}
+                />
+                <Pressable
+                  style={styles.docuWraiteWorkflowNext}
+                  onPress={() => saveResponse(textDraft)}
+                >
+                  <Text style={styles.docuWraiteWorkflowNextText}>Continue</Text>
+                </Pressable>
+              </>
+            ) : (
+              <View style={styles.docuWraiteWorkflowSuggestionList}>
+                {(active.suggestions || []).map((suggestion) => {
+                  const isSelected = responses[active.responseKey] === suggestion;
+                  return (
+                    <Pressable
+                      key={`${active.responseKey}-${suggestion}`}
+                      style={[
+                        styles.docuWraiteWorkflowSuggestion,
+                        isSelected && styles.docuWraiteWorkflowSuggestionActive,
+                      ]}
+                      onPress={() => saveResponse(suggestion)}
+                    >
+                      <Text
+                        style={[
+                          styles.docuWraiteWorkflowSuggestionText,
+                          isSelected && styles.docuWraiteWorkflowSuggestionTextActive,
+                        ]}
+                      >
+                        {suggestion}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </ScrollView>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 function generateAssignedWorkflowNote(answers = {}, workflowState = {}, fieldContext = {}) {
@@ -1418,7 +1916,7 @@ function buildDecisionAssignmentCardPreview(assignment = {}) {
     compactQuestions,
     settingsLine: [
       getDecisionLibraryDisplayName(assignment.selectedLibrary),
-      getDecisionNoteTypeLabel(assignment.selectedNoteType || "all"),
+      getDecisionNoteTypeLabel(assignment.selectedNoteType || "block-time"),
       assignment.selectedBranchKey ? `Branch ${assignment.selectedBranchKey}` : null,
       `${assignment.selectedDepth ?? "?"} deep`,
       assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch",
@@ -1560,7 +2058,7 @@ function DecisionAssignmentPanelHeader({ title, countLabel, assignments, expandA
 
 function buildDecisionAssignmentUniquenessKey(assignment = {}) {
   const library = assignment.selectedLibrary || "";
-  const noteType = assignment.selectedNoteType || "all";
+  const noteType = normalizeDecisionNoteType(assignment.selectedNoteType);
   const targetType = assignment.target?.type || "";
   const targetId = assignment.target?.targetId || "";
   return [library, noteType, targetType, targetId].join("::");
@@ -3269,10 +3767,13 @@ function DocuWraiteBubbleGlyph() {
 function DocuWraiteGuidedWorkflowPanel({
   workflowId,
   workflowState,
+  fieldNote = "",
   onAnswer,
   onBack,
   onJumpToStep,
   onInsert,
+  onGenerateDraft,
+  onDraftContextToggle,
   onDismiss,
 }) {
   const [activeReadinessRemediationKey, setActiveReadinessRemediationKey] = useState(null);
@@ -3300,13 +3801,28 @@ function DocuWraiteGuidedWorkflowPanel({
       : ruleStepKey;
   const upcomingStepKey = aiStep?.stepKey || upcomingRuleStepKey;
   const draftBlocked = Boolean(stepMeta?.draftBlocked || workflowMeta?.draftBlocked);
+  const assignedDraftLoading = Boolean(workflowState?.assignedDraftLoading);
+  const assignedDraftError = workflowState?.assignedDraftError || "";
+  const assignedDraftFollowUp = String(workflowState?.assignedDraftFollowUp || "").trim();
+  const assignedAiDraftNote = String(answers.aiDraftNote || "").trim();
   const generatedNote = useAiWorkflow
     ? aiStep?.draftNote || ""
     : useAssignedNodeWorkflow
-      ? generateAssignedWorkflowNote(answers, workflowState, workflowState?.fieldContext || {})
+      ? assignedAiDraftNote
     : workflowId === "community-outing"
       ? generateCommunityOutingNote(answers)
       : "";
+  const assignedDraftReady = useAssignedNodeWorkflow && Boolean(assignedAiDraftNote);
+  const showAssignedGenerateStep =
+    useAssignedNodeWorkflow && stepMeta?.kind === "draft" && !assignedDraftReady && !assignedDraftLoading;
+  const draftContextToggles = normalizeDraftContextToggles(workflowState?.draftContextToggles);
+  const draftContextResponses = answers.draftContextResponses || {};
+  const fieldContextForDraft = workflowState?.fieldContext || {};
+  const pendingDraftContextQuestion = getFirstIncompleteDraftContextQuestion(
+    draftContextToggles,
+    draftContextResponses,
+    fieldContextForDraft
+  );
   const whyItems =
     aiStep?.whyItems?.length > 0 ? aiStep.whyItems : communityOutingWhyItMatters;
   const readinessIssues = stepMeta?.kind === "readiness" ? collectReadinessIssues(stepMeta, workflowMeta) : [];
@@ -3493,6 +4009,12 @@ function DocuWraiteGuidedWorkflowPanel({
 
   return (
     <View style={styles.docuWraiteWorkflowCard}>
+      <ScrollView
+        style={styles.docuWraiteWorkflowCardScroll}
+        contentContainerStyle={styles.docuWraiteWorkflowCardScrollContent}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator
+      >
       <Text style={styles.docuWraiteWorkflowEyebrow}>{workflowEyebrow}</Text>
       {progressLabel ? <Text style={styles.docuWraiteWorkflowProgress}>{progressLabel}</Text> : null}
       {workflowMeta?.confidence ? (
@@ -3856,41 +4378,144 @@ function DocuWraiteGuidedWorkflowPanel({
 
       {stepMeta.kind === "draft" ? (
         <View style={styles.docuWraiteWorkflowDraftBox}>
-          <Text style={styles.docuWraiteWorkflowDraftText}>{generatedNote}</Text>
-          <Text style={styles.docuWraiteWorkflowExtraLabel}>Additional notes (optional)</Text>
-          <TextInput
-            value={answers.extraNotes || ""}
-            onChangeText={(extraNotes) => onAnswer({ extraNotes })}
-            placeholder="Add any extra details the DSP wants in the note"
-            placeholderTextColor="#888888"
-            multiline
-            style={styles.docuWraiteWorkflowExtraInput}
-          />
-          <View style={styles.docuWraiteCardActions}>
-            <Pressable
-              style={styles.docuWraiteCardPrimary}
-              onPress={() => {
-                if (!draftBlocked) {
-                  if (workflowId === "case-note-final") {
-                    onAnswer({ finalDraftNote: generatedNote }, { advance: true });
-                  } else {
-                    onInsert(generatedNote);
+          {showAssignedGenerateStep ? (
+            <>
+              <Text style={styles.docuWraiteWorkflowDraftLead}>
+                You finished the assigned library questions. Choose what OpenAI may use, generate the note, then insert
+                it into this field.
+              </Text>
+              <DocuWraiteDraftContextToggles
+                toggles={draftContextToggles}
+                onToggle={onDraftContextToggle}
+                fieldContext={fieldContextForDraft}
+                currentNote={fieldNote}
+              />
+              {assignedDraftError ? (
+                <Text style={styles.docuWraiteWorkflowAiNotice}>{assignedDraftError}</Text>
+              ) : null}
+              {pendingDraftContextQuestion ? (
+                <Text style={styles.docuWraiteWorkflowAiNotice}>
+                  Answer the question toast for each ON item before generating.
+                </Text>
+              ) : null}
+              <Pressable
+                style={[
+                  styles.docuWraiteWorkflowNext,
+                  pendingDraftContextQuestion && styles.docuWraiteWorkflowNextDisabled,
+                ]}
+                onPress={() => {
+                  if (!pendingDraftContextQuestion) {
+                    onGenerateDraft?.();
                   }
-                }
+                }}
+              >
+                <Text style={styles.docuWraiteWorkflowNextText}>Generate note</Text>
+              </Pressable>
+            </>
+          ) : null}
+          {useAssignedNodeWorkflow && assignedDraftLoading ? (
+            <View style={styles.docuWraiteWorkflowLoadingRow}>
+              <ActivityIndicator size="small" color="#7c3aed" />
+              <Text style={styles.docuWraiteWorkflowLoading}>Generating note with OpenAI...</Text>
+            </View>
+          ) : null}
+          {!showAssignedGenerateStep && !assignedDraftLoading && generatedNote ? (
+            <>
+              {useAssignedNodeWorkflow ? (
+                <>
+                  <DocuWraiteDraftContextToggles
+                    toggles={draftContextToggles}
+                    onToggle={onDraftContextToggle}
+                    fieldContext={fieldContextForDraft}
+                    currentNote={fieldNote}
+                  />
+                </>
+              ) : null}
+              <Text style={styles.docuWraiteWorkflowDraftText}>{generatedNote}</Text>
+              {useAssignedNodeWorkflow && assignedDraftFollowUp ? (
+                <View style={styles.docuWraiteWorkflowFollowUpBox}>
+                  <Text style={styles.docuWraiteWorkflowFollowUpLabel}>Quick check (optional)</Text>
+                  <Text style={styles.docuWraiteWorkflowFollowUpQuestion}>{assignedDraftFollowUp}</Text>
+                  <TextInput
+                    value={answers.clarifyingAnswer || ""}
+                    onChangeText={(clarifyingAnswer) => onAnswer({ clarifyingAnswer })}
+                    placeholder="Your answer — then tap Regenerate note"
+                    placeholderTextColor="#888888"
+                    multiline
+                    style={styles.docuWraiteWorkflowFollowUpInput}
+                  />
+                </View>
+              ) : null}
+              <Text style={styles.docuWraiteWorkflowExtraLabel}>Additional notes (optional)</Text>
+              <TextInput
+                value={answers.extraNotes || ""}
+                onChangeText={(extraNotes) => onAnswer({ extraNotes })}
+                placeholder="Add any extra details the DSP wants in the note"
+                placeholderTextColor="#888888"
+                multiline
+                style={styles.docuWraiteWorkflowExtraInput}
+              />
+              <View style={styles.docuWraiteCardActions}>
+                {useAssignedNodeWorkflow ? (
+                  <Pressable
+                    style={styles.docuWraiteCardSecondary}
+                    onPress={() => {
+                      if (!pendingDraftContextQuestion) {
+                        onGenerateDraft?.();
+                      }
+                    }}
+                  >
+                    <Text style={styles.docuWraiteCardSecondaryText}>Regenerate note</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  style={styles.docuWraiteCardPrimary}
+                  onPress={() => {
+                    if (!draftBlocked) {
+                      const noteToInsert = [generatedNote, answers.extraNotes?.trim()]
+                        .filter(Boolean)
+                        .join(" ");
+                      if (workflowId === "case-note-final") {
+                        onAnswer({ finalDraftNote: noteToInsert }, { advance: true });
+                      } else {
+                        onInsert(noteToInsert);
+                      }
+                    }
+                  }}
+                >
+                  <Text style={styles.docuWraiteCardPrimaryText}>
+                    {draftBlocked
+                      ? "Complete required items first"
+                      : workflowId === "case-note-final"
+                        ? "Continue to quick check"
+                        : "Insert into note"}
+                  </Text>
+                </Pressable>
+                <Pressable style={styles.docuWraiteCardSecondary} onPress={onDismiss}>
+                  <Text style={styles.docuWraiteCardSecondaryText}>Close</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : null}
+          {!showAssignedGenerateStep &&
+          !assignedDraftLoading &&
+          useAssignedNodeWorkflow &&
+          !generatedNote &&
+          assignedDraftError ? (
+            <Pressable
+              style={styles.docuWraiteCardSecondary}
+              onPress={() => {
+                const fallbackNote = generateAssignedWorkflowNote(
+                  answers,
+                  workflowState,
+                  workflowState?.fieldContext || {}
+                );
+                onAnswer({ aiDraftNote: fallbackNote });
               }}
             >
-              <Text style={styles.docuWraiteCardPrimaryText}>
-                {draftBlocked
-                  ? "Complete required items first"
-                  : workflowId === "case-note-final"
-                    ? "Continue to quick check"
-                    : "Insert into note"}
-              </Text>
+              <Text style={styles.docuWraiteCardSecondaryText}>Use basic summary instead</Text>
             </Pressable>
-            <Pressable style={styles.docuWraiteCardSecondary} onPress={onDismiss}>
-              <Text style={styles.docuWraiteCardSecondaryText}>Close</Text>
-            </Pressable>
-          </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -3914,6 +4539,7 @@ function DocuWraiteGuidedWorkflowPanel({
           </View>
         </View>
       ) : null}
+      </ScrollView>
 
       <View style={styles.docuWraiteWorkflowFooter}>
         {canGoBack ? (
@@ -3969,6 +4595,8 @@ function DocumentationCommentField({
   onWorkflowBack,
   onWorkflowJump,
   onWorkflowInsert,
+  onWorkflowGenerateDraft,
+  onWorkflowDraftContextToggle,
   onAssistActivity,
   onAssignQuestions,
 }) {
@@ -4074,10 +4702,13 @@ function DocumentationCommentField({
             <DocuWraiteGuidedWorkflowPanel
               workflowId={workflow.workflowId}
               workflowState={workflow}
+              fieldNote={value}
               onAnswer={onWorkflowAnswer}
               onBack={onWorkflowBack}
               onJumpToStep={onWorkflowJump}
               onInsert={onWorkflowInsert}
+              onGenerateDraft={onWorkflowGenerateDraft}
+              onDraftContextToggle={onWorkflowDraftContextToggle}
               onDismiss={onAssistDismiss}
             />
           ) : (
@@ -4418,6 +5049,101 @@ function DocumentationEntryScreen({
     }
   };
 
+  const generateAssignedNodesDraft = async (workflowSnapshot) => {
+    workflowSnapshot = withWorkflowSnapshot(workflowSnapshot);
+    if (!workflowSnapshot?.workflowId || workflowSnapshot.workflowId !== "assigned-nodes") {
+      return;
+    }
+
+    const requestId = docuWraiteWorkflowRequestId.current + 1;
+    docuWraiteWorkflowRequestId.current = requestId;
+
+    setDocuWraiteWorkflow((current) => {
+      if (!current || current.fieldId !== workflowSnapshot.fieldId) {
+        return current;
+      }
+
+      return {
+        ...current,
+        assignedDraftLoading: true,
+        assignedDraftError: "",
+      };
+    });
+
+    try {
+      const mappedAnswers = mapAssignedWorkflowAnswersForDraft(workflowSnapshot);
+      const draftContextToggles = normalizeDraftContextToggles(workflowSnapshot.draftContextToggles);
+      const fieldContextForDraft = {
+        ...(workflowSnapshot.fieldContext || {}),
+        shiftIntelligence:
+          workflowSnapshot.fieldContext?.shiftIntelligence ||
+          getShiftIntelligenceRuntime(clientProfile, session),
+        assignedWorkflowSteps: workflowSnapshot.localSteps || [],
+      };
+      const currentNote = workflowSnapshot.currentNote || "";
+      const enabledDraftSections = buildEnabledDraftSections(
+        draftContextToggles,
+        fieldContextForDraft,
+        currentNote,
+        mappedAnswers,
+        workflowSnapshot.answers?.draftContextResponses || {}
+      );
+
+      const { step, meta } = await fetchAssignedNodesDraft({
+        answers: mappedAnswers,
+        fieldContext: fieldContextForDraft,
+        patientName: activePatientName,
+        currentNote,
+        draftContextToggles,
+        enabledDraftSections,
+      });
+
+      if (docuWraiteWorkflowRequestId.current !== requestId) {
+        return;
+      }
+
+      const draftNote = String(step?.draftNote || "").trim();
+      if (!draftNote) {
+        throw new Error("OpenAI did not return a draft note.");
+      }
+
+      setDocuWraiteWorkflow((current) => {
+        if (!current || current.fieldId !== workflowSnapshot.fieldId) {
+          return current;
+        }
+
+        return {
+          ...current,
+          assignedDraftLoading: false,
+          assignedDraftError: "",
+          assignedDraftFollowUp: String(step?.followUpQuestion || meta?.followUpQuestion || "").trim(),
+          answers: {
+            ...current.answers,
+            aiDraftNote: draftNote,
+          },
+        };
+      });
+    } catch (error) {
+      if (docuWraiteWorkflowRequestId.current !== requestId) {
+        return;
+      }
+
+      setDocuWraiteWorkflow((current) => {
+        if (!current || current.fieldId !== workflowSnapshot.fieldId) {
+          return current;
+        }
+
+        return {
+          ...current,
+          assignedDraftLoading: false,
+          assignedDraftError:
+            error?.message ||
+            "DocuWraite could not generate a note with OpenAI. Confirm the API server and OPENAI_API_KEY are set.",
+        };
+      });
+    }
+  };
+
   useEffect(() => {
     return () => {
       Object.values(docuWraitePauseTimers.current).forEach((timerId) => clearTimeout(timerId));
@@ -4482,6 +5208,7 @@ function DocumentationEntryScreen({
           structuredAnswers: [],
           fieldContext: assist.fieldContext || {},
           localSteps,
+          draftContextToggles: getDefaultDraftContextToggles(),
           ai: {
             enabled: !useLocalWorkflow,
             loading: !useLocalWorkflow,
@@ -4950,6 +5677,55 @@ function DocumentationEntryScreen({
         return next;
       });
       setDocuWraiteExpanded(true);
+    },
+    onWorkflowGenerateDraft: () => {
+      setDocuWraiteWorkflow((current) => {
+        if (!current || current.fieldId !== fieldId || current.workflowId !== "assigned-nodes") {
+          return current;
+        }
+
+        const next = {
+          ...current,
+          assignedDraftLoading: true,
+          assignedDraftError: "",
+          draftContextToggles: normalizeDraftContextToggles(current.draftContextToggles),
+          answers: {
+            ...current.answers,
+            aiDraftNote: "",
+            clarifyingAnswer: "",
+          },
+          assignedDraftFollowUp: "",
+        };
+        queueMicrotask(() => generateAssignedNodesDraft(withWorkflowSnapshot(next)));
+        return next;
+      });
+      setDocuWraiteExpanded(true);
+    },
+    onWorkflowDraftContextToggle: (toggleKey, nextValue) => {
+      setDocuWraiteWorkflow((current) => {
+        if (!current || current.fieldId !== fieldId) {
+          return current;
+        }
+
+        const priorResponses = current.answers?.draftContextResponses || {};
+        const draftContextResponses = nextValue
+          ? priorResponses
+          : clearDraftContextResponsesForToggle(priorResponses, toggleKey);
+
+        return {
+          ...current,
+          draftContextToggles: {
+            ...normalizeDraftContextToggles(current.draftContextToggles),
+            [toggleKey]: nextValue,
+          },
+          answers: {
+            ...current.answers,
+            draftContextResponses,
+            aiDraftNote: "",
+          },
+          assignedDraftFollowUp: "",
+        };
+      });
     },
     onWorkflowInsert: (note) => {
       if (fieldId === "summary") {
@@ -5586,6 +6362,37 @@ function DocumentationEntryScreen({
           </Pressable>
         </View>
       </View>
+
+      {docuWraiteWorkflow?.workflowId === "assigned-nodes" ? (
+        <DocuWraiteDraftContextQuestionToast
+          toggles={normalizeDraftContextToggles(docuWraiteWorkflow.draftContextToggles)}
+          fieldContext={{
+            ...(docuWraiteWorkflow.fieldContext || {}),
+            shiftIntelligence:
+              docuWraiteWorkflow.fieldContext?.shiftIntelligence ||
+              getShiftIntelligenceRuntime(clientProfile, session),
+          }}
+          responses={docuWraiteWorkflow.answers?.draftContextResponses || {}}
+          onSaveResponse={(responseKey, value) => {
+            setDocuWraiteWorkflow((current) => {
+              if (!current || current.workflowId !== "assigned-nodes") {
+                return current;
+              }
+
+              return {
+                ...current,
+                answers: {
+                  ...current.answers,
+                  draftContextResponses: {
+                    ...(current.answers?.draftContextResponses || {}),
+                    [responseKey]: value,
+                  },
+                },
+              };
+            });
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -5660,7 +6467,9 @@ function DecisionEngineScreen({
   );
   const [showLibraryHelp, setShowLibraryHelp] = useState(false);
   const [libraryHelpFrame, setLibraryHelpFrame] = useState(null);
-  const [selectedNoteType, setSelectedNoteType] = useState(initialSelectionState?.selectedNoteType || "all");
+  const [selectedNoteType, setSelectedNoteType] = useState(
+    normalizeDecisionNoteType(initialSelectionState?.selectedNoteType)
+  );
   const [selectedDepth, setSelectedDepth] = useState(initialSelectionState?.selectedDepth || 2);
   const [includeMode, setIncludeMode] = useState(initialSelectionState?.includeMode || "full-branch");
   const [selectedBranchKey, setSelectedBranchKey] = useState(initialSelectionState?.selectedBranchKey || "");
@@ -6003,17 +6812,10 @@ function DecisionEngineScreen({
   }, [scopedTargets, selectedTargetKey]);
 
   const libraryNodes = selectedLibraryData.nodes.filter((node) => !isDecisionConditionalNode(node));
-  const noteTypeDropdownOptions = [
-    { value: "all", label: "All note types" },
-    ...Array.from(new Set(libraryNodes.map((node) => getDecisionNoteTypeKey(node))))
-      .filter(Boolean)
-      .map((noteTypeKey) => ({
-        value: noteTypeKey,
-        label: getDecisionNoteTypeLabel(noteTypeKey),
-      })),
-  ];
-  const noteTypeScopedLibraryNodes = libraryNodes.filter(
-    (node) => selectedNoteType === "all" || getDecisionNoteTypeKey(node) === selectedNoteType
+  const noteTypeDropdownOptions = DECISION_NOTE_TYPE_OPTIONS;
+  const activeNoteType = normalizeDecisionNoteType(selectedNoteType);
+  const noteTypeScopedLibraryNodes = libraryNodes.filter((node) =>
+    nodeMatchesDecisionNoteType(node, activeNoteType, selectedLibrary)
   );
   const branchDropdownOptions = getDecisionBranchOptions(noteTypeScopedLibraryNodes);
   const depthDropdownOptions = DECISION_DEPTH_OPTIONS;
@@ -6031,10 +6833,11 @@ function DecisionEngineScreen({
   });
 
   useEffect(() => {
-    if (!noteTypeDropdownOptions.some((option) => option.value === selectedNoteType)) {
-      setSelectedNoteType("all");
+    const normalized = normalizeDecisionNoteType(selectedNoteType);
+    if (normalized !== selectedNoteType) {
+      setSelectedNoteType(normalized);
     }
-  }, [noteTypeDropdownOptions, selectedNoteType]);
+  }, [selectedNoteType]);
 
   const sections = visibleLibraryNodes.reduce((acc, node) => {
     const sectionKey = node.section || "Uncategorized";
@@ -6064,14 +6867,14 @@ function DecisionEngineScreen({
   }, [branchDropdownOptions, depthDropdownOptions, includeMode, selectedBranchKey, selectedDepth]);
 
   useEffect(() => {
-    setExpandedDecisionPanel((prev) => {
+    setExpandedDecisionPanel(() => {
       const next = {};
       Object.keys(sections).forEach((sectionKey) => {
-        next[sectionKey] = prev[sectionKey] ?? true;
+        next[sectionKey] = false;
       });
       return next;
     });
-  }, [selectedLibrary]);
+  }, [selectedLibrary, activeNoteType]);
 
   useEffect(() => {
     const fallbackLabel =
@@ -6717,7 +7520,7 @@ function DecisionEngineScreen({
         <View style={[styles.decisionFormField, styles.decisionFormFieldMode]}>
           <Text style={styles.decisionToolbarLabel}>Note Type</Text>
           <DecisionDropdown
-            value={getDecisionOptionLabel(noteTypeDropdownOptions, selectedNoteType)}
+            value={getDecisionOptionLabel(noteTypeDropdownOptions, activeNoteType)}
             options={noteTypeDropdownOptions}
             placeholder="Select note type"
             dropdownId="decision-note-type"
@@ -6831,6 +7634,12 @@ function DecisionEngineScreen({
           <Text style={styles.decisionSummaryText}>{`${selectedCount} selected`}</Text>
         </View>
 
+        {!allNodes.length ? (
+          <Text style={styles.decisionInlineHint}>
+            {`No questions match ${getDecisionNoteTypeLabel(activeNoteType)} for ${selectedLibraryLabel}. Try Block time, open the section headers below, or switch libraries.`}
+          </Text>
+        ) : null}
+
         {Object.entries(sections).map(([sectionKey, sectionNodes]) => (
           <View key={sectionKey} style={styles.decisionSectionCard}>
           <Pressable onPress={() => toggleSectionCollapse(sectionKey)} style={styles.decisionSectionHeader}>
@@ -6857,7 +7666,7 @@ function DecisionEngineScreen({
               </Pressable>
             </View>
           </Pressable>
-          {!expandedDecisionPanel[sectionKey] && selectedDepth >= 2 ? (
+          {!expandedDecisionPanel[sectionKey] ? (
             sectionNodes.map((node) => (
               <Pressable
                 key={buildDecisionNodeSelectionKey(node)}
@@ -7627,7 +8436,7 @@ export default function App() {
   const [decisionEngineRows, setDecisionEngineRows] = useState(defaultCaseNoteTemplate.rows);
   const [decisionEngineSelectionState, setDecisionEngineSelectionState] = useState({
     selectedLibrary: getDefaultDecisionLibrarySlug(),
-    selectedNoteType: "all",
+    selectedNoteType: "block-time",
     selectedDepth: 2,
     includeMode: "full-branch",
     selectedBranchKey: "",
@@ -7707,7 +8516,7 @@ export default function App() {
       setDocumentationSession(null);
       setDecisionEngineSelectionState({
         selectedLibrary: getDefaultDecisionLibrarySlug(),
-        selectedNoteType: "all",
+        selectedNoteType: "block-time",
         selectedDepth: 2,
         includeMode: "full-branch",
         selectedBranchKey: "",
@@ -7728,7 +8537,7 @@ export default function App() {
         documentationSession: null,
           selectionState: {
           selectedLibrary: getDefaultDecisionLibrarySlug(),
-          selectedNoteType: "all",
+          selectedNoteType: "block-time",
           selectedDepth: 2,
           includeMode: "full-branch",
           selectedBranchKey: "",
@@ -7771,7 +8580,7 @@ export default function App() {
         const nextSession = state.documentationSession || null;
         const nextSelectionState = {
           selectedLibrary: state.selectionState?.selectedLibrary || getDefaultDecisionLibrarySlug(),
-          selectedNoteType: state.selectionState?.selectedNoteType || "all",
+          selectedNoteType: normalizeDecisionNoteType(state.selectionState?.selectedNoteType),
           selectedDepth: state.selectionState?.selectedDepth || 2,
           includeMode: state.selectionState?.includeMode || "full-branch",
           selectedBranchKey: state.selectionState?.selectedBranchKey || "",
@@ -8111,7 +8920,7 @@ export default function App() {
     setDecisionEngineSelectionState((prev) => ({
       ...prev,
       selectedLibrary: assignment.selectedLibrary || prev.selectedLibrary,
-      selectedNoteType: assignment.selectedNoteType || prev.selectedNoteType || "all",
+      selectedNoteType: normalizeDecisionNoteType(assignment.selectedNoteType || prev.selectedNoteType),
       selectedDepth: assignment.selectedDepth || prev.selectedDepth,
       includeMode: assignment.includeMode || prev.includeMode,
       selectedBranchKey: assignment.selectedBranchKey || prev.selectedBranchKey,
@@ -8195,7 +9004,7 @@ export default function App() {
     setDecisionEngineSelectionState((prev) => ({
       ...prev,
       selectedLibrary: getDefaultDecisionLibrarySlug(),
-      selectedNoteType: "all",
+      selectedNoteType: "block-time",
       selectedDepth: 2,
       includeMode: "full-branch",
       selectedBranchKey: "",
@@ -10756,23 +11565,33 @@ const styles = StyleSheet.create({
   },
   docuWraiteAssistDock: {
     width: "100%",
-    maxWidth: 420,
+    maxWidth: 300,
     marginTop: 2,
     alignSelf: "flex-end",
   },
   docuWraiteWorkflowCard: {
     width: "100%",
+    maxHeight: 640,
     borderWidth: 1,
     borderColor: "#d4c2f1",
     borderRadius: 10,
     backgroundColor: "#ffffff",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+    overflow: "hidden",
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.16,
     shadowRadius: 8,
     elevation: 5,
+  },
+  docuWraiteWorkflowCardScroll: {
+    maxHeight: 572,
+  },
+  docuWraiteWorkflowCardScrollContent: {
+    rowGap: 2,
+    paddingBottom: 4,
   },
   docuWraiteWorkflowEyebrow: {
     fontSize: 12,
@@ -10867,6 +11686,8 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   docuWraiteWorkflowSuggestion: {
+    alignSelf: "stretch",
+    width: "100%",
     borderWidth: 1,
     borderColor: "#ddd2f3",
     borderRadius: 6,
@@ -10880,7 +11701,9 @@ const styles = StyleSheet.create({
   },
   docuWraiteWorkflowSuggestionText: {
     fontSize: 13,
+    lineHeight: 18,
     color: "#4b3d66",
+    flexShrink: 1,
   },
   docuWraiteWorkflowSuggestionTextActive: {
     color: "#5c3d99",
@@ -10923,6 +11746,116 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  docuWraiteWorkflowNextDisabled: {
+    opacity: 0.45,
+  },
+  docuWraiteDraftContextToastRoot: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    zIndex: 10000,
+    elevation: 32,
+    ...(Platform.OS === "web"
+      ? {
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+        }
+      : {}),
+  },
+  docuWraiteDraftContextToastBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(20, 12, 36, 0.42)",
+    zIndex: 1,
+  },
+  docuWraiteDraftContextToastCenter: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    zIndex: 2,
+  },
+  docuWraiteDraftContextToastCard: {
+    width: "100%",
+    maxWidth: 360,
+    maxHeight: 480,
+    alignSelf: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#c4b5fd",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 14,
+    shadowColor: "#2f184f",
+    shadowOpacity: 0.32,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 30,
+  },
+  docuWraiteDraftContextToastTitleWrap: {
+    flex: 1,
+    rowGap: 2,
+    paddingRight: 8,
+  },
+  docuWraiteDraftContextToastScroll: {
+    maxHeight: 260,
+    marginTop: 4,
+  },
+  docuWraiteDraftContextModalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    columnGap: 8,
+    marginBottom: 4,
+  },
+  docuWraiteDraftContextModalClose: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
+  },
+  docuWraiteDraftContextModalCloseText: {
+    fontSize: 16,
+    lineHeight: 18,
+    color: "#6b5c80",
+    fontWeight: "700",
+  },
+  docuWraiteDraftContextModalScrollContent: {
+    rowGap: 8,
+    paddingBottom: 4,
+  },
+  docuWraiteDraftContextQuestionsHeading: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4b3d66",
+    marginBottom: 4,
+  },
+  docuWraiteDraftContextQuestionsHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#6b5c80",
+    marginBottom: 10,
+  },
+  docuWraiteDraftContextQuestionsSource: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#7c3aed",
+    marginBottom: 4,
+  },
+  docuWraiteDraftContextQuestionsPrompt: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#2d1f45",
+    marginBottom: 10,
+  },
+  docuWraiteDraftContextQuestionsDone: {
+    fontSize: 13,
+    color: "#3d7a4a",
+    lineHeight: 18,
   },
   docuWraiteWorkflowNextText: {
     fontSize: 12,
@@ -11001,6 +11934,88 @@ const styles = StyleSheet.create({
     rowGap: 10,
     marginBottom: 8,
   },
+  docuWraiteWorkflowDraftLead: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted,
+    marginBottom: 10,
+  },
+  docuWraiteDraftToggleBox: {
+    marginBottom: 12,
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e9d5ff",
+    backgroundColor: "#faf7ff",
+    gap: 6,
+  },
+  docuWraiteDraftToggleHeading: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.35,
+    textTransform: "uppercase",
+    color: "#6b21a8",
+  },
+  docuWraiteDraftTogglePrimaryRow: {
+    width: "100%",
+  },
+  docuWraiteDraftToggleGridRow: {
+    flexDirection: "column",
+    gap: 6,
+  },
+  docuWraiteDraftToggleGridCell: {
+    width: "100%",
+    maxWidth: "100%",
+  },
+  docuWraiteDraftToggleChip: {
+    minHeight: 52,
+    paddingHorizontal: 7,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
+    backgroundColor: "#ffffff",
+  },
+  docuWraiteDraftToggleChipActive: {
+    borderColor: "#7c3aed",
+    backgroundColor: "#f3e8ff",
+  },
+  docuWraiteDraftToggleChipLocked: {
+    borderColor: "#c4b5fd",
+    backgroundColor: "#ede9fe",
+  },
+  docuWraiteDraftToggleChipTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 3,
+  },
+  docuWraiteDraftToggleChipLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  docuWraiteDraftToggleChipLabelActive: {
+    color: "#5b21b6",
+  },
+  docuWraiteDraftToggleChipOn: {
+    fontSize: 8,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    color: "#7c3aed",
+  },
+  docuWraiteDraftToggleChipPreview: {
+    fontSize: 9,
+    lineHeight: 12,
+    color: colors.muted,
+  },
+  docuWraiteDraftToggleChipWarn: {
+    marginTop: 2,
+    fontSize: 8,
+    lineHeight: 11,
+    color: "#b45309",
+    fontWeight: "600",
+  },
   docuWraiteWorkflowDraftText: {
     fontSize: 13,
     lineHeight: 20,
@@ -11011,6 +12026,40 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 10,
+  },
+  docuWraiteWorkflowFollowUpBox: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d8c4f5",
+    backgroundColor: "#f8f4ff",
+  },
+  docuWraiteWorkflowFollowUpLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6b4fa8",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+  docuWraiteWorkflowFollowUpQuestion: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#2d1f45",
+    marginBottom: 8,
+  },
+  docuWraiteWorkflowFollowUpInput: {
+    minHeight: 56,
+    borderWidth: 1,
+    borderColor: "#c4b0e8",
+    borderRadius: 6,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#1a1a1a",
   },
   docuWraiteWorkflowExtraLabel: {
     fontSize: 12,
@@ -11032,10 +12081,13 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   docuWraiteWorkflowFooter: {
-    marginTop: 4,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#ece4f8",
   },
   docuWraiteWorkflowBack: {
     fontSize: 12,
