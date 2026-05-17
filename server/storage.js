@@ -269,6 +269,10 @@ db.exec(`
   );
 `);
 
+if (!tableHasColumn("decision_workspace_states", "staged_assignments_json")) {
+  db.exec("ALTER TABLE decision_workspace_states ADD COLUMN staged_assignments_json TEXT");
+}
+
 const upsertLibraryStatement = db.prepare(`
   INSERT INTO decision_libraries (slug, name, version, is_active, updated_at)
   VALUES (?, ?, ?, 1, ?)
@@ -362,6 +366,7 @@ const getWorkspaceStateRowStatement = db.prepare(`
     ws.selected_target_type,
     ws.selected_target_id,
     ws.documentation_session_json,
+    ws.staged_assignments_json,
     ws.created_at,
     ws.updated_at
   FROM decision_workspace_states ws
@@ -378,8 +383,9 @@ const upsertWorkspaceStateStatement = db.prepare(`
     selected_target_type,
     selected_target_id,
     documentation_session_json,
+    staged_assignments_json,
     updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(client_id) DO UPDATE SET
     selected_library_id = excluded.selected_library_id,
     selected_depth = excluded.selected_depth,
@@ -387,6 +393,7 @@ const upsertWorkspaceStateStatement = db.prepare(`
     selected_target_type = excluded.selected_target_type,
     selected_target_id = excluded.selected_target_id,
     documentation_session_json = excluded.documentation_session_json,
+    staged_assignments_json = excluded.staged_assignments_json,
     updated_at = excluded.updated_at
   RETURNING id
 `);
@@ -986,6 +993,7 @@ function getWorkspaceState(clientId) {
           : null,
       checkedNodes,
       includeInFinalMap,
+      stagedAssignments: parseJson(row.staged_assignments_json, []),
       collapsedSections: parseJson(uiPreferences?.collapsed_sections_json, {}),
     },
     updatedAt: row.updated_at,
@@ -1004,6 +1012,7 @@ function saveWorkspaceState({
   selectedTargetId = null,
   checkedNodes = {},
   includeInFinalMap = {},
+  stagedAssignments = [],
   collapsedSections = null,
   updatedAt = new Date().toISOString(),
 }) {
@@ -1017,6 +1026,7 @@ function saveWorkspaceState({
       selectedTargetType,
       selectedTargetId,
       documentationSession ? JSON.stringify(documentationSession) : null,
+      JSON.stringify(stagedAssignments || []),
       updatedAt
     ).id;
 
@@ -1101,6 +1111,7 @@ function saveWorkspaceState({
         selectedTargetType,
         selectedTargetId,
         checkedNodeCount: Object.keys(checkedNodes).filter((key) => checkedNodes[key]).length,
+        stagedAssignmentCount: Array.isArray(stagedAssignments) ? stagedAssignments.length : 0,
       })
     );
 

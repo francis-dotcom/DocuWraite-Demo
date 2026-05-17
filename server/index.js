@@ -96,6 +96,15 @@ app.put("/api/workspace-state/:clientId", (req, res) => {
       timeBlocks: data.timeBlocks || [],
       rows: data.rows || [],
       documentationSession: data.documentationSession || null,
+      selectedLibrary: data.selectedLibrary || null,
+      selectedDepth: data.selectedDepth || null,
+      includeMode: data.includeMode || null,
+      selectedTargetType: data.selectedTargetType || null,
+      selectedTargetId: data.selectedTargetId || null,
+      checkedNodes: data.checkedNodes || {},
+      includeInFinalMap: data.includeInFinalMap || {},
+      stagedAssignments: data.stagedAssignments || [],
+      collapsedSections: data.collapsedSections || null,
       updatedAt: data.updatedAt || new Date().toISOString(),
     });
     res.json({ ok: true, state: savedState, dbPath });

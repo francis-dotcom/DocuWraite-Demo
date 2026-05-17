@@ -1074,6 +1074,20 @@ function expandAssignedDecisionNodes(selectedNodesPayload = [], options = {}) {
   return expandedNodes.sort((left, right) => (left._order || 0) - (right._order || 0));
 }
 
+function buildDecisionTargetDisplayLabel(target = {}) {
+  if (!target) {
+    return "Unassigned target";
+  }
+
+  const label = target.label || target.targetId || "Untitled target";
+  return target.type === "case-note-row" ? `Row: ${label}` : label;
+}
+
+function buildStagedAssignmentSummary(stagedAssignment = {}) {
+  const count = Number(stagedAssignment.selectedCount || stagedAssignment.selectedNodesPayload?.length || 0);
+  return `${stagedAssignment.selectedLibrary || "library"} -> ${buildDecisionTargetDisplayLabel(stagedAssignment.target)} (${count} selected)`;
+}
+
 function kebabToCamel(value = "") {
   return String(value).replace(/-([a-z])/g, (_, char) => char.toUpperCase());
 }
@@ -4838,7 +4852,11 @@ function getDecisionOptionLabel(options = [], value = "") {
 
 function DecisionEngineScreen({
   isPhone,
-  onAssignToCaseNote,
+  onStageAssignment,
+  stagedAssignments = [],
+  onEditStagedAssignment,
+  onDeleteStagedAssignment,
+  onFinalizeAssignments,
   timeBlocks = [],
   rowTargets = [],
   initialTargetKey = "",
@@ -4871,6 +4889,7 @@ function DecisionEngineScreen({
   const [rowPromptSuggestions, setRowPromptSuggestions] = useState([]);
   const [rowPromptLoading, setRowPromptLoading] = useState(false);
   const [rowPromptError, setRowPromptError] = useState("");
+  const [assignmentHint, setAssignmentHint] = useState("");
   const libraryHelpButtonRef = useRef(null);
   const workflowOptions = [
     { workflowId: "behavior-support", label: "Behavior", theme: "behavior", promptCategory: "behavior" },
@@ -4934,6 +4953,18 @@ function DecisionEngineScreen({
 
     return () => clearTimeout(timeoutId);
   }, [rowBuilderHint]);
+
+  useEffect(() => {
+    if (!assignmentHint) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setAssignmentHint("");
+    }, 2400);
+
+    return () => clearTimeout(timeoutId);
+  }, [assignmentHint]);
 
   useEffect(() => {
     const uniqueBlocks = [];
@@ -5059,6 +5090,7 @@ function DecisionEngineScreen({
       selectedTargetKey,
       checkedNodes,
       includeInFinalMap,
+      stagedAssignments,
       collapsedSections: expandedDecisionPanel,
     });
   }, [
@@ -5070,6 +5102,7 @@ function DecisionEngineScreen({
     selectedDepth,
     selectedLibrary,
     selectedTargetKey,
+    stagedAssignments,
     targetType,
   ]);
 
@@ -5213,6 +5246,51 @@ function DecisionEngineScreen({
   const closeLibraryHelp = useCallback(() => {
     setShowLibraryHelp(false);
   }, []);
+
+  const handleStageCurrentSelection = () => {
+    const selectedKeys = Object.keys(checkedNodes).filter((key) => checkedNodes[key]);
+    if (!selectedKeys.length) {
+      setAssignmentHint("Select at least one question before locking this library.");
+      return;
+    }
+
+    const selectedTargetOption = assignmentTargets.find((target) => target.key === selectedTargetKey);
+    if (!selectedTargetOption) {
+      setAssignmentHint("Choose a target before locking this library.");
+      return;
+    }
+
+    const payload = selectedKeys.map((key) => ({ key, includeInFinal: Boolean(includeInFinalMap[key]) }));
+    onStageAssignment?.({
+      id: `staged-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      selectedLibrary,
+      selectedDepth,
+      includeMode,
+      selectedCount: payload.length,
+      selectedNodesPayload: payload,
+      target: {
+        ...selectedTargetOption,
+      },
+      summary: `${selectedLibraryData.library} • ${buildDecisionTargetDisplayLabel(selectedTargetOption)}`,
+      createdAt: new Date().toISOString(),
+    });
+
+    setCheckedNodes((prev) => {
+      const next = { ...prev };
+      payload.forEach(({ key }) => {
+        delete next[key];
+      });
+      return next;
+    });
+    setIncludeInFinalMap((prev) => {
+      const next = { ...prev };
+      payload.forEach(({ key }) => {
+        delete next[key];
+      });
+      return next;
+    });
+    setAssignmentHint(`Locked ${selectedLibraryData.library} for ${buildDecisionTargetDisplayLabel(selectedTargetOption)}.`);
+  };
 
   return (
     <Card title="Decision Engine Library" containerStyle={styles.decisionCard} bodyStyle={styles.decisionCardBody}>
@@ -5570,24 +5648,59 @@ function DecisionEngineScreen({
         </View>
         ))}
       </View>
+      {assignmentHint ? <Text style={styles.decisionInlineHint}>{assignmentHint}</Text> : null}
       <View style={styles.decisionAssignRow}>
         <Pressable
-            onPress={() => {
-            const selectedKeys = Object.keys(checkedNodes).filter((key) => checkedNodes[key]);
-            const payload = selectedKeys.map((key) => ({ key, includeInFinal: Boolean(includeInFinalMap[key]) }));
-            const selectedTarget = assignmentTargets.find((target) => target.key === selectedTargetKey);
-            if (!selectedTarget) return;
-            if (onAssignToCaseNote) {
-              onAssignToCaseNote(payload, selectedTarget, {
-                selectedDepth,
-                includeMode,
-                selectedLibrary,
-              });
-            }
-          }}
+          onPress={handleStageCurrentSelection}
           style={styles.decisionAssignButton}
         >
-          <Text style={styles.decisionAssignButtonText}>Assign Selected Questions</Text>
+          <Text style={styles.decisionAssignButtonText}>Lock Library Assignment</Text>
+        </Pressable>
+      </View>
+      <View style={styles.decisionStagedPanel}>
+        <View style={styles.decisionSummaryRow}>
+          <Text style={styles.decisionSummaryText}>Staged assignments</Text>
+          <Text style={styles.decisionSummaryText}>{`${stagedAssignments.length} staged`}</Text>
+        </View>
+        {stagedAssignments.length ? (
+          stagedAssignments.map((assignment) => (
+            <View key={assignment.id} style={styles.decisionStagedCard}>
+              <View style={styles.decisionStagedCardTop}>
+                <Text style={styles.decisionStagedTitle}>{assignment.summary || buildStagedAssignmentSummary(assignment)}</Text>
+                <Text style={styles.decisionStagedMeta}>
+                  {`${assignment.selectedLibrary} • ${assignment.selectedDepth} deep • ${assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch"}`}
+                </Text>
+              </View>
+              <View style={styles.decisionStagedActionRow}>
+                <Pressable
+                  style={styles.decisionStagedAction}
+                  onPress={() => onEditStagedAssignment?.(assignment)}
+                >
+                  <Text style={styles.decisionStagedActionText}>Edit</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.decisionStagedAction, styles.decisionStagedDelete]}
+                  onPress={() => onDeleteStagedAssignment?.(assignment.id)}
+                >
+                  <Text style={styles.decisionStagedDeleteText}>Delete</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.decisionStagedEmpty}>Lock each library here first. Final assign will send all staged items to the Case Note together.</Text>
+        )}
+      </View>
+      <View style={styles.decisionAssignRow}>
+        <Pressable
+          onPress={() => onFinalizeAssignments?.()}
+          style={[
+            styles.decisionAssignButton,
+            !stagedAssignments.length && styles.decisionAssignButtonDisabled,
+          ]}
+          disabled={!stagedAssignments.length}
+        >
+          <Text style={styles.decisionAssignButtonText}>Final Assign to Case Note</Text>
         </Pressable>
       </View>
     </Card>
@@ -6174,6 +6287,7 @@ export default function App() {
     selectedTargetKey: "",
     checkedNodes: {},
     includeInFinalMap: {},
+    stagedAssignments: [],
     collapsedSections: {},
   });
   const [decisionStateHydrated, setDecisionStateHydrated] = useState(false);
@@ -6218,6 +6332,7 @@ export default function App() {
         selectedTargetKey: "",
         checkedNodes: {},
         includeInFinalMap: {},
+        stagedAssignments: [],
         collapsedSections: {},
       });
       lastLoadedStateRef.current = JSON.stringify({
@@ -6233,6 +6348,7 @@ export default function App() {
           selectedTargetKey: "",
           checkedNodes: {},
           includeInFinalMap: {},
+          stagedAssignments: [],
           collapsedSections: {},
         },
       });
@@ -6267,6 +6383,7 @@ export default function App() {
           selectedTargetKey: state.selectionState?.selectedTargetKey || "",
           checkedNodes: state.selectionState?.checkedNodes || {},
           includeInFinalMap: state.selectionState?.includeInFinalMap || {},
+          stagedAssignments: state.selectionState?.stagedAssignments || [],
           collapsedSections: state.selectionState?.collapsedSections || {},
         };
 
@@ -6327,6 +6444,7 @@ export default function App() {
             : null,
           checkedNodes: decisionEngineSelectionState.checkedNodes,
           includeInFinalMap: decisionEngineSelectionState.includeInFinalMap,
+          stagedAssignments: decisionEngineSelectionState.stagedAssignments,
           collapsedSections: decisionEngineSelectionState.collapsedSections,
           updatedAt: new Date().toISOString(),
         }),
@@ -6434,9 +6552,52 @@ export default function App() {
     });
   };
 
-  const handleAssignToCaseNote = (selectedNodesPayload = [], target = null, options = {}) => {
-    const selectedNodes = expandAssignedDecisionNodes(selectedNodesPayload, options);
-    if (!target) {
+  const handleStageAssignment = (stagedAssignment) => {
+    if (!stagedAssignment?.target?.targetId || !stagedAssignment?.selectedNodesPayload?.length) {
+      return;
+    }
+
+    setDecisionEngineSelectionState((prev) => ({
+      ...prev,
+      stagedAssignments: [...(prev.stagedAssignments || []), stagedAssignment],
+    }));
+  };
+
+  const handleDeleteStagedAssignment = (assignmentId) => {
+    setDecisionEngineSelectionState((prev) => ({
+      ...prev,
+      stagedAssignments: (prev.stagedAssignments || []).filter((assignment) => assignment.id !== assignmentId),
+    }));
+  };
+
+  const handleEditStagedAssignment = (assignment) => {
+    if (!assignment) {
+      return;
+    }
+
+    const nextCheckedNodes = {};
+    const nextIncludeInFinalMap = {};
+    (assignment.selectedNodesPayload || []).forEach((node) => {
+      nextCheckedNodes[node.key] = true;
+      nextIncludeInFinalMap[node.key] = Boolean(node.includeInFinal);
+    });
+
+    setDecisionEngineSelectionState((prev) => ({
+      ...prev,
+      selectedLibrary: assignment.selectedLibrary || prev.selectedLibrary,
+      selectedDepth: assignment.selectedDepth || prev.selectedDepth,
+      includeMode: assignment.includeMode || prev.includeMode,
+      targetType: assignment.target?.type || prev.targetType,
+      selectedTargetKey: assignment.target?.key || prev.selectedTargetKey,
+      checkedNodes: nextCheckedNodes,
+      includeInFinalMap: nextIncludeInFinalMap,
+      stagedAssignments: (prev.stagedAssignments || []).filter((item) => item.id !== assignment.id),
+    }));
+  };
+
+  const handleFinalizeAssignments = () => {
+    const stagedAssignments = decisionEngineSelectionState.stagedAssignments || [];
+    if (!stagedAssignments.length) {
       return;
     }
 
@@ -6449,59 +6610,95 @@ export default function App() {
       rowsOverride: decisionEngineRows,
     });
 
-    // create readable bullet list of assigned questions and includeInFinal flags
-    const assignedText = selectedNodes
-      .map((n, i) => {
-        const flag = Boolean(n.includeInFinal);
-        return `${flag ? "[FINAL] " : ""}- ${n.question || n.title || n.id}`;
-      })
-      .join("\n");
-    const assignedNodeConfig = {
-      selectedDepth: options.selectedDepth || 1,
-      includeMode: options.includeMode || "selective-branch",
-      selectedLibrary: options.selectedLibrary || "",
-      targetType: target.type,
-      targetId: target.targetId,
+    const assignmentsByTarget = stagedAssignments.reduce((acc, assignment) => {
+      if (!assignment?.target?.targetId) {
+        return acc;
+      }
+
+      const targetKey = `${assignment.target.type}:${assignment.target.targetId}`;
+      if (!acc[targetKey]) {
+        acc[targetKey] = [];
+      }
+      acc[targetKey].push(assignment);
+      return acc;
+    }, {});
+
+    const buildTargetAssignmentData = (assignmentGroup = []) => {
+      const mappedAssignedNodes = assignmentGroup.flatMap((assignment) => {
+        const expandedNodes = expandAssignedDecisionNodes(assignment.selectedNodesPayload || [], {
+          selectedDepth: assignment.selectedDepth || 1,
+          includeMode: assignment.includeMode || "selective-branch",
+        });
+
+        return expandedNodes.map((node) => ({
+          id: node.id,
+          title: getDecisionNodeDisplayTitle(node),
+          question: getDecisionNodeDisplayQuestion(node),
+          choices: node.choices || [],
+          section: node.section,
+          library: node.library,
+          stepKey: node.stepKey,
+          includeInFinal: Boolean(node.includeInFinal),
+          assignmentDepth: node.assignmentDepth,
+          includeMode: node.includeMode,
+        }));
+      });
+
+      const assignedNodeSummary = assignmentGroup
+        .map((assignment) => {
+          const expandedNodes = expandAssignedDecisionNodes(assignment.selectedNodesPayload || [], {
+            selectedDepth: assignment.selectedDepth || 1,
+            includeMode: assignment.includeMode || "selective-branch",
+          });
+          const questionList = expandedNodes
+            .map((node) => `${node.includeInFinal ? "[FINAL] " : ""}- ${getDecisionNodeDisplayQuestion(node) || getDecisionNodeDisplayTitle(node)}`)
+            .join("\n");
+          return `${assignment.selectedLibrary}\n${questionList}`;
+        })
+        .join("\n\n");
+
+      return {
+        assignedNodes: mappedAssignedNodes,
+        assignedNodeSummary,
+        assignedNodeConfig: {
+          stagedAssignments: assignmentGroup.map((assignment) => ({
+            id: assignment.id,
+            selectedLibrary: assignment.selectedLibrary,
+            selectedDepth: assignment.selectedDepth,
+            includeMode: assignment.includeMode,
+            target: assignment.target,
+            selectedCount: assignment.selectedCount,
+          })),
+        },
+      };
     };
-    const mappedAssignedNodes = selectedNodes.map((n) => ({
-      id: n.id,
-      title: getDecisionNodeDisplayTitle(n),
-      question: getDecisionNodeDisplayQuestion(n),
-      choices: n.choices || [],
-      section: n.section,
-      library: n.library,
-      stepKey: n.stepKey,
-      includeInFinal: Boolean(n.includeInFinal),
-      assignmentDepth: n.assignmentDepth,
-      includeMode: n.includeMode,
-    }));
 
     const session = {
       ...baseSession,
-      title: baseSession.title,
-      // attach assigned nodes to the selected target and include metadata
-      timeBlocks: baseSession.timeBlocks.map((block) =>
-        target.type === "time-block" && block.id === target.targetId
-          ? {
-              ...block,
-              comment: "",
-              assignedNodes: mappedAssignedNodes,
-              assignedNodeSummary: assignedText,
-              assignedNodeConfig,
-            }
-          : block
-      ),
-      rows: baseSession.rows.map((row) =>
-        target.type === "case-note-row" && row.id === target.targetId
-          ? {
-              ...row,
-              comment: "",
-              assignedNodes: mappedAssignedNodes,
-              assignedNodeSummary: assignedText,
-              assignedNodeConfig,
-            }
-          : row
-      ),
+      timeBlocks: baseSession.timeBlocks.map((block) => {
+        const assignmentGroup = assignmentsByTarget[`time-block:${block.id}`];
+        if (!assignmentGroup?.length) {
+          return block;
+        }
+
+        return {
+          ...block,
+          comment: "",
+          ...buildTargetAssignmentData(assignmentGroup),
+        };
+      }),
+      rows: baseSession.rows.map((row) => {
+        const assignmentGroup = assignmentsByTarget[`case-note-row:${row.id}`];
+        if (!assignmentGroup?.length) {
+          return row;
+        }
+
+        return {
+          ...row,
+          comment: "",
+          ...buildTargetAssignmentData(assignmentGroup),
+        };
+      }),
     };
 
     setDocumentationSession(session);
@@ -6509,24 +6706,12 @@ export default function App() {
     setPendingDecisionAssignmentTarget(null);
     setDecisionEngineTimeBlocks(session.timeBlocks.map(({ id, label }) => ({ id, label })));
     setDecisionEngineRows(session.rows);
-
-    // persist assignment to server for reuse
-    try {
-      fetch(`${docuWraiteApiBaseUrl}/api/assignments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: activeClientId,
-          target,
-          assigned:
-            target.type === "time-block"
-              ? session.timeBlocks.find((entry) => entry.id === target.targetId)?.assignedNodes || []
-              : session.rows.find((entry) => entry.id === target.targetId)?.assignedNodes || [],
-          assignedNodeConfig,
-          updatedAt: new Date().toISOString(),
-        }),
-      }).catch(() => {});
-    } catch (e) {}
+    setDecisionEngineSelectionState((prev) => ({
+      ...prev,
+      checkedNodes: {},
+      includeInFinalMap: {},
+      stagedAssignments: [],
+    }));
   };
 
   const openDecisionAssignmentTarget = (target) => {
@@ -6682,7 +6867,11 @@ export default function App() {
                 <DecisionEngineScreen
                   key="decision-engine"
                   isPhone={isPhone}
-                  onAssignToCaseNote={handleAssignToCaseNote}
+                  onStageAssignment={handleStageAssignment}
+                  stagedAssignments={decisionEngineSelectionState.stagedAssignments || []}
+                  onEditStagedAssignment={handleEditStagedAssignment}
+                  onDeleteStagedAssignment={handleDeleteStagedAssignment}
+                  onFinalizeAssignments={handleFinalizeAssignments}
                   timeBlocks={
                     documentationSession?.sessionType === "case-note"
                       ? documentationSession.timeBlocks.map(({ id, label }) => ({ id, label }))
@@ -7611,10 +7800,73 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  decisionAssignButtonDisabled: {
+    backgroundColor: "#b9abd9",
+  },
   decisionAssignButtonText: {
     color: "#ffffff",
     fontWeight: "700",
     fontSize: 13,
+  },
+  decisionStagedPanel: {
+    marginTop: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    backgroundColor: "#fcfbff",
+  },
+  decisionStagedCard: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    marginBottom: 10,
+  },
+  decisionStagedCardTop: {
+    marginBottom: 10,
+    gap: 4,
+  },
+  decisionStagedTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  decisionStagedMeta: {
+    fontSize: 12,
+    color: colors.muted,
+  },
+  decisionStagedActionRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  decisionStagedAction: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#f6f0ff",
+  },
+  decisionStagedActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  decisionStagedDelete: {
+    backgroundColor: "#fff3f1",
+    borderColor: "#f1c3bd",
+  },
+  decisionStagedDeleteText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.red,
+  },
+  decisionStagedEmpty: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted,
   },
   finalDraftChoiceRow: {
     marginTop: 12,
