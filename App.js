@@ -39,6 +39,18 @@ const DECISION_LIBRARY_HELP = {
   runtime: "Live shift and situational questions used during actual documentation.",
 };
 
+const DECISION_LIBRARY_DISPLAY_NAMES = {
+  aidraft: "IntelliDraft",
+};
+
+const DECISION_EXCLUSIVE_STATUS_CHOICES = new Set([
+  "skip",
+  "deferred",
+  "unknown",
+  "not observed",
+  "not applicable",
+]);
+
 const userProfilePhoto = require("./demoImages/dsp-user.png");
 const maryBetProfilePhoto = require("./demoImages/patient-mary-bet.png");
 const markBrentProfilePhoto = require("./demoImages/patient-mark-brent-ai.png");
@@ -881,7 +893,6 @@ function inferDecisionNodeKind(choices = []) {
 }
 
 function inferDecisionNodeMultiSelect(question = "", choices = []) {
-  const normalizedQuestion = String(question || "").trim().toLowerCase();
   const normalizedChoices = choices.map((choice) => String(choice).trim().toLowerCase());
   if (!normalizedChoices.length) {
     return false;
@@ -891,7 +902,11 @@ function inferDecisionNodeMultiSelect(question = "", choices = []) {
     return false;
   }
 
-  return /^which\b/.test(normalizedQuestion);
+  return true;
+}
+
+function isDecisionExclusiveStatusChoice(choice = "") {
+  return DECISION_EXCLUSIVE_STATUS_CHOICES.has(String(choice).trim().toLowerCase());
 }
 
 function normalizeDecisionNodeChoices(choices = []) {
@@ -971,6 +986,10 @@ function getDecisionNodeDisplayChoices(node = {}) {
 
 function getDecisionNodeSelectedChoices(node = {}, choiceSelections = {}) {
   return choiceSelections[buildDecisionNodeSelectionKey(node)] || [];
+}
+
+function nodeRequiresDecisionChoice(node = {}) {
+  return !isDecisionConditionalNode(node) && getDecisionNodeDisplayChoices(node).length > 0;
 }
 
 function createAssignedWorkflowSteps(assignedNodes = []) {
@@ -1126,7 +1145,11 @@ function buildDecisionTargetDisplayLabel(target = {}) {
 
 function buildStagedAssignmentSummary(stagedAssignment = {}) {
   const count = Number(stagedAssignment.selectedCount || stagedAssignment.selectedNodesPayload?.length || 0);
-  return `${stagedAssignment.selectedLibrary || "library"} -> ${buildDecisionTargetDisplayLabel(stagedAssignment.target)} (${count} selected)`;
+  return `${getDecisionLibraryDisplayName(stagedAssignment.selectedLibrary || "library")} -> ${buildDecisionTargetDisplayLabel(stagedAssignment.target)} (${count} selected)`;
+}
+
+function getDecisionLibraryDisplayName(librarySlug = "") {
+  return DECISION_LIBRARY_DISPLAY_NAMES[librarySlug] || librarySlug || "Library";
 }
 
 function kebabToCamel(value = "") {
@@ -5067,6 +5090,7 @@ function DecisionEngineScreen({
   const selectedLibraryData =
     decisionNodes.libraries.find((lib) => lib.library === selectedLibrary) ??
     decisionNodes.libraries[0];
+  const selectedLibraryLabel = getDecisionLibraryDisplayName(selectedLibraryData?.library);
   const selectedLibraryHelp =
     DECISION_LIBRARY_HELP[selectedLibraryData?.library] ||
     "Choose which decision rule set to browse for this assignment.";
@@ -5076,7 +5100,7 @@ function DecisionEngineScreen({
   const selectedTarget = assignmentTargets.find((target) => target.key === selectedTargetKey);
   const libraryDropdownOptions = decisionNodes.libraries.map((lib) => ({
     value: lib.library,
-    label: lib.library,
+    label: getDecisionLibraryDisplayName(lib.library),
   }));
   const startHourDropdownOptions = SCHEDULE_START_HOUR_OPTIONS.map((hour) => ({
     value: String(hour),
@@ -5113,6 +5137,7 @@ function DecisionEngineScreen({
   }, {});
 
   const allNodes = visibleLibraryNodes;
+  const allNodesByKey = new Map(allNodes.map((node) => [buildDecisionNodeSelectionKey(node), node]));
   const selectedCount = allNodes.filter((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]).length;
 
   useEffect(() => {
@@ -5162,6 +5187,7 @@ function DecisionEngineScreen({
   const toggleNodeChoice = (node, choice) => {
     const nodeKey = buildDecisionNodeSelectionKey(node);
     const isMultiSelect = inferDecisionNodeMultiSelect(getDecisionNodeDisplayQuestion(node), getDecisionNodeDisplayChoices(node));
+    const isExclusiveStatusChoice = isDecisionExclusiveStatusChoice(choice);
 
     setCheckedNodes((prev) => ({
       ...prev,
@@ -5173,10 +5199,13 @@ function DecisionEngineScreen({
       const alreadySelected = currentChoices.includes(choice);
       let nextChoices;
 
-      if (isMultiSelect) {
+      if (isExclusiveStatusChoice) {
+        nextChoices = alreadySelected ? [] : [choice];
+      } else if (isMultiSelect) {
+        const nonExclusiveChoices = currentChoices.filter((item) => !isDecisionExclusiveStatusChoice(item));
         nextChoices = alreadySelected
-          ? currentChoices.filter((item) => item !== choice)
-          : [...currentChoices, choice];
+          ? nonExclusiveChoices.filter((item) => item !== choice)
+          : [...nonExclusiveChoices, choice];
       } else {
         nextChoices = alreadySelected ? [] : [choice];
       }
@@ -5323,6 +5352,16 @@ function DecisionEngineScreen({
     setShowLibraryHelp(false);
   }, []);
 
+  const getMissingChoiceNodeKeys = useCallback((selectedKeys, selections) => {
+    return selectedKeys.filter((key) => {
+      const node = allNodesByKey.get(key);
+      if (!node || !nodeRequiresDecisionChoice(node)) {
+        return false;
+      }
+      return !(selections[key] || []).length;
+    });
+  }, [allNodesByKey]);
+
   const handleStageCurrentSelection = () => {
     const selectedKeys = Object.keys(checkedNodes).filter((key) => checkedNodes[key]);
     if (!selectedKeys.length) {
@@ -5333,6 +5372,12 @@ function DecisionEngineScreen({
     const selectedTargetOption = assignmentTargets.find((target) => target.key === selectedTargetKey);
     if (!selectedTargetOption) {
       setAssignmentHint("Choose a target before locking this library.");
+      return;
+    }
+
+    const missingChoiceKeys = getMissingChoiceNodeKeys(selectedKeys, choiceSelections);
+    if (missingChoiceKeys.length) {
+      setAssignmentHint("Pick at least one choice for every selected question before locking this library.");
       return;
     }
 
@@ -5351,7 +5396,8 @@ function DecisionEngineScreen({
       target: {
         ...selectedTargetOption,
       },
-      summary: `${selectedLibraryData.library} • ${buildDecisionTargetDisplayLabel(selectedTargetOption)}`,
+      summary: `${selectedLibraryLabel} • ${buildDecisionTargetDisplayLabel(selectedTargetOption)}`,
+      displayLibrary: selectedLibraryLabel,
       createdAt: new Date().toISOString(),
     });
 
@@ -5376,7 +5422,7 @@ function DecisionEngineScreen({
       });
       return next;
     });
-    setAssignmentHint(`Locked ${selectedLibraryData.library} for ${buildDecisionTargetDisplayLabel(selectedTargetOption)}.`);
+    setAssignmentHint(`Locked ${selectedLibraryLabel} for ${buildDecisionTargetDisplayLabel(selectedTargetOption)}.`);
   };
 
   return (
@@ -5543,7 +5589,7 @@ function DecisionEngineScreen({
             </Pressable>
           </View>
           <DecisionDropdown
-            value={selectedLibraryData.library}
+            value={selectedLibraryLabel}
             options={libraryDropdownOptions}
             placeholder="Select library"
             dropdownId="decision-library"
@@ -5628,7 +5674,7 @@ function DecisionEngineScreen({
                 },
               ]}
             >
-              <Text style={styles.decisionLibraryTooltipTitle}>{selectedLibraryData.library}</Text>
+              <Text style={styles.decisionLibraryTooltipTitle}>{selectedLibraryLabel}</Text>
               <Text style={styles.decisionLibraryTooltipText}>{selectedLibraryHelp}</Text>
             </View>
           ) : null}
@@ -5637,7 +5683,7 @@ function DecisionEngineScreen({
 
       <View style={styles.decisionQuestionList}>
         <View style={styles.decisionSummaryRow}>
-          <Text style={styles.decisionSummaryText}>{`${selectedLibraryData.library} • ${allNodes.length} nodes`}</Text>
+          <Text style={styles.decisionSummaryText}>{`${selectedLibraryLabel} • ${allNodes.length} nodes`}</Text>
           <Text style={styles.decisionSummaryText}>{`${selectedCount} selected`}</Text>
         </View>
 
@@ -5734,6 +5780,11 @@ function DecisionEngineScreen({
                           </Pressable>
                         ))}
                       </View>
+                      {checkedNodes[buildDecisionNodeSelectionKey(node)] &&
+                      nodeRequiresDecisionChoice(node) &&
+                      !getDecisionNodeSelectedChoices(node, choiceSelections).length ? (
+                        <Text style={styles.decisionChoiceWarning}>No choice selected yet.</Text>
+                      ) : null}
                     </View>
                   ) : null}
                   {node.conditions?.length ? (
@@ -5790,7 +5841,7 @@ function DecisionEngineScreen({
               <View style={styles.decisionStagedCardTop}>
                 <Text style={styles.decisionStagedTitle}>{assignment.summary || buildStagedAssignmentSummary(assignment)}</Text>
                 <Text style={styles.decisionStagedMeta}>
-                  {`${assignment.selectedLibrary} • ${assignment.selectedDepth} deep • ${assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch"}`}
+                  {`${getDecisionLibraryDisplayName(assignment.selectedLibrary)} • ${assignment.selectedDepth} deep • ${assignment.includeMode === "full-branch" ? "Full branch" : "Selective branch"}`}
                 </Text>
               </View>
               <View style={styles.decisionStagedActionRow}>
@@ -6420,7 +6471,22 @@ export default function App() {
     : showCarePlan
       ? activeClientProfile?.carePlanHeader?.status ?? "Plan Approved"
       : activeClientProfile?.workspaceStatus ?? "Admitted";
-  const workspaceTab = documentationSession ? "Documentation" : showCarePlan ? "Care Plan" : showDecisionEngine ? "Decision Engine" : "Home";
+  const workspaceTab = documentationSession
+    ? documentationSession.sessionType === "case-note"
+      ? "Case Note"
+      : "Documentation"
+    : showCarePlan
+      ? "Care Plan"
+      : showDecisionEngine
+        ? "Decision Engine"
+        : "Home";
+  const topTabs = [
+    ...(documentationSession?.sessionType === "case-note" ? ["Case Note"] : []),
+    "Profile",
+    "Plans",
+    "Case Status",
+    "About Me",
+  ];
 
   useEffect(() => {
     if (!showIndividualSuggestions) {
@@ -6731,6 +6797,21 @@ export default function App() {
       return;
     }
 
+    const stagedAssignmentsMissingChoices = stagedAssignments.some((assignment) => {
+      const selectedKeys = (assignment.selectedNodesPayload || []).map((node) => node.key).filter(Boolean);
+      const selectionMap = (assignment.selectedNodesPayload || []).reduce((acc, node) => {
+        acc[node.key] = node.selectedChoices || [];
+        return acc;
+      }, {});
+      return getMissingChoiceNodeKeys(selectedKeys, selectionMap).length > 0;
+    });
+
+    if (stagedAssignmentsMissingChoices) {
+      setSelectedModule("Decision Engine");
+      setAssignmentHint("Some staged questions still have no selected choice. Fix those before final assign.");
+      return;
+    }
+
     const baseSession = createDocumentationSession({
       title: "Case Note (Decision Engine)",
       program: "Case Note",
@@ -6787,7 +6868,7 @@ export default function App() {
               return `${node.includeInFinal ? "[FINAL] " : ""}- ${getDecisionNodeDisplayQuestion(node) || getDecisionNodeDisplayTitle(node)}${selectedChoiceText}`;
             })
             .join("\n");
-          return `${assignment.selectedLibrary}\n${questionList}`;
+          return `${getDecisionLibraryDisplayName(assignment.selectedLibrary)}\n${questionList}`;
         })
         .join("\n\n");
 
@@ -6845,7 +6926,6 @@ export default function App() {
       checkedNodes: {},
       includeInFinalMap: {},
       choiceSelections: {},
-      stagedAssignments: [],
     }));
   };
 
@@ -6990,7 +7070,7 @@ export default function App() {
                   <View style={styles.activeTab}>
                     <Text style={styles.activeTabText}>{workspaceTab}</Text>
                   </View>
-                  {["Profile", "Plans", "Case Status", "About Me"].map((tab) => (
+                  {topTabs.map((tab) => (
                     <Text key={tab} style={styles.tabText}>
                       {tab}
                     </Text>
@@ -7889,6 +7969,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  decisionChoiceWarning: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.red,
   },
   decisionChoiceChip: {
     backgroundColor: "#f7f3ff",
