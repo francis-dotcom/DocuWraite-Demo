@@ -6775,6 +6775,10 @@ function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) 
 
   const activeSection = intelligenceSections.find((section) => section.key === activeIntelKey) || null;
   const activeIntelGroups = activeSection ? buildIntelGroups(activeSection) : [];
+  const getIntelPreviewItems = (section) => {
+    const groups = buildIntelGroups(section);
+    return groups.flatMap((group) => group.items).slice(0, 2);
+  };
 
   const openIntelCard = (sectionKey) => {
     const node = cardRefs.current[sectionKey];
@@ -6810,39 +6814,44 @@ function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) 
   return (
     <>
       {intelligenceSections.map((section) => (
-        <View
-          key={section.key}
-          ref={(node) => {
-            cardRefs.current[section.key] = node;
-          }}
-          collapsable={false}
-        >
-          <Pressable onPress={() => openIntelCard(section.key)} style={styles.intelCardPressable}>
-            <Card
-              title={section.title}
-              titleAccessoryContainerStyle={section.badgeStyle}
-              titleAccessory={<Icon name={section.icon} size={18} color={colors.headerText} />}
-              bodyStyle={styles.intelCompactBody}
-              containerStyle={styles.intelCompactCard}
+        (() => {
+          const previewItems = getIntelPreviewItems(section);
+          return (
+            <View
+              key={section.key}
+              ref={(node) => {
+                cardRefs.current[section.key] = node;
+              }}
+              collapsable={false}
             >
-              <View style={styles.intelCompactHeaderRow}>
-                <Text style={[styles.intelCompactCount, { color: section.accentColor }]}>
-                  {section.items.length ? `${section.items.length} item${section.items.length === 1 ? "" : "s"}` : "Clear"}
-                </Text>
-                <Text style={styles.intelCompactHint}>Tap for details</Text>
-              </View>
-              {section.items.length ? (
-                section.items.slice(0, 2).map((item) => (
-                  <Text key={item} style={styles.intelCompactPreview} numberOfLines={1} ellipsizeMode="tail">
-                    {item}
-                  </Text>
-                ))
-              ) : (
-                <Text style={styles.intelCompactEmpty}>Nothing urgent right now</Text>
-              )}
-            </Card>
-          </Pressable>
-        </View>
+              <Pressable onPress={() => openIntelCard(section.key)} style={styles.intelCardPressable}>
+                <Card
+                  title={section.title}
+                  titleAccessoryContainerStyle={section.badgeStyle}
+                  titleAccessory={<Icon name={section.icon} size={18} color={colors.headerText} />}
+                  bodyStyle={styles.intelCompactBody}
+                  containerStyle={styles.intelCompactCard}
+                >
+                  <View style={styles.intelCompactHeaderRow}>
+                    <Text style={[styles.intelCompactCount, { color: section.accentColor }]}>
+                      {section.items.length ? `${section.items.length} item${section.items.length === 1 ? "" : "s"}` : "Clear"}
+                    </Text>
+                    <Text style={styles.intelCompactHint}>Tap for details</Text>
+                  </View>
+                  {previewItems.length ? (
+                    previewItems.map((item) => (
+                      <Text key={item} style={styles.intelCompactPreview} numberOfLines={1} ellipsizeMode="tail">
+                        {item}
+                      </Text>
+                    ))
+                  ) : (
+                    <Text style={styles.intelCompactEmpty}>Nothing urgent right now</Text>
+                  )}
+                </Card>
+              </Pressable>
+            </View>
+          );
+        })()
       ))}
       <Modal transparent visible={!!activeSection} animationType="fade" onRequestClose={closeIntelCard}>
         <View style={styles.intelPopoverRoot}>
