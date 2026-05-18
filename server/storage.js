@@ -3,6 +3,8 @@ const path = require("path");
 const Database = require("better-sqlite3");
 
 const decisionNodes = require("../decisionAlgo/nodes.json");
+const { getClientShiftSeed, listSeededClientIds } = require("./clientShiftSeeds");
+const { getClientCarePlanSeed, listCarePlanSeededClientIds } = require("./clientCarePlanSeeds");
 
 const dataDir = path.join(__dirname, "..", "data");
 const dbPath = path.join(dataDir, "docuwraite.sqlite");
@@ -271,6 +273,26 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (category_id, prompt_key),
     FOREIGN KEY (category_id) REFERENCES row_prompt_categories(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS client_shift_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id TEXT NOT NULL,
+    shift_date TEXT NOT NULL,
+    schedule_json TEXT NOT NULL,
+    intelligence_options_json TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (client_id, shift_date)
+  );
+
+  CREATE TABLE IF NOT EXISTS client_care_plan_data (
+    client_id TEXT PRIMARY KEY,
+    risk_cards_json TEXT NOT NULL,
+    action_plans_json TEXT NOT NULL,
+    intelligence_options_json TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
@@ -995,6 +1017,299 @@ function getRowPromptTemplates(categoryKey) {
   return getRowPromptTemplatesByCategoryStatement.all(categoryKey);
 }
 
+function getTodayShiftDate(referenceDate = new Date()) {
+  return referenceDate.toISOString().slice(0, 10);
+}
+
+const getClientShiftScheduleRowStatement = db.prepare(`
+  SELECT
+    client_id,
+    shift_date,
+    schedule_json,
+    intelligence_options_json,
+    updated_at
+  FROM client_shift_schedules
+  WHERE client_id = ? AND shift_date = ?
+`);
+
+const upsertClientShiftScheduleStatement = db.prepare(`
+  INSERT INTO client_shift_schedules (
+    client_id,
+    shift_date,
+    schedule_json,
+    intelligence_options_json,
+    updated_at
+  ) VALUES (?, ?, ?, ?, ?)
+  ON CONFLICT(client_id, shift_date) DO UPDATE SET
+    schedule_json = excluded.schedule_json,
+    intelligence_options_json = excluded.intelligence_options_json,
+    updated_at = excluded.updated_at
+`);
+
+function normalizeShiftSchedule(schedule = {}) {
+  return {
+    todayAppointments: Array.isArray(schedule.todayAppointments) ? schedule.todayAppointments : [],
+    medicationsDue: Array.isArray(schedule.medicationsDue) ? schedule.medicationsDue : [],
+    standingAlerts: Array.isArray(schedule.standingAlerts) ? schedule.standingAlerts : [],
+    overdueTasks: Array.isArray(schedule.overdueTasks) ? schedule.overdueTasks : [],
+  };
+}
+
+function seedClientShiftSchedule(clientId, shiftDate = getTodayShiftDate()) {
+  const normalizedClientId = String(clientId || "").trim();
+  const normalizedShiftDate = String(shiftDate || getTodayShiftDate()).trim();
+
+  const existing = getClientShiftScheduleRowStatement.get(normalizedClientId, normalizedShiftDate);
+  if (existing) {
+    return {
+      clientId: existing.client_id,
+      shiftDate: existing.shift_date,
+      schedule: normalizeShiftSchedule(parseJson(existing.schedule_json, {})),
+      intelligenceOptions: parseJson(existing.intelligence_options_json, {}),
+      source: "db",
+      updatedAt: existing.updated_at,
+    };
+  }
+
+  const seed = getClientShiftSeed(normalizedClientId);
+  if (!seed?.shiftSchedule) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  upsertClientShiftScheduleStatement.run(
+    normalizedClientId,
+    normalizedShiftDate,
+    JSON.stringify(normalizeShiftSchedule(seed.shiftSchedule)),
+    JSON.stringify(seed.shiftIntelligenceOptions || {}),
+    now
+  );
+
+  return {
+    clientId: normalizedClientId,
+    shiftDate: normalizedShiftDate,
+    schedule: normalizeShiftSchedule(seed.shiftSchedule),
+    intelligenceOptions: seed.shiftIntelligenceOptions || {},
+    source: "seed",
+    updatedAt: now,
+  };
+}
+
+function getClientShiftSchedule(clientId, shiftDate = getTodayShiftDate()) {
+  const normalizedClientId = String(clientId || "").trim();
+  const normalizedShiftDate = String(shiftDate || getTodayShiftDate()).trim();
+
+  if (!normalizedClientId) {
+    return null;
+  }
+
+  const row = getClientShiftScheduleRowStatement.get(normalizedClientId, normalizedShiftDate);
+  if (row) {
+    return {
+      clientId: row.client_id,
+      shiftDate: row.shift_date,
+      schedule: normalizeShiftSchedule(parseJson(row.schedule_json, {})),
+      intelligenceOptions: parseJson(row.intelligence_options_json, {}),
+      source: "db",
+      updatedAt: row.updated_at,
+    };
+  }
+
+  return seedClientShiftSchedule(normalizedClientId, normalizedShiftDate);
+}
+
+function saveClientShiftSchedule({
+  clientId,
+  shiftDate = getTodayShiftDate(),
+  schedule = {},
+  intelligenceOptions = null,
+}) {
+  const normalizedClientId = String(clientId || "").trim();
+  const normalizedShiftDate = String(shiftDate || getTodayShiftDate()).trim();
+
+  if (!normalizedClientId) {
+    throw new Error("clientId is required");
+  }
+
+  const existing = getClientShiftScheduleRowStatement.get(normalizedClientId, normalizedShiftDate);
+  const seed = getClientShiftSeed(normalizedClientId);
+  const resolvedOptions =
+    intelligenceOptions ||
+    parseJson(existing?.intelligence_options_json, null) ||
+    seed?.shiftIntelligenceOptions ||
+    {};
+
+  const now = new Date().toISOString();
+  upsertClientShiftScheduleStatement.run(
+    normalizedClientId,
+    normalizedShiftDate,
+    JSON.stringify(normalizeShiftSchedule(schedule)),
+    JSON.stringify(resolvedOptions),
+    now
+  );
+
+  return {
+    clientId: normalizedClientId,
+    shiftDate: normalizedShiftDate,
+    schedule: normalizeShiftSchedule(schedule),
+    intelligenceOptions: resolvedOptions,
+    source: "db",
+    updatedAt: now,
+  };
+}
+
+function seedAllClientShiftSchedules(shiftDate = getTodayShiftDate()) {
+  return listSeededClientIds()
+    .map((clientId) => seedClientShiftSchedule(clientId, shiftDate))
+    .filter(Boolean);
+}
+
+const getClientCarePlanRowStatement = db.prepare(`
+  SELECT
+    client_id,
+    risk_cards_json,
+    action_plans_json,
+    intelligence_options_json,
+    updated_at
+  FROM client_care_plan_data
+  WHERE client_id = ?
+`);
+
+const upsertClientCarePlanStatement = db.prepare(`
+  INSERT INTO client_care_plan_data (
+    client_id,
+    risk_cards_json,
+    action_plans_json,
+    intelligence_options_json,
+    updated_at
+  ) VALUES (?, ?, ?, ?, ?)
+  ON CONFLICT(client_id) DO UPDATE SET
+    risk_cards_json = excluded.risk_cards_json,
+    action_plans_json = excluded.action_plans_json,
+    intelligence_options_json = excluded.intelligence_options_json,
+    updated_at = excluded.updated_at
+`);
+
+function normalizeCarePlanPayload({ riskCards = [], actionPlans = [], intelligenceOptions = {} } = {}) {
+  return {
+    riskCards: Array.isArray(riskCards) ? riskCards : [],
+    actionPlans: Array.isArray(actionPlans) ? actionPlans : [],
+    intelligenceOptions: intelligenceOptions && typeof intelligenceOptions === "object" ? intelligenceOptions : {},
+  };
+}
+
+function seedClientCarePlanData(clientId) {
+  const normalizedClientId = String(clientId || "").trim();
+  if (!normalizedClientId) {
+    return null;
+  }
+
+  const existing = getClientCarePlanRowStatement.get(normalizedClientId);
+  if (existing) {
+    return {
+      clientId: existing.client_id,
+      riskCards: parseJson(existing.risk_cards_json, []),
+      actionPlans: parseJson(existing.action_plans_json, []),
+      intelligenceOptions: parseJson(existing.intelligence_options_json, {}),
+      source: "db",
+      updatedAt: existing.updated_at,
+    };
+  }
+
+  const seed = getClientCarePlanSeed(normalizedClientId);
+  if (!seed) {
+    return null;
+  }
+
+  const normalized = normalizeCarePlanPayload({
+    riskCards: seed.riskCards,
+    actionPlans: seed.actionPlans,
+    intelligenceOptions: seed.intelligenceOptions || {},
+  });
+  const now = new Date().toISOString();
+  upsertClientCarePlanStatement.run(
+    normalizedClientId,
+    JSON.stringify(normalized.riskCards),
+    JSON.stringify(normalized.actionPlans),
+    JSON.stringify(normalized.intelligenceOptions),
+    now
+  );
+
+  return {
+    clientId: normalizedClientId,
+    ...normalized,
+    source: "seed",
+    updatedAt: now,
+  };
+}
+
+function getClientCarePlanData(clientId) {
+  const normalizedClientId = String(clientId || "").trim();
+  if (!normalizedClientId) {
+    return null;
+  }
+
+  const row = getClientCarePlanRowStatement.get(normalizedClientId);
+  if (row) {
+    return {
+      clientId: row.client_id,
+      riskCards: parseJson(row.risk_cards_json, []),
+      actionPlans: parseJson(row.action_plans_json, []),
+      intelligenceOptions: parseJson(row.intelligence_options_json, {}),
+      source: "db",
+      updatedAt: row.updated_at,
+    };
+  }
+
+  return seedClientCarePlanData(normalizedClientId);
+}
+
+function saveClientCarePlanData({
+  clientId,
+  riskCards = [],
+  actionPlans = [],
+  intelligenceOptions = null,
+}) {
+  const normalizedClientId = String(clientId || "").trim();
+  if (!normalizedClientId) {
+    throw new Error("clientId is required");
+  }
+
+  const existing = getClientCarePlanRowStatement.get(normalizedClientId);
+  const seed = getClientCarePlanSeed(normalizedClientId);
+  const normalized = normalizeCarePlanPayload({
+    riskCards,
+    actionPlans,
+    intelligenceOptions:
+      intelligenceOptions ||
+      parseJson(existing?.intelligence_options_json, null) ||
+      seed?.shiftIntelligenceOptions ||
+      {},
+  });
+
+  const now = new Date().toISOString();
+  upsertClientCarePlanStatement.run(
+    normalizedClientId,
+    JSON.stringify(normalized.riskCards),
+    JSON.stringify(normalized.actionPlans),
+    JSON.stringify(normalized.intelligenceOptions),
+    now
+  );
+
+  return {
+    clientId: normalizedClientId,
+    ...normalized,
+    source: "db",
+    updatedAt: now,
+  };
+}
+
+function seedAllClientCarePlanData() {
+  return listCarePlanSeededClientIds()
+    .map((clientId) => seedClientCarePlanData(clientId))
+    .filter(Boolean);
+}
+
 function getWorkspaceState(clientId) {
   const row = getWorkspaceStateRowStatement.get(clientId);
   if (!row) {
@@ -1323,6 +1638,8 @@ function getAssignmentsByClient(clientId) {
 
 seedDecisionCatalog();
 seedRowPromptCatalog();
+seedAllClientShiftSchedules();
+seedAllClientCarePlanData();
 
 module.exports = {
   dbPath,
@@ -1330,6 +1647,13 @@ module.exports = {
   getRowPromptCategories,
   getRowPromptTemplates,
   getWorkspaceState,
+  getClientShiftSchedule,
+  saveClientShiftSchedule,
+  getClientCarePlanData,
+  saveClientCarePlanData,
+  getTodayShiftDate,
+  seedAllClientShiftSchedules,
+  seedAllClientCarePlanData,
   saveAssignment,
   saveWorkspaceState,
 };

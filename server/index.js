@@ -7,12 +7,21 @@ const { isSupportedWorkflow } = require("./playbooks");
 const { resolveWorkflowStep } = require("./playbookEngine");
 const { buildDraftNotePrompt } = require("./draftPrompt");
 const { ASSIGNED_NODES_SYSTEM_PROMPT } = require("./assignedNodesDraftPrompt");
+const { runMorningShiftSync } = require("./morningShiftSync");
+const { runTherapSync, syncClientFromTherap } = require("./therapSync");
+const { createTherapMockRouter } = require("./integrations/therapMockRoutes");
+const { getTherapConfig } = require("./integrations/therapHttpClient");
 const {
   dbPath,
   getAssignmentsByClient,
   getRowPromptCategories,
   getRowPromptTemplates,
   getWorkspaceState,
+  getClientShiftSchedule,
+  saveClientShiftSchedule,
+  getClientCarePlanData,
+  saveClientCarePlanData,
+  getTodayShiftDate,
   saveAssignment,
   saveWorkspaceState,
 } = require("./storage");
@@ -27,6 +36,7 @@ const openai = process.env.OPENAI_API_KEY
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+app.use("/therap-mock", createTherapMockRouter());
 
 app.post("/api/assignments", async (req, res) => {
   try {
@@ -55,11 +65,156 @@ app.get("/api/assignments/:clientId", (req, res) => {
   }
 });
 
-app.get("/api/workspace-state/:clientId", (req, res) => {
+app.get("/api/workspace-state/:clientId", async (req, res) => {
   try {
+    const clientId = req.params.clientId;
+    const shiftDate = req.query.shiftDate || getTodayShiftDate();
+    let therapSyncResult = null;
+
+    if (String(req.query.syncTherap || "").toLowerCase() === "true") {
+      therapSyncResult = await syncClientFromTherap(clientId, {
+        shiftDate,
+        syncShiftSchedule: true,
+        syncCarePlan: String(req.query.syncCarePlan || "").toLowerCase() === "true",
+      });
+    }
+
+    const clientShift = getClientShiftSchedule(clientId, shiftDate);
+    const clientCarePlan = getClientCarePlanData(clientId);
+
     res.json({
       ok: true,
-      state: getWorkspaceState(req.params.clientId),
+      state: getWorkspaceState(clientId),
+      clientShift,
+      clientCarePlan,
+      therapSync: therapSyncResult,
+      shiftDate,
+      dbPath,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/clients/:clientId/shift-schedule", (req, res) => {
+  try {
+    const clientId = req.params.clientId;
+    const shiftDate = req.query.shiftDate || getTodayShiftDate();
+    const clientShift = getClientShiftSchedule(clientId, shiftDate);
+
+    if (!clientShift) {
+      res.status(404).json({ error: `No shift schedule found for client ${clientId}` });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      clientShift,
+      shiftDate,
+      dbPath,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/clients/:clientId/shift-schedule", (req, res) => {
+  try {
+    const clientId = req.params.clientId;
+    const shiftDate = req.body?.shiftDate || req.query.shiftDate || getTodayShiftDate();
+    const saved = saveClientShiftSchedule({
+      clientId,
+      shiftDate,
+      schedule: req.body?.schedule || {},
+      intelligenceOptions: req.body?.intelligenceOptions || null,
+    });
+
+    res.json({
+      ok: true,
+      clientShift: saved,
+      shiftDate,
+      dbPath,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/clients/:clientId/care-plan", (req, res) => {
+  try {
+    const clientId = req.params.clientId;
+    const clientCarePlan = getClientCarePlanData(clientId);
+
+    if (!clientCarePlan) {
+      res.status(404).json({ error: `No care plan data found for client ${clientId}` });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      clientCarePlan,
+      dbPath,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/clients/:clientId/care-plan", (req, res) => {
+  try {
+    const clientId = req.params.clientId;
+    const saved = saveClientCarePlanData({
+      clientId,
+      riskCards: req.body?.riskCards || [],
+      actionPlans: req.body?.actionPlans || [],
+      intelligenceOptions: req.body?.intelligenceOptions || null,
+    });
+
+    res.json({
+      ok: true,
+      clientCarePlan: saved,
+      dbPath,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/sync/morning-shift", (req, res) => {
+  try {
+    const shiftDate = req.body?.shiftDate || req.query.shiftDate || getTodayShiftDate();
+    const clientIds = Array.isArray(req.body?.clientIds) ? req.body.clientIds : undefined;
+    const result = runMorningShiftSync({ shiftDate, clientIds });
+
+    res.json({
+      ok: result.ok,
+      ...result,
+      dbPath,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/sync/therap", async (req, res) => {
+  try {
+    const shiftDate = req.body?.shiftDate || req.query.shiftDate || getTodayShiftDate();
+    const clientIds = Array.isArray(req.body?.clientIds) ? req.body.clientIds : undefined;
+    const syncShiftSchedule = req.body?.syncShiftSchedule !== false;
+    const syncCarePlan = req.body?.syncCarePlan !== false;
+    const mode = req.body?.mode || null;
+
+    const result = await runTherapSync({
+      shiftDate,
+      clientIds,
+      syncShiftSchedule,
+      syncCarePlan,
+      mode,
+    });
+
+    res.json({
+      ok: result.ok,
+      ...result,
       dbPath,
     });
   } catch (err) {
@@ -318,5 +473,10 @@ app.post("/api/docuwraite/workflow-step", async (request, response) => {
 });
 
 app.listen(port, () => {
+  const therap = getTherapConfig();
   console.log(`DocuWraite API listening on http://localhost:${port}`);
+  console.log(`Therap mock feed: http://localhost:${port}/therap-mock (shift-feed, care-plan)`);
+  console.log(
+    `Therap sync mode: ${therap.mode}${therap.isConfigured ? ` → ${therap.baseUrl}` : " (demo provider until THERAP_API_BASE_URL is set)"}`
+  );
 });

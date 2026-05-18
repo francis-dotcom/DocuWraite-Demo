@@ -31,6 +31,9 @@ export function searchClients(query = "") {
 }
 
 export function getClientById(clientId) {
+  if (clientId === "mary-bet") {
+    return getMaryBetProfile();
+  }
   if (clientId === "mark-brent") {
     return getMarkBrentProfile();
   }
@@ -38,6 +41,456 @@ export function getClientById(clientId) {
     return getEliasBrianProfile();
   }
   return null;
+}
+
+export function getMaryBetProfile() {
+  const displayName = "Mary Bet";
+
+  const riskCards = [
+    {
+      title: "Falls",
+      severity: "High",
+      notes:
+        "Mary Bet has had several falls and continues to report or indicate falls, even while seated. Vision decline, balance problems, and gait instability increase risk.",
+      guidance:
+        "Maintain line-of-sight supervision, follow ambulation instructions, keep assistive equipment available, and document fall-prevention observations.",
+    },
+    {
+      title: "Aspiration / Choking",
+      severity: "High",
+      notes:
+        "Mary Bet is at increased risk of choking due to eating pace, talking during meals, loss of food or fluid from the mouth, dentures, and swallowing concerns.",
+      guidance:
+        "Use teaspoon-size bites, clear mouth before next bite, offer liquids every 2-3 bites, and avoid conversation during active swallowing.",
+    },
+    {
+      title: "Inability to communicate basic needs",
+      severity: "Medium",
+      notes:
+        "Mary Bet may have difficulty expressing pain, illness, hunger, or thirst clearly and may sometimes use pain complaints for attention seeking.",
+      guidance:
+        "Treat discomfort reports seriously, watch body language, check medication and diet compliance, and escalate for medical evaluation if confusion or unusual behavior appears.",
+    },
+    {
+      title: "Medical procedure intolerance",
+      severity: "Medium",
+      notes:
+        "Mary Bet may need IV sedation or hospital-level anesthesia for stressful medical or dental procedures because of anxiety and tolerance issues.",
+      guidance:
+        "Coordinate with PCP before procedures, verify sedation plans, and document PRN supports and anesthesia requirements clearly.",
+    },
+    {
+      title: "Elopement / self-injury / aggression",
+      severity: "Low",
+      notes:
+        "Risk history includes elopement awareness, past self-harm such as biting, and minor aggression or throwing items.",
+      guidance:
+        "Use trained redirection approaches, keep behavior supports available, and document triggers and de-escalation outcomes.",
+    },
+  ];
+
+  const actionPlans = [
+    {
+      title: "Action Plan 1",
+      outcome:
+        "Mary Bet follows prescribed meal plan daily for PKU to improve health, sleep, mood, GI stability, and reduce GERD complications.",
+      issue:
+        "Mary Bet has a history of PKU, GERD, chronic constipation, and high cholesterol.",
+      steps: [
+        {
+          step:
+            "Mary Bet follows the prescribed heart healthy meal plan with low sodium, low saturated fat, low cholesterol, and high fiber.",
+          responsible: "Home: Mary Bet and RD\nOther: Mary Bet and RD",
+          frequency: "Daily",
+          record: "Monthly notes",
+          notes:
+            "Avoid high PHE foods, give supplements daily, track intake logs, monitor labs, promote fluids, fiber, GERD-safe habits, upright posture after meals, and tolerated activity.",
+        },
+        {
+          step:
+            "Mary Bet eats safely with total assistance, teaspoon-size bites, mouth clearing before next bite, liquids every 2-3 bites, and no talking during meals.",
+          responsible: "Home: Mary Bet and SLP\nOther: Mary Bet and SLP",
+          frequency: "Daily",
+          record: "Monthly notes",
+          notes:
+            "Staff provide close mealtime oversight and follow the modified safe-eating plan exactly as ordered.",
+        },
+      ],
+    },
+    {
+      title: "Action Plan 2",
+      outcome: "Mary Bet wants to communicate effectively with others.",
+      issue: "Mary Bet is hard of hearing and previously lost her hearing aids.",
+      steps: [
+        {
+          step: "Mary Bet receives hearing aids and uses them during communication supports.",
+          responsible: "Home: Mary Bet and SLP\nOther: Mary Bet and SLP",
+          frequency: "Daily",
+          record: "Monthly notes",
+          notes:
+            "Staff verify hearing aids are present, functioning, and safely stored when not in use.",
+        },
+        {
+          step: "Mary Bet tells staff when hearing aids are not working.",
+          responsible: "Home: Mary Bet and SLP\nOther: Mary Bet and SLP",
+          frequency: "Daily",
+          record: "Daily documentation",
+          notes:
+            "Prompt Mary Bet to report hearing problems early so devices can be checked or replaced.",
+        },
+        {
+          step: "Mary Bet completes 1-2 step instructions and verbalizes needs and concerns.",
+          responsible: "Home: Mary Bet and SLP\nOther: Mary Bet and SLP",
+          frequency: "Daily",
+          record: "Monthly documentation",
+          notes:
+            "Use repeat-back prompts, slower pacing, and teletherapy or home or community supports as needed.",
+        },
+      ],
+    },
+    {
+      title: "Action Plan 3",
+      outcome: "Mary Bet does much for herself to increase her independence.",
+      issue:
+        "Due to declining health, Mary Bet cannot perform previous activities such as household chores and some ADLs without support.",
+      steps: [
+        {
+          step: "Mary Bet chooses to participate in community activities at least once per week.",
+          responsible: "Home: Mary Bet, SL, and CP\nOther: Mary Bet, CP, and SL",
+          frequency: "Daily tracking",
+          record: "Monthly documentation",
+          notes:
+            "Offer choices, support decision making, monitor fatigue, and document successful engagement and barriers.",
+        },
+      ],
+    },
+  ];
+
+  const documentationTimeBlocks = [
+    { id: "7-9", label: "7am–9am" },
+    { id: "9-11", label: "9am–11am" },
+    { id: "11-1", label: "11am–1pm" },
+    { id: "1-3", label: "1pm–3pm" },
+    { id: "3-5", label: "3pm–5pm" },
+  ];
+
+  const timeBlockMappings = {
+    "7am–9am": {
+      prompt: `Document morning ADL support, hygiene assistance, and prompt level provided for ${displayName} during 7am–9am.`,
+      source: "Shift Timeline / Morning ADLs",
+      workflowId: "morning-adl",
+    },
+    "9am–11am": {
+      prompt: `Document feeding support for breakfast or lunch, staff support rendered, and observed response for ${displayName} during 9am–11am.`,
+      source: "Shift Timeline / Feeding Support",
+      workflowId: "feeding-support",
+    },
+    "11am–1pm": {
+      prompt: `Document in-home leisure, rest, and pre-outing preparation for ${displayName} during 11am–1pm.`,
+      source: "Shift Timeline / In-Home Leisure",
+      workflowId: "in-home-leisure",
+    },
+    "1pm–3pm": {
+      prompt: `Document community participation outing, mobility support, and observed response for ${displayName} during 1pm–3pm.`,
+      source: "Shift Timeline / Community Outing",
+      workflowId: "community-outing",
+    },
+    "3pm–5pm": {
+      prompt: `Document return-home transition, hydration, and afternoon routine for ${displayName} during 3pm–5pm.`,
+      source: "Shift Timeline / Return Home",
+      workflowId: "return-home",
+    },
+  };
+
+  return {
+    id: "mary-bet",
+    displayName,
+    carePlanHeader: {
+      fullName: "MARY BET",
+      medicaidId: "1D510568555",
+      dob: "01/22/1947",
+      oversightId: "0000010468 (DIDD-TN)",
+      guardian: "Elena Vargas",
+      planStart: "01/17/2026",
+      planEnd: "01/16/2027",
+      status: "Approved",
+    },
+    aboutMeCards: [
+      {
+        title: "What people admire about me",
+        body:
+          "Mary Bet is very loveable, friendly, affectionate, and social. She loves to give hugs, wear jewelry, carry a purse from her collection, laugh with people, and help others. She often remembers personal details about others and enjoys playful conversation.",
+      },
+      {
+        title: "What is important to me",
+        body:
+          "At home, Mary Bet values looking pretty, receiving compliments, keeping her stuffed animals nearby, having personal space respected, and being able to rest. In the community, she values shopping, talking with others, going out to eat, getting sweet tea, and having the flexibility to come home and rest when tired.",
+      },
+      {
+        title: "How best to support me",
+        body:
+          "Support Mary Bet with calm redirection, close fall supervision, hearing-aid reminders, oxygen monitoring, dietary guidance, and flexible rest breaks. Staff should stay attentive to her changing energy, mobility, and communication needs while preserving choice and dignity.",
+      },
+    ],
+    riskCards,
+    supportCards: [
+      {
+        title: "Supports at Home",
+        body:
+          "Mary Bet lives in a single-family home in LaVergne, TN with a longtime male housemate. The home includes safety modifications such as bathroom holding bars and wheelchair-accessible ramps. Staff support includes hearing-aid reminders, oxygen checks at 12:00 A.M., 4:00 A.M., and 7:00 A.M., soiled-brief changes as needed, and total assistance with safety in dangerous situations.",
+      },
+      {
+        title: "Supports in Community",
+        body:
+          "Mary Bet receives community participation and intermittent wraparound supports. Staff assist with ambulation, wheelchair access for longer distances, safe purchases, appropriate social boundaries, and return-home transitions when fatigue, weather, or hygiene needs make continuing unsafe or impractical.",
+      },
+      {
+        title: "ADLs and Household Chores",
+        body:
+          "Mary Bet now requires total staff assistance with showering, toileting, dressing, oral hygiene, household chores, laundry, room cleaning, dusting, and vacuuming. She benefits from both verbal and physical prompts and needs balance support during transfers and hygiene routines.",
+      },
+      {
+        title: "Communication Style",
+        body:
+          "Mary Bet verbally communicates wants and needs. When ill she may appear sad, have a blank stare, or slurred speech. When upset she becomes quieter and may be harder to understand. Staff should monitor body language, encourage calm conversation, and ensure hearing aids are available and functioning.",
+      },
+    ],
+    serviceCards: [
+      {
+        title: "Independent Support Coordination",
+        provider: "BGC INC - Middle",
+        funding: "CAC - Comprehensive Aggregate Cap",
+        status: "Approved",
+        dateRange: "01/17/2026 - 01/16/2027",
+        detail: "Monthly coordination contact cadence; care plan oversight and waiver coordination.",
+      },
+      {
+        title: "Community Participation Supports",
+        provider: "Kharis Care LLC - Middle",
+        funding: "CAC - Comprehensive Aggregate Cap",
+        status: "Approved",
+        dateRange: "01/17/2026 - 01/16/2027",
+        detail: "Level 4 community participation with flexible rest and return-home support.",
+      },
+      {
+        title: "Intermittent Employment & Community Wraparound",
+        provider: "Kharis Care LLC - Middle",
+        funding: "CAC - Comprehensive Aggregate Cap",
+        status: "Approved",
+        dateRange: "01/17/2026 - 01/16/2027",
+        detail: "Wraparound coverage for fatigue, weather, meals, clothing changes, and transition support.",
+      },
+      {
+        title: "Supported Living Level 4",
+        provider: "Kharis Care LLC - Middle",
+        funding: "CAC - Comprehensive Aggregate Cap",
+        status: "Approved",
+        dateRange: "01/17/2026 - 01/16/2027",
+        detail: "Two-person supported living structure with strong safety and ADL supervision.",
+      },
+      {
+        title: "Nutrition Services",
+        provider: "Mary Eva Gregory - Middle",
+        funding: "CAC - Comprehensive Aggregate Cap",
+        status: "Approved",
+        dateRange: "02/01/2026 - 12/31/2026",
+        detail: "PKU, GERD, constipation, and cholesterol nutrition management.",
+      },
+      {
+        title: "Speech / Hearing Services",
+        provider: "Speech Pathology Specialist, LLC - Middle",
+        funding: "CAC - Comprehensive Aggregate Cap",
+        status: "Approved",
+        dateRange: "02/01/2026 - 01/16/2027",
+        detail: "Safe eating strategies, auditory comprehension, and hearing-aid use support.",
+      },
+    ],
+    rightsCards: [
+      {
+        title: "Decision Making & Rights",
+        body:
+          "Mary Bet likes to make day-to-day choices about what to wear and where to go. Michael Dunn Center is the court-appointed limited conservator for specified responsibilities, but Mary Bet still retains personal choice in daily routine and many ordinary preferences.",
+      },
+      {
+        title: "Consumer Direction / ANE Education",
+        body:
+          "Mary Bet and the coordinator discussed consumer direction and abuse, neglect, and exploitation education on 11/18/2025. She is not using consumer direction and no current ANE concerns are documented.",
+      },
+      {
+        title: "Advanced Directives / Burial Plans",
+        body:
+          "No advanced directive or declaration for mental health treatment is documented. Burial support planning references DIDD burial-program procedures if needed.",
+      },
+    ],
+    activityCards: [
+      {
+        title: "Current community activities",
+        body:
+          "Mary Bet often prefers staying home, but enjoys shopping, getting her hair done, going out for food or sweet tea, and choosing community outings when given options.",
+      },
+      {
+        title: "Supports needed for independence",
+        body:
+          "Staff assist with hearing devices, dentures, wheelchair access, stair safety, meal-plan compliance, money handling, community transitions, and reminders about appropriate social boundaries.",
+      },
+    ],
+    actionPlans,
+    documentationTimeBlocks,
+    timeBlockMappings,
+    ispFormDescriptions: [
+      `Measurable outcome: ${displayName} participates in community integration activities of her choice such as church, park, and mall outings.`,
+      `Target behavior: ${displayName} will reduce inappropriate behaviors in the home and in the community with staff support rendered.`,
+      `ADL goal: ${displayName} completes daily independent living skills with documented prompt level, reminders, and assistance when needed.`,
+    ],
+    supplementalDocumentationItems: [
+      `${displayName} followed meal plan guidelines.`,
+      `${displayName} safely ambulated with staff assistance.`,
+      `${displayName} reduced inappropriate behaviors during community participation.`,
+    ],
+    previousShiftSnapshot: {
+      timeBlocks: [
+        {
+          label: "7am–9am",
+          score: "Verbal Prompt",
+          comment: "Morning hygiene completed with verbal prompts and partial assist.",
+        },
+        {
+          label: "9am–11am",
+          score: "Completed",
+          comment: "Community outing completed with staff support rendered and observed response documented.",
+        },
+      ],
+      rows: [
+        {
+          score: "Verbal Prompt",
+          comment: "Prompt level documented during ADL routine. Observed response was cooperative.",
+        },
+      ],
+      shiftSummary:
+        "Overall mood was stable. No notable incidents. Progress toward goals observed during community participation.",
+    },
+    shiftSchedule: {
+      todayAppointments: [
+        { id: "hair", title: "Hair appointment", timeLabel: "1:00 PM" },
+        { id: "community-outing", title: "Community outing", timeLabel: "2:30 PM" },
+      ],
+      medicationsDue: [
+        { id: "oxygen-noon", title: "Oxygen check", timeLabel: "12:00 PM" },
+        { id: "oxygen-afternoon", title: "Oxygen check", timeLabel: "4:00 PM" },
+        { id: "oxygen-morning", title: "Oxygen check", timeLabel: "7:00 AM" },
+      ],
+      standingAlerts: [
+        { id: "fall-supervision", title: "Fall supervision required" },
+        { id: "aspiration", title: "Aspiration precautions during meals" },
+        { id: "hearing-aid", title: "Hearing-aid check due" },
+      ],
+      overdueTasks: [
+        { id: "daily-doc", title: "Daily Documentation", dueLabel: "05/13/2026" },
+        { id: "mar-review", title: "MAR review signature" },
+        { id: "behavior-data", title: "Behavior data entry" },
+      ],
+    },
+    shiftIntelligenceOptions: {
+      activeRiskFilter: "high-only",
+    },
+    documentChecklist: [
+      "Advance Directive",
+      "Behavior Support Plan",
+      "Communication Chart",
+      "Comprehensive Needs Assessment",
+      "Conservatorship Documentation",
+      "Crisis Plan",
+      "Dental Plan of Care",
+      "Doctors Orders / Treatment Plans",
+      "Medication List",
+      "Safety Risk Determination",
+      "Signature Sheet",
+      "Therapy Treatment Plan / Plan of Care",
+    ],
+    documentFiles: [
+      "Mary.Bet.Phagan.3621.conservatorshippapers.06.30.2021.pdf",
+      "Mary.Bet.Phagan.3621.IDFAttachment.02.27.2024.pdf",
+      "Mary.Bet.Phagan.3621.LON.10.30.2025.pdf",
+      "Mary.Bet.Phagan.3621.SignatureSheet.11.18.2025.pdf",
+      "Mary.Bet.Phagan.3621.PSD.10.30.2025.pdf",
+      "Mary.Bet.Phagan.3621.RiskTool.10.30.2025.pdf",
+      "Mary.Bet.Phagan.3621.InformedChoice.11.18.2025.pdf",
+      "Mary.Bet.Phagan.3621.SpeechPOC.12.2025.pdf",
+    ],
+    participants: [
+      { name: "Elena Vargas", relationship: "Guardian", copy: "Yes" },
+      { name: "Priya Malhotra", relationship: "Speech Language Pathologist", copy: "Yes" },
+      { name: "Daniel Brooks", relationship: "DSP / Kharis", copy: "Yes" },
+      { name: "Chloe Nguyen", relationship: "QA / Kharis", copy: "Yes" },
+      { name: "Marcus Holloway", relationship: "ISC / BGC, Inc.", copy: "Yes" },
+      { name: "Callie Stevens", relationship: "Program Coordinator", copy: "Yes" },
+      { name: "Reese Dalton", relationship: "Kharis", copy: "Yes" },
+    ],
+    signatureLogs: [
+      "Acknowledgement Report available in source file",
+      "Signature Sheet referenced in attachments",
+      "Participants marked to receive plan copies",
+    ],
+    ispRows: [
+      {
+        name: "Cooking Skills (1st Street)",
+        startDate: "06/01/2024",
+        endDate: "",
+        frequency: "3",
+        schedule: "Weekly",
+        ispData: "New",
+      },
+      {
+        name: "Daily Documentation & Goals",
+        startDate: "05/01/2024",
+        endDate: "",
+        frequency: "1",
+        schedule: "Daily",
+        ispData: "New",
+      },
+      {
+        name: "Daily Documentation and Goals",
+        startDate: "04/01/2021",
+        endDate: "06/30/2026",
+        frequency: "1",
+        schedule: "Daily",
+        ispData: "EVV Only",
+      },
+    ],
+    caseNoteEntries: [
+      {
+        description: `Document target behavior, observed response, and intervention implemented during the shift for ${displayName}.`,
+        workflowId: "behavior-support",
+        theme: "behavior",
+      },
+      {
+        description: `Document ADL assistance, hygiene support, and prompt level provided for ${displayName}.`,
+        workflowId: "morning-adl",
+        theme: "hygiene",
+      },
+      {
+        description: `Document meal support, meal pacing, fluid intake, and aspiration precautions for ${displayName}.`,
+        workflowId: "feeding-support",
+        theme: "meal",
+      },
+      {
+        description: `Document communication supports, hearing-aid use, and observed response for ${displayName}.`,
+        workflowId: "communication-support",
+        theme: "communication",
+      },
+      {
+        description: `Document community integration activity, transportation, and return-home transition for ${displayName}.`,
+        workflowId: "community-outing",
+        theme: "outing",
+      },
+      {
+        description: `Document behavioral support, redirection, and staff support rendered for ${displayName}.`,
+        workflowId: "behavior-support",
+        theme: "behavior",
+      },
+    ],
+    workspaceStatus: "Admitted",
+  };
 }
 
 export function getMarkBrentProfile() {
@@ -343,13 +796,28 @@ export function getMarkBrentProfile() {
     ispFormDescriptions,
     supplementalDocumentationItems,
     previousShiftSnapshot,
-    shiftIntelligenceData: {
-      overdue: ["Vocational data sheet (05/13/2026)", "Behavior plan signature", "Glucose log review"],
-      activeRisks: riskCards.filter((risk) => risk.severity === "High").map((risk) => `${risk.title} (${risk.severity})`),
-      appointments: ["Vocational coach check-in 2:15 PM", "Community budgeting outing 4:15 PM"],
-      medicationsDue: ["Afternoon anticonvulsant 1:30 PM", "Bedtime medication review 6:45 PM"],
-      alerts: ["Seizure precautions active", "Glucose check before outing", "Noise-reduction supports available"],
-      incompleteGoals: actionPlans.map((plan) => plan.outcome),
+    shiftSchedule: {
+      todayAppointments: [
+        { id: "vocational-checkin", title: "Vocational coach check-in", timeLabel: "2:15 PM" },
+        { id: "community-budgeting", title: "Community budgeting outing", timeLabel: "4:15 PM" },
+      ],
+      medicationsDue: [
+        { id: "anticonvulsant", title: "Afternoon anticonvulsant", timeLabel: "1:30 PM" },
+        { id: "bedtime-meds", title: "Bedtime medication review", timeLabel: "6:45 PM" },
+      ],
+      standingAlerts: [
+        { id: "seizure-precautions", title: "Seizure precautions active" },
+        { id: "glucose-check", title: "Glucose check before outing" },
+        { id: "noise-reduction", title: "Noise-reduction supports available" },
+      ],
+      overdueTasks: [
+        { id: "vocational-sheet", title: "Vocational data sheet", dueLabel: "05/13/2026" },
+        { id: "behavior-plan", title: "Behavior plan signature" },
+        { id: "glucose-log", title: "Glucose log review" },
+      ],
+    },
+    shiftIntelligenceOptions: {
+      activeRiskFilter: "high-only",
     },
     documentChecklist: [
       "Seizure action plan on file",
@@ -567,13 +1035,17 @@ export function getEliasBrianProfile() {
       shiftSummary:
         "Elias Brian enjoyed the activity, accepted pacing support, and returned home safely after fatigue was observed.",
     },
-    shiftIntelligenceData: {
-      overdue: ["Case note review signature"],
-      activeRisks: riskCards.map((risk) => `${risk.title} (${risk.severity})`),
-      appointments: ["Birthday lunch outing 10:15 AM"],
-      medicationsDue: ["Midday medication reminder 11:15 AM"],
-      alerts: ["Monitor for fatigue during outing", "Wheelchair available if rest support needed"],
-      incompleteGoals: actionPlans.map((plan) => plan.outcome),
+    shiftSchedule: {
+      todayAppointments: [{ id: "birthday-lunch", title: "Birthday lunch outing", timeLabel: "10:15 AM" }],
+      medicationsDue: [{ id: "midday-meds", title: "Midday medication reminder", timeLabel: "11:15 AM" }],
+      standingAlerts: [
+        { id: "fatigue-monitor", title: "Monitor for fatigue during outing" },
+        { id: "wheelchair", title: "Wheelchair available if rest support needed" },
+      ],
+      overdueTasks: [{ id: "case-note-review", title: "Case note review signature" }],
+    },
+    shiftIntelligenceOptions: {
+      activeRiskFilter: "all",
     },
     documentChecklist: ["Community outing plan on file", "Guardian birthday outing approval signed"],
     documentFiles: ["Community Outing Support Plan.pdf", "Celebration Approval.pdf"],

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +18,7 @@ import {
   Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { Feather } from "@expo/vector-icons";
+import Icon from "./components/Icon";
 import { carePlanText } from "./carePlanText";
 import { fetchAssignedNodesDraft, fetchDocuWraiteWorkflowStep } from "./docuWraiteAi";
 import { docuWraiteUseRuleBasedFallback, docuWraiteApiBaseUrl } from "./docuWraiteConfig";
@@ -34,9 +34,11 @@ import {
   buildMeasurableDocumentationItems,
   CLIENT_ROSTER,
   getClientById,
+  getMaryBetProfile,
   getMarkBrentProfile,
   searchClients,
 } from "./clientProfiles";
+import { getShiftIntelligenceRuntime, mergeResolvedClientProfile } from "./shiftIntelligence";
 
 const decisionNodes = require("./decisionAlgo/nodes.json");
 
@@ -77,21 +79,33 @@ const markBrentProfilePhoto = require("./demoImages/patient-mark-brent-ai.png");
 const loggedInUser = "Brian (DEMOTRAIN-NC)";
 const patientDisplayName = "Mary Bet";
 
+const docuWraiteColors = {
+  primary: "#5B4DDB",
+  primaryMuted: "#6e63ba",
+  secondary: "#5a4faa",
+  surface: "#F4F1FF",
+  surfaceAccent: "#ECE8FF",
+  border: "#D9D0FF",
+  borderSoft: "#ddd6ff",
+  borderRow: "#ede8ff",
+  textStrong: "#40367f",
+};
+
 const colors = {
   bg: "#f5f2fb",
   panel: "#ffffff",
-  border: "#d4c2f1",
-  headerBlue: "#eadfff",
-  topPurple: "#7c3aed",
+  border: docuWraiteColors.border,
+  headerBlue: docuWraiteColors.surfaceAccent,
+  topPurple: docuWraiteColors.primary,
   text: "#312447",
-  muted: "#6b4fa1",
+  muted: docuWraiteColors.primaryMuted,
   link: "#7e57c2",
   green: "#5b3db6",
   red: "#d32f2f",
-  lightBorder: "#ddd2f3",
-  rowBorder: "#f0e9fb",
-  headerText: "#5c3d99",
-  tableHead: "#70579d",
+  lightBorder: docuWraiteColors.borderSoft,
+  rowBorder: docuWraiteColors.borderRow,
+  headerText: docuWraiteColors.textStrong,
+  tableHead: docuWraiteColors.secondary,
   placeholder: "#9f92b8",
 };
 
@@ -129,6 +143,45 @@ const modules = [
 ];
 
 const pdfs = ["Emergency Data Form", "Face Sheet", "Medical Information"];
+
+const documentationHowToGuides = [
+  {
+    title: "How to start a note",
+    summary: "Open the correct documentation block before writing.",
+    steps: [
+      "Confirm the correct individual, module, and time block.",
+      "Open the documentation row that matches the service you are charting.",
+      "Review active alerts, appointments, and health tasks before entering details.",
+    ],
+  },
+  {
+    title: "How to document support provided",
+    summary: "Describe what staff actually did and why it mattered.",
+    steps: [
+      "Document the exact prompt, cue, supervision, or hands-on support provided.",
+      "Record the individual's response, participation, and tolerance.",
+      "Add any safety, aspiration, fall, or behavior follow-up tied to the care plan.",
+    ],
+  },
+  {
+    title: "How to finalize documentation",
+    summary: "Close the note without leaving readiness gaps behind.",
+    steps: [
+      "Check that refusals, delays, and incomplete items are documented clearly.",
+      "Route unresolved follow-up to handoff or supervisor review when needed.",
+      "Use the reference PDFs to verify demographic or medical details before saving.",
+    ],
+  },
+  {
+    title: "How to use Decision Engine",
+    summary: "Build and assign guided question sets for the DSP case note.",
+    steps: [
+      "Open the Decision Engine module and choose the library, note type, and target block or row.",
+      "Select the questions and branches you want included, then lock the library assignment.",
+      "Use Final Assign to send staged assignments into the DSP Case Note before documentation starts.",
+    ],
+  },
+];
 
 const ispColumns = [
   { key: "name", label: "Name", flex: 2.8 },
@@ -476,31 +529,6 @@ const ispFormDescriptions = [
   `ADL goal: ${patientDisplayName} completes daily independent living skills with documented prompt level, reminders, and assistance when needed.`,
 ];
 
-const shiftIntelligenceData = {
-  overdue: ["Daily Documentation (05/13/2026)", "MAR review signature", "Behavior data entry"],
-  activeRisks: riskCards.filter((risk) => risk.severity === "High").map((risk) => `${risk.title} (${risk.severity})`),
-  appointments: ["Hair appointment 1:00 PM", "Community outing 2:30 PM"],
-  medicationsDue: ["Oxygen check 12:00 PM", "Oxygen check 4:00 PM", "Oxygen check 7:00 AM"],
-  alerts: ["Fall supervision required", "Aspiration precautions during meals", "Hearing-aid check due"],
-  incompleteGoals: actionPlans.map((plan) => plan.outcome),
-};
-
-function getShiftIntelligenceRuntime(clientProfile = null, documentationSession = null) {
-  const base = clientProfile?.shiftIntelligenceData ?? shiftIntelligenceData;
-  const incompleteGoals = documentationSession
-    ? base.incompleteGoals.filter((_, index) => !documentationSession.rows[index]?.score)
-    : base.incompleteGoals;
-
-  return {
-    overdue: [...(base.overdue || [])],
-    activeRisks: [...(base.activeRisks || [])],
-    appointments: [...(base.appointments || [])],
-    medicationsDue: [...(base.medicationsDue || [])],
-    alerts: [...(base.alerts || [])],
-    incompleteGoals,
-  };
-}
-
 const quickPhraseSnippets = {
   behavior:
     "Target behavior observed during shift. Intervention implemented with staff support rendered. Observed response documented for supervisor review.",
@@ -664,96 +692,12 @@ const supplementalDocumentationItems = [
   `${patientDisplayName} reduced inappropriate behaviors during community participation.`,
 ];
 
-function getRiskDrivenDocumentationItems() {
-  return riskCards.map((risk) => ({
-    id: `risk-${risk.title}`,
-    description: `Risk-informed prompt (${risk.title}): ${risk.guidance}`,
-    source: `Care Plan Risk / ${risk.severity}`,
-    linkedFromCarePlan: true,
-  }));
+function getMeasurableDocumentationItems(clientProfile = getMaryBetProfile()) {
+  return buildMeasurableDocumentationItems(clientProfile);
 }
 
-function getMeasurableDocumentationItems() {
-  const items = ispFormDescriptions.map((description, index) => ({
-    id: `isp-form-${index}`,
-    description,
-    source: "ISP Data / Measurable Outcome",
-    linkedFromCarePlan: true,
-  }));
-
-  getRiskDrivenDocumentationItems().forEach((item) => items.push(item));
-
-  actionPlans.forEach((plan) => {
-    items.push({
-      id: `${plan.title}-outcome`,
-      description: `Desired outcome: ${plan.outcome}`,
-      source: plan.title,
-      linkedFromCarePlan: true,
-    });
-    plan.steps.forEach((step, index) => {
-      items.push({
-        id: `${plan.title}-step-${index}`,
-        description: `Measurable step: ${step.step}`,
-        source: plan.title,
-        linkedFromCarePlan: true,
-      });
-    });
-  });
-
-  supplementalDocumentationItems.forEach((description, index) => {
-    items.push({
-      id: `supplement-${index}`,
-      description: `Staff support rendered: ${description}`,
-      source: "Shift Support",
-      linkedFromCarePlan: true,
-    });
-  });
-
-  return items;
-}
-
-function getCaseNoteDocumentationItems() {
-  const entries = [
-    {
-      description: `Document target behavior, observed response, and intervention implemented during the shift for ${patientDisplayName}.`,
-      workflowId: "behavior-support",
-      theme: "behavior",
-    },
-    {
-      description: `Document ADL assistance, hygiene support, and prompt level provided for ${patientDisplayName}.`,
-      workflowId: "morning-adl",
-      theme: "hygiene",
-    },
-    {
-      description: `Document meal support, meal pacing, fluid intake, and aspiration precautions for ${patientDisplayName}.`,
-      workflowId: "feeding-support",
-      theme: "meal",
-    },
-    {
-      description: `Document communication supports, hearing-aid use, and observed response for ${patientDisplayName}.`,
-      workflowId: "communication-support",
-      theme: "communication",
-    },
-    {
-      description: `Document community integration activity, transportation, and return-home transition for ${patientDisplayName}.`,
-      workflowId: "community-outing",
-      theme: "outing",
-    },
-    {
-      description: `Document behavioral support, redirection, and staff support rendered for ${patientDisplayName}.`,
-      workflowId: "behavior-support",
-      theme: "behavior",
-    },
-  ];
-
-  return entries.map((entry, index) => ({
-    id: `case-note-${index}`,
-    description: entry.description,
-    source: "Case Note",
-    linkedFromCarePlan: true,
-    workflowId: entry.workflowId,
-    theme: entry.theme,
-  }));
+function getCaseNoteDocumentationItems(clientProfile = getMaryBetProfile()) {
+  return buildCaseNoteDocumentationItems(clientProfile);
 }
 
 function isLegacyDecisionEngineSeedRow(row = {}) {
@@ -897,25 +841,14 @@ function getTimeBlockPrompt(blockOrLabel, clientProfile = null) {
     return String(blockOrLabel.description).trim();
   }
 
+  const profile = clientProfile || getMaryBetProfile();
+  const displayName = profile.displayName || patientDisplayName;
   const blockLabel = getTimeBlockLabelValue(blockOrLabel);
-  if (clientProfile?.timeBlockMappings?.[blockLabel]?.prompt) {
-    return clientProfile.timeBlockMappings[blockLabel].prompt;
+  if (profile.timeBlockMappings?.[blockLabel]?.prompt) {
+    return profile.timeBlockMappings[blockLabel].prompt;
   }
 
-  switch (blockLabel) {
-    case "7am–9am":
-      return `Document morning ADL support, hygiene assistance, and prompt level provided for ${patientDisplayName} during ${blockLabel}.`;
-    case "9am–11am":
-      return `Document feeding support for breakfast or lunch, staff support rendered, and observed response for ${patientDisplayName} during ${blockLabel}.`;
-    case "11am–1pm":
-      return `Document in-home leisure, rest, and pre-outing preparation for ${patientDisplayName} during ${blockLabel}.`;
-    case "1pm–3pm":
-      return `Document community participation outing, mobility support, and observed response for ${patientDisplayName} during ${blockLabel}.`;
-    case "3pm–5pm":
-      return `Document return-home transition, hydration, and afternoon routine for ${patientDisplayName} during ${blockLabel}.`;
-    default:
-      return `Document staff support rendered and observed response for ${patientDisplayName} during ${blockLabel}.`;
-  }
+  return `Document staff support rendered and observed response for ${displayName} during ${blockLabel}.`;
 }
 
 function getTimeBlockSource(blockOrLabel, clientProfile = null) {
@@ -1475,7 +1408,9 @@ function buildEnabledDraftSections(
   draftContextResponses = {}
 ) {
   const resolved = normalizeDraftContextToggles(toggles);
-  const intel = fieldContext.shiftIntelligence || getShiftIntelligenceRuntime(null, null);
+  const intel =
+    fieldContext.shiftIntelligence ||
+    getShiftIntelligenceRuntime(getMaryBetProfile(), fieldContext.documentationSession);
   const sections = [];
   const finalize = (entry, toggleKey) =>
     attachDraftContextClarifications(entry, toggleKey, draftContextResponses);
@@ -3037,7 +2972,7 @@ function createDocumentationSession({
   const isCaseNote = sessionType === "case-note";
   const timeBlocks =
     timeBlocksOverride ??
-    (isCaseNote ? [] : clientProfile?.documentationTimeBlocks || documentationTimeBlocks);
+    (isCaseNote ? [] : clientProfile?.documentationTimeBlocks || getMaryBetProfile().documentationTimeBlocks);
   const rows =
     rowsOverride ??
     (clientProfile
@@ -3170,11 +3105,11 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
     <style>
       body { font-family: Arial, sans-serif; margin: 32px; color: #231942; }
       h1 { margin: 0 0 8px; color: #5b3db6; }
-      h2 { margin: 24px 0 8px; color: #5c3d99; font-size: 18px; }
+      h2 { margin: 24px 0 8px; color: #40367f; font-size: 18px; }
       p, li { font-size: 14px; line-height: 1.6; }
       .meta { margin-bottom: 20px; }
       .meta p { margin: 2px 0; }
-      .panel { border: 1px solid #d4c2f1; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #faf7ff; }
+      .panel { border: 1px solid ${docuWraiteColors.border}; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: ${docuWraiteColors.surface}; }
       ul { margin: 8px 0 0 18px; padding: 0; }
     </style>
   </head>
@@ -3755,7 +3690,7 @@ function DocumentationDropdown({
         <Text style={value ? styles.docDropdownValue : styles.docDropdownPlaceholder}>
           {value || placeholder}
         </Text>
-        <Feather name="chevron-down" size={14} color="#666666" />
+        <Icon name="chevronDown" size={14} color="#666666" />
       </Pressable>
       {isOpen ? (
         <View style={styles.docDropdownMenu}>
@@ -3833,7 +3768,7 @@ function DecisionDropdown({
         >
           {value || placeholder}
         </Text>
-        <Feather name="chevron-down" size={14} color={disabled ? "#b7add7" : "#6f5a9f"} />
+        <Icon name="chevronDown" size={14} color={disabled ? "#b7add7" : "#6f5a9f"} />
       </Pressable>
       {isOpen ? (
         <Modal transparent visible animationType="none" onRequestClose={() => onToggleDropdown(null)}>
@@ -3994,7 +3929,7 @@ function DocuWraiteGuidedWorkflowPanel({
       <View style={styles.docuWraiteWorkflowCard}>
         <Text style={styles.docuWraiteWorkflowEyebrow}>{workflowEyebrow}</Text>
         <View style={styles.docuWraiteWorkflowLoadingRow}>
-          <ActivityIndicator size="small" color="#7c3aed" />
+          <ActivityIndicator size="small" color={docuWraiteColors.primary} />
           <Text style={styles.docuWraiteWorkflowLoading}>
             Generating note...
           </Text>
@@ -4185,7 +4120,7 @@ function DocuWraiteGuidedWorkflowPanel({
       {aiError ? <Text style={styles.docuWraiteWorkflowAiNotice}>{aiError}</Text> : null}
       {aiLoading ? (
         <View style={styles.docuWraiteWorkflowLoadingRow}>
-          <ActivityIndicator size="small" color="#7c3aed" />
+          <ActivityIndicator size="small" color={docuWraiteColors.primary} />
           <Text style={styles.docuWraiteWorkflowLoading}>
             Generating note...
           </Text>
@@ -4573,7 +4508,7 @@ function DocuWraiteGuidedWorkflowPanel({
           ) : null}
           {useAssignedNodeWorkflow && assignedDraftLoading ? (
             <View style={styles.docuWraiteWorkflowLoadingRow}>
-              <ActivityIndicator size="small" color="#7c3aed" />
+              <ActivityIndicator size="small" color={docuWraiteColors.primary} />
               <Text style={styles.docuWraiteWorkflowLoading}>Generating note with OpenAI...</Text>
             </View>
           ) : null}
@@ -4857,40 +4792,45 @@ function DocumentationCommentField({
           <DocuWraiteBubble assist={assist || { fieldId }} onToggle={handleHelpBubblePress} />
         ) : null}
       </View>
-      {workflow || (assist?.mode !== "workflow" && assistExpanded) ? (
-        <View style={styles.docuWraiteAssistDock}>
-          {workflow ? (
-            <DocuWraiteGuidedWorkflowPanel
-              workflowId={workflow.workflowId}
-              workflowState={workflow}
-              fieldNote={value}
-              onAnswer={onWorkflowAnswer}
-              onBack={onWorkflowBack}
-              onJumpToStep={onWorkflowJump}
-              onInsert={onWorkflowInsert}
-              onGenerateDraft={onWorkflowGenerateDraft}
-              onDraftContextToggle={onWorkflowDraftContextToggle}
-              onDraftContextQuestionModeChange={onWorkflowDraftContextQuestionModeChange}
-              onDraftContextSaveResponse={onWorkflowDraftContextSaveResponse}
-              onDismiss={onAssistDismiss}
-            />
-          ) : (
-            <View style={styles.docuWraiteInlineCard}>
-              <Text style={styles.docuWraiteCardTitle}>{assist.title}</Text>
-              <Text style={styles.docuWraiteCardMessage}>{assist.message}</Text>
-              <View style={styles.docuWraiteCardActions}>
-                {assist.suggestion ? (
-                  <Pressable style={styles.docuWraiteCardPrimary} onPress={onAssistApply}>
-                    <Text style={styles.docuWraiteCardPrimaryText}>Apply suggestion</Text>
-                  </Pressable>
-                ) : null}
-                <Pressable style={styles.docuWraiteCardSecondary} onPress={onAssistDismiss}>
-                  <Text style={styles.docuWraiteCardSecondaryText}>Dismiss</Text>
-                </Pressable>
-              </View>
+      {assistExpanded ? (
+        <Modal transparent visible animationType="fade" onRequestClose={onAssistDismiss}>
+          <View style={styles.docuWraiteAssistModalRoot}>
+            <Pressable style={styles.docuWraiteAssistModalBackdrop} onPress={onAssistDismiss} />
+            <View style={styles.docuWraiteAssistModalSheet}>
+              {workflow ? (
+                <DocuWraiteGuidedWorkflowPanel
+                  workflowId={workflow.workflowId}
+                  workflowState={workflow}
+                  fieldNote={value}
+                  onAnswer={onWorkflowAnswer}
+                  onBack={onWorkflowBack}
+                  onJumpToStep={onWorkflowJump}
+                  onInsert={onWorkflowInsert}
+                  onGenerateDraft={onWorkflowGenerateDraft}
+                  onDraftContextToggle={onWorkflowDraftContextToggle}
+                  onDraftContextQuestionModeChange={onWorkflowDraftContextQuestionModeChange}
+                  onDraftContextSaveResponse={onWorkflowDraftContextSaveResponse}
+                  onDismiss={onAssistDismiss}
+                />
+              ) : (
+                <View style={styles.docuWraiteInlineCard}>
+                  <Text style={styles.docuWraiteCardTitle}>{assist.title}</Text>
+                  <Text style={styles.docuWraiteCardMessage}>{assist.message}</Text>
+                  <View style={styles.docuWraiteCardActions}>
+                    {assist.suggestion ? (
+                      <Pressable style={styles.docuWraiteCardPrimary} onPress={onAssistApply}>
+                        <Text style={styles.docuWraiteCardPrimaryText}>Apply suggestion</Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable style={styles.docuWraiteCardSecondary} onPress={onAssistDismiss}>
+                      <Text style={styles.docuWraiteCardSecondaryText}>Dismiss</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
             </View>
-          )}
-        </View>
+          </View>
+        </Modal>
       ) : null}
       {activeTool === "spell" ? (
         <View style={styles.docCommentToolPanel}>
@@ -5049,9 +4989,9 @@ function DocumentationEntryScreen({
   onOpenDecisionAssignment,
 }) {
   const activePatientName = clientProfile?.displayName ?? patientDisplayName;
-  const previousShiftData = clientProfile?.previousShiftSnapshot ?? previousShiftSnapshot;
+  const previousShiftData = clientProfile?.previousShiftSnapshot ?? getMaryBetProfile().previousShiftSnapshot;
   const isCaseNoteSession = session.sessionType === "case-note";
-  const runtimeShiftIntelligence = getShiftIntelligenceRuntime(clientProfile, session);
+  const runtimeShiftIntelligence = getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session);
   const [expandedAreas, setExpandedAreas] = useState({});
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [docuWraiteAssist, setDocuWraiteAssist] = useState(null);
@@ -5240,7 +5180,7 @@ function DocumentationEntryScreen({
         ...(workflowSnapshot.fieldContext || {}),
         shiftIntelligence:
           workflowSnapshot.fieldContext?.shiftIntelligence ||
-          getShiftIntelligenceRuntime(clientProfile, session),
+          getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session),
         assignedWorkflowSteps: workflowSnapshot.localSteps || [],
       };
       const currentNote = workflowSnapshot.currentNote || "";
@@ -5656,10 +5596,17 @@ function DocumentationEntryScreen({
           : null,
     workflow: docuWraiteWorkflow?.fieldId === fieldId ? docuWraiteWorkflow : null,
     assistExpanded:
-      docuWraiteWorkflow?.fieldId === fieldId ||
-      (docuWraiteAssist?.fieldId === fieldId && docuWraiteExpanded),
+      (docuWraiteWorkflow?.fieldId === fieldId || docuWraiteAssist?.fieldId === fieldId) &&
+      docuWraiteExpanded,
     onHelpBubblePress: () => {
       const hasAssignedNodes = (fieldContext.assignedNodes || []).length > 0;
+      const isCurrentFieldActive =
+        docuWraiteWorkflow?.fieldId === fieldId || docuWraiteAssist?.fieldId === fieldId;
+
+      if (isCurrentFieldActive) {
+        setDocuWraiteExpanded((current) => !current);
+        return;
+      }
 
       if (hasAssignedNodes) {
         setDocuWraiteAssist(null);
@@ -5676,11 +5623,6 @@ function DocumentationEntryScreen({
         setDocuWraiteAssist(null);
         setDocuWraiteWorkflow(null);
         setDocuWraiteExpanded(false);
-      }
-
-      if (docuWraiteWorkflow?.fieldId === fieldId || docuWraiteAssist?.fieldId === fieldId) {
-        setDocuWraiteExpanded((current) => !current);
-        return;
       }
       openDocuWraiteWorkflow(fieldId, fieldContext, value);
     },
@@ -6177,7 +6119,7 @@ function DocumentationEntryScreen({
   };
 
   const insertGoal = () => {
-    const plan = actionPlans[0];
+    const plan = (clientProfile || getMaryBetProfile()).actionPlans?.[0];
     if (!plan) {
       return;
     }
@@ -6574,7 +6516,7 @@ function DocumentationEntryScreen({
                   ...(docuWraiteWorkflow.fieldContext || {}),
                   shiftIntelligence:
                     docuWraiteWorkflow.fieldContext?.shiftIntelligence ||
-                    getShiftIntelligenceRuntime(clientProfile, session),
+                    getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session),
                 }
               )
             )
@@ -6584,7 +6526,7 @@ function DocumentationEntryScreen({
             ...(docuWraiteWorkflow.fieldContext || {}),
             shiftIntelligence:
               docuWraiteWorkflow.fieldContext?.shiftIntelligence ||
-              getShiftIntelligenceRuntime(clientProfile, session),
+              getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session),
           }}
           responses={docuWraiteWorkflow.answers?.draftContextResponses || {}}
           onSaveResponse={(responseKey, value) => {
@@ -6622,27 +6564,337 @@ function DocumentationEntryScreen({
 }
 
 function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) {
-  const runtimeShiftIntelligence = getShiftIntelligenceRuntime(clientProfile, documentationSession);
+  const { width } = useWindowDimensions();
+  const runtimeShiftIntelligence = getShiftIntelligenceRuntime(
+    clientProfile || getMaryBetProfile(),
+    documentationSession
+  );
+  const cardRefs = useRef({});
+  const [activeIntelKey, setActiveIntelKey] = useState("");
+  const [activeIntelFrame, setActiveIntelFrame] = useState(null);
 
-  const renderList = (items) =>
+  const getIntelItemParts = (item) => {
+    const text = String(item || "").trim();
+    const parenMatch = text.match(/\(([^)]+)\)/);
+    if (parenMatch) {
+      const title = text.replace(parenMatch[0], "").trim();
+      return {
+        title: title || text,
+        meta: parenMatch[1].trim(),
+      };
+    }
+
+    const timeMatch = text.match(/(.+?)\s+(\d{1,2}:\d{2}\s?[AP]M)$/i);
+    if (timeMatch) {
+      return {
+        title: timeMatch[1].trim(),
+        meta: timeMatch[2].trim(),
+      };
+    }
+
+    return { title: text, meta: "" };
+  };
+
+  const parseClockLabelToMinutes = (value) => {
+    const match = String(value || "")
+      .trim()
+      .match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+    if (!match) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    let hours = Number(match[1]) % 12;
+    const minutes = Number(match[2]);
+    const meridiem = match[3].toUpperCase();
+    if (meridiem === "PM") {
+      hours += 12;
+    }
+    return hours * 60 + minutes;
+  };
+
+  const parseDateLabelToValue = (value) => {
+    const match = String(value || "")
+      .trim()
+      .match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!match) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    return Number(`${match[3]}${match[1]}${match[2]}`);
+  };
+
+  const getSeverityRank = (value) => {
+    const normalized = String(value || "").toLowerCase();
+    if (normalized.includes("high")) {
+      return 0;
+    }
+    if (normalized.includes("medium")) {
+      return 1;
+    }
+    if (normalized.includes("low")) {
+      return 2;
+    }
+    return 3;
+  };
+
+  const buildIntelGroups = (section) => {
+    const items = Array.isArray(section?.items) ? section.items : [];
+    if (!items.length) {
+      return [];
+    }
+
+    if (section.key === "appointments" || section.key === "medications") {
+      const sorted = [...items].sort((left, right) => {
+        const leftMeta = getIntelItemParts(left).meta;
+        const rightMeta = getIntelItemParts(right).meta;
+        return parseClockLabelToMinutes(leftMeta) - parseClockLabelToMinutes(rightMeta);
+      });
+      return [{ label: "Sorted by time", items: sorted }];
+    }
+
+    if (section.key === "overdue") {
+      const dated = [];
+      const open = [];
+      items.forEach((item) => {
+        const meta = getIntelItemParts(item).meta;
+        if (Number.isFinite(parseDateLabelToValue(meta))) {
+          dated.push(item);
+        } else {
+          open.push(item);
+        }
+      });
+      dated.sort((left, right) => {
+        const leftMeta = getIntelItemParts(left).meta;
+        const rightMeta = getIntelItemParts(right).meta;
+        return parseDateLabelToValue(leftMeta) - parseDateLabelToValue(rightMeta);
+      });
+
+      return [
+        ...(dated.length ? [{ label: "Dated overdue items", items: dated }] : []),
+        ...(open.length ? [{ label: "Open follow-ups", items: open }] : []),
+      ];
+    }
+
+    if (section.key === "risks") {
+      const sorted = [...items].sort((left, right) => {
+        const leftMeta = getIntelItemParts(left).meta;
+        const rightMeta = getIntelItemParts(right).meta;
+        return getSeverityRank(leftMeta) - getSeverityRank(rightMeta);
+      });
+      return [{ label: "By severity", items: sorted }];
+    }
+
+    if (section.key === "alerts") {
+      return [{ label: "Standing alerts", items }];
+    }
+
+    if (section.key === "goals") {
+      return [{ label: "Needs follow-up", items }];
+    }
+
+    return [{ label: "Current items", items }];
+  };
+
+  const renderList = (items, accentColor = colors.headerText) =>
     items.length ? (
-      items.map((item) => (
-        <Text key={item} style={styles.intelItem}>
-          {item}
-        </Text>
-      ))
+      items.map((item, index) => {
+        const parts = getIntelItemParts(item);
+        return (
+          <View key={`${item}-${index}`} style={styles.intelDetailRow}>
+            <View style={[styles.intelDetailBullet, { backgroundColor: accentColor }]} />
+            <View style={styles.intelDetailTextWrap}>
+              <View style={styles.intelDetailTitleRow}>
+                <Text style={styles.intelDetailTitle}>{parts.title}</Text>
+                {parts.meta ? (
+                  <View style={styles.intelDetailMetaChip}>
+                    <Text style={[styles.intelDetailMetaText, { color: accentColor }]}>{parts.meta}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {!parts.meta && parts.title.length > 78 ? (
+                <Text style={styles.intelDetailSubtle}>Open item requiring follow-up</Text>
+              ) : null}
+            </View>
+          </View>
+        );
+      })
     ) : (
       <Text style={styles.intelEmpty}>Nothing found to display</Text>
     );
 
+  const intelligenceSections = [
+    {
+      key: "overdue",
+      title: "Overdue",
+      icon: "alertTriangle",
+      badgeStyle: styles.intelBadgeOverdue,
+      items: runtimeShiftIntelligence.overdue,
+      accentColor: "#d32f2f",
+    },
+    {
+      key: "risks",
+      title: "Active Risks",
+      icon: "shield",
+      badgeStyle: styles.intelBadgeRisks,
+      items: runtimeShiftIntelligence.activeRisks,
+      accentColor: "#b45309",
+    },
+    {
+      key: "appointments",
+      title: "Today's Appointments",
+      icon: "calendar",
+      badgeStyle: styles.intelBadgeAppointments,
+      items: runtimeShiftIntelligence.appointments,
+      accentColor: "#2563eb",
+    },
+    {
+      key: "medications",
+      title: "Medications Due",
+      icon: "clock",
+      badgeStyle: styles.intelBadgeMedications,
+      items: runtimeShiftIntelligence.medicationsDue,
+      accentColor: "#059669",
+    },
+    {
+      key: "alerts",
+      title: "Alerts",
+      icon: "bell",
+      badgeStyle: styles.intelBadgeAlerts,
+      items: runtimeShiftIntelligence.alerts,
+      accentColor: "#ea580c",
+    },
+    {
+      key: "goals",
+      title: "Incomplete Goals",
+      icon: "target",
+      badgeStyle: styles.intelBadgeGoals,
+      items: runtimeShiftIntelligence.incompleteGoals.slice(0, 3),
+      accentColor: docuWraiteColors.primary,
+    },
+  ];
+
+  const activeSection = intelligenceSections.find((section) => section.key === activeIntelKey) || null;
+  const activeIntelGroups = activeSection ? buildIntelGroups(activeSection) : [];
+
+  const openIntelCard = (sectionKey) => {
+    const node = cardRefs.current[sectionKey];
+    if (!node?.measureInWindow) {
+      setActiveIntelFrame(null);
+      setActiveIntelKey(sectionKey);
+      return;
+    }
+
+    node.measureInWindow((x, y, measuredWidth, height) => {
+      setActiveIntelFrame({
+        x,
+        y,
+        width: measuredWidth,
+        height,
+      });
+      setActiveIntelKey(sectionKey);
+    });
+  };
+
+  const closeIntelCard = () => {
+    setActiveIntelKey("");
+    setActiveIntelFrame(null);
+  };
+
+  const popoverWidth = Math.min(340, Math.max(260, width - 24));
+  const useCenteredIntelModal = width < 700 || !activeIntelFrame;
+  const popoverLeft = activeIntelFrame
+    ? Math.max(12, Math.min(activeIntelFrame.x, width - popoverWidth - 12))
+    : 12;
+  const popoverTop = activeIntelFrame ? activeIntelFrame.y + activeIntelFrame.height + 8 : 120;
+
   return (
     <>
-      <Card title="Overdue">{renderList(runtimeShiftIntelligence.overdue)}</Card>
-      <Card title="Active Risks">{renderList(runtimeShiftIntelligence.activeRisks)}</Card>
-      <Card title="Today's Appointments">{renderList(runtimeShiftIntelligence.appointments)}</Card>
-      <Card title="Medications Due">{renderList(runtimeShiftIntelligence.medicationsDue)}</Card>
-      <Card title="Alerts">{renderList(runtimeShiftIntelligence.alerts)}</Card>
-      <Card title="Incomplete Goals">{renderList(runtimeShiftIntelligence.incompleteGoals.slice(0, 3))}</Card>
+      {intelligenceSections.map((section) => (
+        <View
+          key={section.key}
+          ref={(node) => {
+            cardRefs.current[section.key] = node;
+          }}
+          collapsable={false}
+        >
+          <Pressable onPress={() => openIntelCard(section.key)} style={styles.intelCardPressable}>
+            <Card
+              title={section.title}
+              titleAccessoryContainerStyle={section.badgeStyle}
+              titleAccessory={<Icon name={section.icon} size={18} color={colors.headerText} />}
+              bodyStyle={styles.intelCompactBody}
+              containerStyle={styles.intelCompactCard}
+            >
+              <View style={styles.intelCompactHeaderRow}>
+                <Text style={[styles.intelCompactCount, { color: section.accentColor }]}>
+                  {section.items.length ? `${section.items.length} item${section.items.length === 1 ? "" : "s"}` : "Clear"}
+                </Text>
+                <Text style={styles.intelCompactHint}>Tap for details</Text>
+              </View>
+              {section.items.length ? (
+                section.items.slice(0, 2).map((item) => (
+                  <Text key={item} style={styles.intelCompactPreview} numberOfLines={1} ellipsizeMode="tail">
+                    {item}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.intelCompactEmpty}>Nothing urgent right now</Text>
+              )}
+            </Card>
+          </Pressable>
+        </View>
+      ))}
+      <Modal transparent visible={!!activeSection} animationType="fade" onRequestClose={closeIntelCard}>
+        <View style={styles.intelPopoverRoot}>
+          <Pressable style={styles.intelPopoverBackdrop} onPress={closeIntelCard} />
+          {activeSection ? (
+            <View
+              style={[
+                styles.intelPopoverCard,
+                useCenteredIntelModal
+                  ? styles.intelPopoverCardCentered
+                  : {
+                      position: "absolute",
+                      top: popoverTop,
+                      left: popoverLeft,
+                      width: popoverWidth,
+                    },
+              ]}
+            >
+              <View style={styles.intelPopoverHeader}>
+                <View style={styles.intelPopoverTitleRow}>
+                  <View style={[styles.cardHeaderTitleIcon, activeSection.badgeStyle]}>
+                    <Icon name={activeSection.icon} size={18} color={colors.headerText} />
+                  </View>
+                  <View style={styles.intelPopoverTitleTextWrap}>
+                    <Text style={styles.intelPopoverTitle}>{activeSection.title}</Text>
+                    <Text style={styles.intelPopoverSubtitle}>
+                      {activeSection.items.length
+                        ? `${activeSection.items.length} detail${activeSection.items.length === 1 ? "" : "s"}`
+                        : "No current items"}
+                    </Text>
+                  </View>
+                </View>
+                <Pressable onPress={closeIntelCard} style={styles.intelPopoverCloseButton}>
+                  <Icon name="x" size={16} color={colors.headerText} />
+                </Pressable>
+              </View>
+              <ScrollView style={styles.intelPopoverBody} contentContainerStyle={styles.intelPopoverBodyContent}>
+                {activeIntelGroups.length ? (
+                  activeIntelGroups.map((group) => (
+                    <View key={group.label} style={styles.intelGroup}>
+                      <Text style={styles.intelGroupLabel}>{group.label}</Text>
+                      {renderList(group.items, activeSection.accentColor)}
+                    </View>
+                  ))
+                ) : (
+                  renderList(activeSection.items, activeSection.accentColor)
+                )}
+              </ScrollView>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
     </>
   );
 }
@@ -7166,6 +7418,7 @@ function DecisionEngineScreen({
     acc[sectionKey].push(node);
     return acc;
   }, {});
+  const decisionSectionKeys = Object.keys(sections).sort().join("|");
 
   const allNodes = visibleLibraryNodes;
   const allNodesByKey = new Map(allNodes.map((node) => [buildDecisionNodeSelectionKey(node), node]));
@@ -7189,11 +7442,11 @@ function DecisionEngineScreen({
     setExpandedDecisionPanel(() => {
       const next = {};
       Object.keys(sections).forEach((sectionKey) => {
-        next[sectionKey] = false;
+        next[sectionKey] = true;
       });
       return next;
     });
-  }, [selectedLibrary, activeNoteType]);
+  }, [selectedLibrary, activeNoteType, decisionSectionKeys]);
 
   useEffect(() => {
     const fallbackLabel =
@@ -7872,7 +8125,7 @@ function DecisionEngineScreen({
               onPress={() => (showLibraryHelp ? closeLibraryHelp() : openLibraryHelp())}
               style={styles.decisionInfoButton}
             >
-              <Feather name="help-circle" size={14} color={colors.muted} />
+              <Icon name="helpCircle" size={14} color={colors.muted} />
             </Pressable>
           </View>
           <DecisionDropdown
@@ -8014,8 +8267,8 @@ function DecisionEngineScreen({
           <View key={sectionKey} style={styles.decisionSectionCard}>
           <Pressable onPress={() => toggleSectionCollapse(sectionKey)} style={styles.decisionSectionHeader}>
             <View style={styles.decisionSectionHeaderContent}>
-              <Feather
-                name={expandedDecisionPanel[sectionKey] ? "chevron-right" : "chevron-down"}
+              <Icon
+                name={expandedDecisionPanel[sectionKey] ? "chevronRight" : "chevronDown"}
                 size={16}
                 color={colors.headerText}
               />
@@ -8231,11 +8484,24 @@ function DecisionEngineScreen({
   );
 }
 
-function Card({ title, rightAccessory, children, bodyStyle, containerStyle }) {
+function Card({
+  title,
+  titleAccessory,
+  titleAccessoryContainerStyle,
+  rightAccessory,
+  children,
+  bodyStyle,
+  containerStyle,
+}) {
   return (
     <View style={[styles.card, containerStyle]}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardHeaderText}>{title}</Text>
+        <View style={styles.cardHeaderTitleRow}>
+          {titleAccessory ? (
+            <View style={[styles.cardHeaderTitleIcon, titleAccessoryContainerStyle]}>{titleAccessory}</View>
+          ) : null}
+          <Text style={styles.cardHeaderText}>{title}</Text>
+        </View>
         {rightAccessory ?? null}
       </View>
       {children ? <View style={[styles.cardBody, bodyStyle]}>{children}</View> : null}
@@ -8286,7 +8552,26 @@ function SectionCard({ title, subtitle, children }) {
   );
 }
 
+function getRiskPresentation(item) {
+  const severityColor =
+    item.severity === "High" ? "#e15d67" : item.severity === "Medium" ? "#f2a947" : "#6eaf71";
+
+  const iconByTitle = {
+    Falls: "alertTriangle",
+    "Aspiration / Choking": "alertTriangle",
+    "Inability to communicate basic needs": "messageCircle",
+    "Medical procedure intolerance": "clipboard",
+    "Elopement / self-injury / aggression": "shield",
+  };
+
+  return {
+    severityColor,
+    iconName: item.icon || iconByTitle[item.title] || "alertTriangle",
+  };
+}
+
 function RiskCard({ item, expanded, onToggle }) {
+  const { severityColor, iconName } = getRiskPresentation(item);
   const severityStyle =
     item.severity === "High"
       ? styles.riskHigh
@@ -8298,10 +8583,12 @@ function RiskCard({ item, expanded, onToggle }) {
     <Pressable onPress={onToggle} style={styles.riskCard}>
       <View style={styles.riskCardHeader}>
         <View style={styles.riskTitleWrap}>
-          <View style={[styles.riskSeverityDot, severityStyle]} />
+          <View style={[styles.riskSeverityIconWrap, severityStyle]}>
+            <Icon name={iconName} size={14} color="#ffffff" />
+          </View>
           <Text style={styles.riskCardTitle}>{item.title}</Text>
         </View>
-        <Text style={styles.riskSeverityText}>{item.severity}</Text>
+        <Text style={[styles.riskSeverityText, { color: severityColor }]}>{item.severity}</Text>
       </View>
       <Text style={styles.riskSummary}>{item.notes}</Text>
       {expanded ? <Text style={styles.riskGuidance}>{item.guidance}</Text> : null}
@@ -8456,19 +8743,20 @@ function CarePlanDocument({
   clientProfile = null,
   clientPhoto,
 }) {
-  const header = clientProfile?.carePlanHeader ?? carePlanHeader;
-  const aboutCards = clientProfile?.aboutMeCards ?? aboutMeCards;
-  const risks = clientProfile?.riskCards ?? riskCards;
-  const supports = clientProfile?.supportCards ?? supportCards;
-  const services = clientProfile?.serviceCards ?? serviceCards;
-  const rights = clientProfile?.rightsCards ?? rightsCards;
-  const activities = clientProfile?.activityCards ?? activityCards;
-  const plans = clientProfile?.actionPlans ?? actionPlans;
-  const checklist = clientProfile?.documentChecklist ?? documentChecklist;
-  const files = clientProfile?.documentFiles ?? documentFiles;
-  const roster = clientProfile?.participants ?? participants;
-  const signatures = clientProfile?.signatureLogs ?? signatureLogs;
-  const sourcePages = clientProfile?.carePlanTextPages ?? carePlanText;
+  const profile = clientProfile || getMaryBetProfile();
+  const header = profile.carePlanHeader ?? carePlanHeader;
+  const aboutCards = profile.aboutMeCards;
+  const risks = profile.riskCards;
+  const supports = profile.supportCards;
+  const services = profile.serviceCards;
+  const rights = profile.rightsCards;
+  const activities = profile.activityCards;
+  const plans = profile.actionPlans;
+  const checklist = profile.documentChecklist;
+  const files = profile.documentFiles;
+  const roster = profile.participants;
+  const signatures = profile.signatureLogs;
+  const sourcePages = profile.carePlanTextPages ?? carePlanText;
   const [activeTab, setActiveTab] = useState("Overview");
   const [expandedRisk, setExpandedRisk] = useState(risks[0]?.title ?? "Falls");
   const [expandedSourcePage, setExpandedSourcePage] = useState(1);
@@ -8769,6 +9057,57 @@ function CarePlanDocument({
   );
 }
 
+function DocumentationGuideScreen({ expandedDocumentationGuide, onToggleGuide }) {
+  return (
+    <Card title="Documentation Guide">
+      <View style={styles.documentationGuide}>
+        <Text style={styles.documentationGuideIntro}>
+          Click any how-to below to open the steps for that part of documentation.
+        </Text>
+
+        {documentationHowToGuides.map((guide) => {
+          const isExpanded = expandedDocumentationGuide === guide.title;
+
+          return (
+            <Pressable
+              key={guide.title}
+              onPress={() => onToggleGuide(isExpanded ? null : guide.title)}
+              style={[
+                styles.documentationGuideSection,
+                isExpanded && styles.documentationGuideSectionExpanded,
+              ]}
+            >
+              <View style={styles.documentationGuideSectionHeader}>
+                <View style={styles.documentationGuideSectionTextWrap}>
+                  <Text style={styles.documentationGuideSectionTitle}>{guide.title}</Text>
+                  <Text style={styles.documentationGuideSectionSummary}>{guide.summary}</Text>
+                </View>
+                <Icon
+                  name={isExpanded ? "chevronDown" : "chevronRight"}
+                  size={16}
+                  color={colors.headerText}
+                />
+              </View>
+              {isExpanded ? (
+                <View style={styles.documentationGuideSteps}>
+                  {guide.steps.map((step, index) => (
+                    <View key={step} style={styles.documentationGuideStepRow}>
+                      <View style={styles.documentationGuideStepIndex}>
+                        <Text style={styles.documentationGuideStepIndexText}>{index + 1}</Text>
+                      </View>
+                      <Text style={styles.documentationGuideStepText}>{step}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
+    </Card>
+  );
+}
+
 export default function App() {
   const { width } = useWindowDimensions();
   const isTablet = width < 1200;
@@ -8781,20 +9120,32 @@ export default function App() {
   const topTitleSize = isPhone ? 22 : isTablet ? 28 : 34;
   const homeLabelSize = isPhone ? 16 : isTablet ? 20 : 22;
   const [selectedModule, setSelectedModule] = useState(null);
+  const [expandedDocumentationGuide, setExpandedDocumentationGuide] = useState(
+    documentationHowToGuides[0]?.title ?? null
+  );
   const [documentationSession, setDocumentationSession] = useState(null);
   const [activeClientId, setActiveClientId] = useState("mary-bet");
   const [individualQuery, setIndividualQuery] = useState("Mary Bet");
   const [showIndividualSuggestions, setShowIndividualSuggestions] = useState(false);
   const [hoveredClientSuggestionId, setHoveredClientSuggestionId] = useState(null);
   const [pendingDecisionAssignmentTarget, setPendingDecisionAssignmentTarget] = useState(null);
-  const activeClientProfile =
-    activeClientId === "mary-bet" ? null : getClientById(activeClientId) || getMarkBrentProfile();
+  const [persistedClientShift, setPersistedClientShift] = useState(null);
+  const [persistedClientCarePlan, setPersistedClientCarePlan] = useState(null);
+  const activeClientProfile = useMemo(
+    () =>
+      mergeResolvedClientProfile(getClientById(activeClientId) || getMaryBetProfile(), {
+        clientShift: persistedClientShift,
+        clientCarePlan: persistedClientCarePlan,
+      }),
+    [activeClientId, persistedClientShift, persistedClientCarePlan]
+  );
   const activeClientPhoto = activeClientId === "mark-brent" ? markBrentProfilePhoto : maryBetProfilePhoto;
-  const activeDisplayName = activeClientProfile?.displayName ?? patientDisplayName;
-  const activeIspRows = activeClientProfile?.ispRows ?? ispRows;
+  const activeDisplayName = activeClientProfile.displayName;
+  const activeIspRows = activeClientProfile.ispRows ?? ispRows;
   const clientSuggestions = searchClients(individualQuery);
   const showCarePlan = selectedModule === "Care Plan";
   const showDecisionEngine = selectedModule === "Decision Engine";
+  const showDocumentationGuide = selectedModule === "Documentation Guide";
   const defaultCaseNoteTemplate = createDocumentationSession({
     title: "Case Note (Decision Engine)",
     program: "Case Note",
@@ -8875,6 +9226,8 @@ export default function App() {
     });
 
     setDecisionStateHydrated(false);
+    setPersistedClientShift(null);
+    setPersistedClientCarePlan(null);
 
     const applyDefaultState = () => {
       if (cancelled) {
@@ -8925,11 +9278,20 @@ export default function App() {
       setDecisionStateHydrated(true);
     };
 
-    fetch(`${docuWraiteApiBaseUrl}/api/workspace-state/${activeClientId}`)
+    fetch(
+      `${docuWraiteApiBaseUrl}/api/workspace-state/${activeClientId}?syncTherap=true&syncCarePlan=false`
+    )
       .then((response) => response.json())
       .then((payload) => {
         if (cancelled) {
           return;
+        }
+
+        if (payload?.clientShift) {
+          setPersistedClientShift(payload.clientShift);
+        }
+        if (payload?.clientCarePlan) {
+          setPersistedClientCarePlan(payload.clientCarePlan);
         }
 
         const state = payload?.state;
@@ -9147,6 +9509,11 @@ export default function App() {
     if (item === "Individual Plan" || item === "Individual Plan Agenda") {
       openDocumentation({ title: "Daily Documentation", program: "Daily Documentation & Goals" });
     }
+  };
+
+  const handleOpenDocumentationGuide = () => {
+    setSelectedModule("Documentation Guide");
+    setDocumentationSession(null);
   };
 
   const handleIspProgramPress = (row) => {
@@ -9406,7 +9773,7 @@ export default function App() {
         <View style={[styles.page, { paddingHorizontal: horizontalPadding }]}>
           <View style={[styles.topbar, isPhone && styles.topbarPhone]}>
             <View style={styles.topLeft}>
-              <Text style={[styles.logo, { fontSize: topTitleSize }]}>DocuProblem</Text>
+              <Text style={[styles.logo, { fontSize: topTitleSize }]}>Docuwraite</Text>
             </View>
             <View style={[styles.topRight, isPhone && styles.topRightPhone]}>
               <View style={styles.topUser}>
@@ -9441,7 +9808,7 @@ export default function App() {
                         style={styles.modulePressable}
                       >
                         <View style={styles.moduleRow}>
-                          <Feather name="chevron-right" size={14} color={moduleColor} style={styles.moduleIcon} />
+                          <Icon name="chevronRight" size={14} color={moduleColor} style={styles.moduleIcon} />
                           <Text
                             style={[
                               styles.moduleItem,
@@ -9460,19 +9827,19 @@ export default function App() {
 
               <Card
                 title="Go To"
-                rightAccessory={<Feather name="chevron-down" size={18} color={colors.headerText} />}
+                rightAccessory={<Icon name="chevronDown" size={18} color={colors.headerText} />}
               />
 
               <Card
-                title="View PDFs"
-                rightAccessory={<Feather name="maximize-2" size={16} color={colors.headerText} />}
+                title="Reference PDFs"
+                rightAccessory={<Icon name="maximize" size={16} color={colors.headerText} />}
               >
                 <View style={styles.pdfList}>
                   {pdfs.map((item) => (
-                    <View key={item} style={styles.pdfRow}>
+                    <Pressable key={item} style={styles.pdfRow} onPress={handleOpenDocumentationGuide}>
                       <Text style={styles.pdfItem}>{item}</Text>
-                      <Feather name="external-link" size={15} color={colors.link} style={styles.pdfLinkIcon} />
-                    </View>
+                      <Icon name="externalLink" size={15} color={colors.link} style={styles.pdfLinkIcon} />
+                    </Pressable>
                   ))}
                 </View>
               </Card>
@@ -9500,7 +9867,7 @@ export default function App() {
                         placeholderTextColor={colors.placeholder}
                       />
                       <Pressable style={styles.switchGoButton} onPress={handleGoToClient}>
-                        <Feather name="arrow-right-circle" size={18} color="#ffffff" />
+                        <Icon name="arrowRightCircle" size={18} color="#ffffff" />
                       </Pressable>
                     </View>
                     {showIndividualSuggestions && clientSuggestions.length > 0 ? (
@@ -9578,6 +9945,11 @@ export default function App() {
                   onDocumentationCancel={() => setDocumentationSession(null)}
                   clientProfile={activeClientProfile}
                   clientPhoto={activeClientPhoto}
+                />
+              ) : showDocumentationGuide ? (
+                <DocumentationGuideScreen
+                  expandedDocumentationGuide={expandedDocumentationGuide}
+                  onToggleGuide={setExpandedDocumentationGuide}
                 />
               ) : documentationSession ? (
                 <DocumentationEntryScreen
@@ -9780,6 +10152,158 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  cardHeaderTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 0,
+  },
+  cardHeaderTitleIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(124, 58, 237, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(124, 58, 237, 0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  intelBadgeOverdue: {
+    backgroundColor: "rgba(211, 47, 47, 0.12)",
+    borderColor: "rgba(211, 47, 47, 0.22)",
+  },
+  intelBadgeRisks: {
+    backgroundColor: "rgba(245, 158, 11, 0.16)",
+    borderColor: "rgba(245, 158, 11, 0.24)",
+  },
+  intelBadgeAppointments: {
+    backgroundColor: "rgba(59, 130, 246, 0.14)",
+    borderColor: "rgba(59, 130, 246, 0.22)",
+  },
+  intelBadgeMedications: {
+    backgroundColor: "rgba(16, 185, 129, 0.14)",
+    borderColor: "rgba(16, 185, 129, 0.22)",
+  },
+  intelBadgeAlerts: {
+    backgroundColor: "rgba(249, 115, 22, 0.14)",
+    borderColor: "rgba(249, 115, 22, 0.22)",
+  },
+  intelBadgeGoals: {
+    backgroundColor: "rgba(139, 92, 246, 0.14)",
+    borderColor: "rgba(139, 92, 246, 0.22)",
+  },
+  intelCardPressable: {
+    borderRadius: 4,
+  },
+  intelCompactCard: {
+    minHeight: 0,
+  },
+  intelCompactBody: {
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  intelCompactHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    gap: 10,
+  },
+  intelCompactCount: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  intelCompactHint: {
+    fontSize: 11,
+    color: colors.placeholder,
+  },
+  intelCompactPreview: {
+    fontSize: 13,
+    color: colors.muted,
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  intelCompactEmpty: {
+    fontSize: 13,
+    color: colors.placeholder,
+    lineHeight: 18,
+  },
+  intelPopoverRoot: {
+    flex: 1,
+  },
+  intelPopoverBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  intelPopoverCard: {
+    backgroundColor: colors.panel,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: "#2f1f52",
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+    maxHeight: 320,
+    overflow: "hidden",
+  },
+  intelPopoverCardCentered: {
+    position: "absolute",
+    top: "20%",
+    left: 12,
+    right: 12,
+  },
+  intelPopoverHeader: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 12,
+    backgroundColor: "#fbf9ff",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.rowBorder,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  intelPopoverTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 10,
+    minWidth: 0,
+  },
+  intelPopoverTitleTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  intelPopoverTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  intelPopoverSubtitle: {
+    fontSize: 12,
+    color: colors.placeholder,
+    marginTop: 2,
+  },
+  intelPopoverCloseButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f2ebff",
+  },
+  intelPopoverBody: {
+    maxHeight: 240,
+  },
+  intelPopoverBodyContent: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 14,
   },
   cardHeaderText: {
     color: colors.headerText,
@@ -10019,17 +10543,16 @@ const styles = StyleSheet.create({
   },
   rowPromptPopover: {
     position: "absolute",
-    top: 0,
-    left: "100%",
-    marginLeft: 12,
-    width: 420,
-    maxWidth: 420,
+    top: "100%",
+    left: 0,
+    right: 0,
+    marginTop: 10,
     maxHeight: 360,
     padding: 12,
     borderWidth: 1,
     borderColor: colors.lightBorder,
     borderRadius: 12,
-    backgroundColor: "#ffffff",
+    backgroundColor: docuWraiteColors.surface,
     shadowColor: "#2f184f",
     shadowOpacity: 0.14,
     shadowRadius: 12,
@@ -10038,12 +10561,8 @@ const styles = StyleSheet.create({
     zIndex: 80,
   },
   rowPromptPopoverPhone: {
-    top: "100%",
     left: 0,
-    marginLeft: 0,
-    marginTop: 10,
-    width: "100%",
-    maxWidth: "100%",
+    right: 0,
   },
   rowPromptTitle: {
     fontSize: 13,
@@ -11133,7 +11652,7 @@ const styles = StyleSheet.create({
   quickActionButton: {
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: "#f8f4ff",
+    backgroundColor: docuWraiteColors.surface,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 999,
@@ -11265,11 +11784,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
   },
-  riskSeverityDot: {
-    width: 10,
-    height: 10,
+  riskSeverityIconWrap: {
+    width: 22,
+    height: 22,
     borderRadius: 999,
     marginRight: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   riskHigh: {
     backgroundColor: "#e15d67",
@@ -11647,8 +12169,89 @@ const styles = StyleSheet.create({
     lineHeight: 23,
     color: "#3d3157",
   },
+  documentationGuide: {
+    rowGap: 12,
+  },
+  documentationGuideIntro: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted,
+  },
+  documentationGuideSection: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    backgroundColor: docuWraiteColors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    rowGap: 10,
+  },
+  documentationGuideSectionExpanded: {
+    backgroundColor: "#f4f0ff",
+  },
+  documentationGuideSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    columnGap: 10,
+  },
+  documentationGuideSectionTextWrap: {
+    flex: 1,
+    rowGap: 3,
+  },
+  documentationGuideSectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  documentationGuideSectionSummary: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.muted,
+  },
+  documentationGuideSteps: {
+    rowGap: 8,
+  },
+  documentationGuideStepRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    columnGap: 10,
+  },
+  documentationGuideStepIndex: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.headerText,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  documentationGuideStepIndexText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  documentationGuideStepText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.text,
+  },
+  documentationGuidePdfBlock: {
+    borderTopWidth: 1,
+    borderTopColor: colors.rowBorder,
+    paddingTop: 12,
+    rowGap: 10,
+  },
+  documentationGuidePdfTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: colors.placeholder,
+  },
   pdfList: {
-    rowGap: 14,
+    rowGap: 10,
   },
   pdfRow: {
     flexDirection: "row",
@@ -11656,8 +12259,8 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   pdfItem: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 13,
+    fontWeight: "600",
     color: colors.muted,
   },
   pdfLinkIcon: {
@@ -11902,15 +12505,15 @@ const styles = StyleSheet.create({
     width: 34,
     minHeight: 30,
     borderRadius: 14,
-    backgroundColor: "#e8dcff",
+    backgroundColor: docuWraiteColors.surfaceAccent,
     borderWidth: 1,
-    borderColor: "#c7b4ff",
+    borderColor: docuWraiteColors.border,
     paddingTop: 4,
     paddingBottom: 6,
     paddingHorizontal: 6,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#7c3aed",
+    shadowColor: docuWraiteColors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 4,
@@ -11926,7 +12529,7 @@ const styles = StyleSheet.create({
   docuWraiteSparkle: {
     fontSize: 9,
     lineHeight: 10,
-    color: "#4b2f91",
+    color: docuWraiteColors.textStrong,
     fontWeight: "700",
   },
   docuWraiteSparkleSmall: {
@@ -11956,17 +12559,17 @@ const styles = StyleSheet.create({
     bottom: 1,
     width: 8,
     height: 8,
-    backgroundColor: "#e8dcff",
+    backgroundColor: docuWraiteColors.surfaceAccent,
     borderLeftWidth: 1,
     borderBottomWidth: 1,
-    borderColor: "#c7b4ff",
+    borderColor: docuWraiteColors.border,
     transform: [{ rotate: "45deg" }],
   },
   docuWraiteCard: {
     width: 248,
     marginTop: 6,
     borderWidth: 1,
-    borderColor: "#d4c2f1",
+    borderColor: docuWraiteColors.border,
     borderRadius: 8,
     backgroundColor: "#ffffff",
     paddingHorizontal: 12,
@@ -11980,9 +12583,9 @@ const styles = StyleSheet.create({
   docuWraiteInlineCard: {
     width: "100%",
     borderWidth: 1,
-    borderColor: "#d4c2f1",
+    borderColor: docuWraiteColors.border,
     borderRadius: 8,
-    backgroundColor: "#ffffff",
+    backgroundColor: docuWraiteColors.surface,
     paddingHorizontal: 12,
     paddingVertical: 10,
     shadowColor: "#000000",
@@ -11990,6 +12593,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowRadius: 6,
     elevation: 4,
+  },
+  docuWraiteAssistModalRoot: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  docuWraiteAssistModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(32, 23, 56, 0.28)",
+  },
+  docuWraiteAssistModalSheet: {
+    width: "100%",
+    maxWidth: 440,
+    maxHeight: "88%",
+    zIndex: 1,
   },
   docuWraiteAssistDock: {
     width: "100%",
@@ -12001,9 +12621,9 @@ const styles = StyleSheet.create({
     width: "100%",
     maxHeight: 640,
     borderWidth: 1,
-    borderColor: "#d4c2f1",
+    borderColor: docuWraiteColors.border,
     borderRadius: 10,
-    backgroundColor: "#ffffff",
+    backgroundColor: docuWraiteColors.surface,
     paddingHorizontal: 12,
     paddingTop: 12,
     paddingBottom: 8,
@@ -12027,18 +12647,18 @@ const styles = StyleSheet.create({
   docuWraiteWorkflowEyebrow: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#7c3aed",
+    color: docuWraiteColors.primary,
     marginBottom: 6,
   },
   docuWraiteWorkflowProgress: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#6b4fa1",
+    color: docuWraiteColors.primaryMuted,
     marginBottom: 4,
   },
   docuWraiteWorkflowMetaLine: {
     fontSize: 11,
-    color: "#6b4fa1",
+    color: docuWraiteColors.primaryMuted,
     lineHeight: 16,
     marginBottom: 4,
   },
@@ -12050,7 +12670,7 @@ const styles = StyleSheet.create({
   },
   docuWraiteWorkflowLoading: {
     fontSize: 12,
-    color: "#7c3aed",
+    color: docuWraiteColors.primary,
     fontWeight: "700",
     lineHeight: 18,
   },
@@ -12075,21 +12695,21 @@ const styles = StyleSheet.create({
   docuWraiteWorkflowChoice: {
     minWidth: 72,
     borderWidth: 1,
-    borderColor: "#d4c2f1",
+    borderColor: docuWraiteColors.border,
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "#faf7ff",
+    backgroundColor: docuWraiteColors.surface,
     alignItems: "center",
   },
   docuWraiteWorkflowChoiceActive: {
-    backgroundColor: "#7c3aed",
-    borderColor: "#7c3aed",
+    backgroundColor: docuWraiteColors.primary,
+    borderColor: docuWraiteColors.primary,
   },
   docuWraiteWorkflowChoiceText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#5c3d99",
+    color: docuWraiteColors.textStrong,
   },
   docuWraiteWorkflowChoiceTextActive: {
     color: "#ffffff",
@@ -12120,15 +12740,15 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     width: "100%",
     borderWidth: 1,
-    borderColor: "#ddd2f3",
+    borderColor: docuWraiteColors.borderSoft,
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: "#fcfbff",
+    backgroundColor: docuWraiteColors.surface,
   },
   docuWraiteWorkflowSuggestionActive: {
-    borderColor: "#7c3aed",
-    backgroundColor: "#f3ebff",
+    borderColor: docuWraiteColors.primary,
+    backgroundColor: docuWraiteColors.surfaceAccent,
   },
   docuWraiteWorkflowSuggestionText: {
     fontSize: 13,
@@ -12137,7 +12757,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   docuWraiteWorkflowSuggestionTextActive: {
-    color: "#5c3d99",
+    color: docuWraiteColors.textStrong,
     fontWeight: "700",
   },
   docuWraiteWorkflowInput: {
@@ -12158,9 +12778,9 @@ const styles = StyleSheet.create({
   docuWraiteWorkflowContextBox: {
     marginTop: 4,
     borderWidth: 1,
-    borderColor: "#e7dcf8",
+    borderColor: docuWraiteColors.borderSoft,
     borderRadius: 6,
-    backgroundColor: "#faf7ff",
+    backgroundColor: docuWraiteColors.surface,
     paddingHorizontal: 10,
     paddingVertical: 8,
     rowGap: 4,
@@ -12168,12 +12788,12 @@ const styles = StyleSheet.create({
   docuWraiteWorkflowContextItem: {
     fontSize: 12,
     lineHeight: 18,
-    color: "#6b4fa1",
+    color: docuWraiteColors.primaryMuted,
   },
   docuWraiteWorkflowNext: {
     alignSelf: "flex-start",
     marginTop: 6,
-    backgroundColor: "#7c3aed",
+    backgroundColor: docuWraiteColors.primary,
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -12216,7 +12836,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#c4b5fd",
+    borderColor: docuWraiteColors.border,
     backgroundColor: "#ffffff",
     paddingHorizontal: 14,
     paddingTop: 12,
@@ -12234,7 +12854,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
     maxHeight: 96,
     borderWidth: 1,
-    borderColor: "#c4b5fd",
+    borderColor: docuWraiteColors.border,
     borderRadius: 6,
     backgroundColor: "#ffffff",
     paddingHorizontal: 10,
@@ -12255,8 +12875,8 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#d8c4f5",
-    backgroundColor: "#faf8ff",
+    borderColor: docuWraiteColors.border,
+    backgroundColor: docuWraiteColors.surface,
     width: "100%",
   },
   docuWraiteDraftContextInlineExpand: {
@@ -12267,7 +12887,7 @@ const styles = StyleSheet.create({
   docuWraiteDraftContextInlineExpandText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#7c3aed",
+    color: docuWraiteColors.primary,
   },
   docuWraiteDraftContextQuestionsInlineMeta: {
     fontSize: 11,
@@ -12317,7 +12937,7 @@ const styles = StyleSheet.create({
   docuWraiteDraftContextQuestionsSource: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#7c3aed",
+    color: docuWraiteColors.primary,
     marginBottom: 4,
   },
   docuWraiteDraftContextQuestionsPrompt: {
@@ -12339,14 +12959,14 @@ const styles = StyleSheet.create({
   docuWraiteWorkflowRationale: {
     fontSize: 12,
     lineHeight: 18,
-    color: "#6b4fa1",
+    color: docuWraiteColors.primaryMuted,
     marginBottom: 8,
   },
   docuWraiteWorkflowWhyBox: {
     borderWidth: 1,
-    borderColor: "#e7dcf8",
+    borderColor: docuWraiteColors.borderSoft,
     borderRadius: 8,
-    backgroundColor: "#faf7ff",
+    backgroundColor: docuWraiteColors.surface,
     paddingHorizontal: 10,
     paddingVertical: 10,
     rowGap: 4,
@@ -12390,7 +13010,7 @@ const styles = StyleSheet.create({
   docuWraiteWorkflowIssueLinkText: {
     fontSize: 12,
     lineHeight: 18,
-    color: "#5c3d99",
+    color: docuWraiteColors.textStrong,
     textDecorationLine: "underline",
     fontWeight: "700",
     ...(Platform.OS === "web"
@@ -12419,8 +13039,8 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#e9d5ff",
-    backgroundColor: "#faf7ff",
+    borderColor: docuWraiteColors.border,
+    backgroundColor: docuWraiteColors.surface,
     gap: 6,
   },
   docuWraiteDraftToggleHeading: {
@@ -12447,16 +13067,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#ddd6fe",
+    borderColor: docuWraiteColors.borderSoft,
     backgroundColor: "#ffffff",
   },
   docuWraiteDraftToggleChipActive: {
-    borderColor: "#7c3aed",
-    backgroundColor: "#f3e8ff",
+    borderColor: docuWraiteColors.primary,
+    backgroundColor: docuWraiteColors.surfaceAccent,
   },
   docuWraiteDraftToggleChipLocked: {
-    borderColor: "#c4b5fd",
-    backgroundColor: "#ede9fe",
+    borderColor: docuWraiteColors.border,
+    backgroundColor: docuWraiteColors.surfaceAccent,
   },
   docuWraiteDraftToggleChipTop: {
     flexDirection: "row",
@@ -12470,13 +13090,13 @@ const styles = StyleSheet.create({
     color: colors.headerText,
   },
   docuWraiteDraftToggleChipLabelActive: {
-    color: "#5b21b6",
+    color: docuWraiteColors.textStrong,
   },
   docuWraiteDraftToggleChipOn: {
     fontSize: 8,
     fontWeight: "800",
     letterSpacing: 0.4,
-    color: "#7c3aed",
+    color: docuWraiteColors.primary,
   },
   docuWraiteDraftToggleChipPreview: {
     fontSize: 9,
@@ -12506,13 +13126,13 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#d8c4f5",
-    backgroundColor: "#f8f4ff",
+    borderColor: docuWraiteColors.border,
+    backgroundColor: docuWraiteColors.surface,
   },
   docuWraiteWorkflowFollowUpLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#6b4fa8",
+    color: docuWraiteColors.secondary,
     textTransform: "uppercase",
     letterSpacing: 0.4,
     marginBottom: 4,
@@ -12526,7 +13146,7 @@ const styles = StyleSheet.create({
   docuWraiteWorkflowFollowUpInput: {
     minHeight: 56,
     borderWidth: 1,
-    borderColor: "#c4b0e8",
+    borderColor: docuWraiteColors.border,
     borderRadius: 6,
     backgroundColor: "#ffffff",
     paddingHorizontal: 10,
@@ -12561,18 +13181,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: "#ece4f8",
+    borderTopColor: docuWraiteColors.borderSoft,
   },
   docuWraiteWorkflowBack: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#5c3d99",
+    color: docuWraiteColors.textStrong,
     textDecorationLine: "underline",
   },
   docuWraiteWorkflowDismiss: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6b4fa1",
+    color: docuWraiteColors.primaryMuted,
     textDecorationLine: "underline",
   },
   docuWraiteCardTitle: {
@@ -12593,7 +13213,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   docuWraiteCardPrimary: {
-    backgroundColor: "#7c3aed",
+    backgroundColor: docuWraiteColors.primary,
     borderRadius: 4,
     paddingHorizontal: 10,
     paddingVertical: 7,
@@ -12605,16 +13225,16 @@ const styles = StyleSheet.create({
   },
   docuWraiteCardSecondary: {
     borderWidth: 1,
-    borderColor: "#d4c2f1",
+    borderColor: docuWraiteColors.border,
     borderRadius: 4,
     paddingHorizontal: 10,
     paddingVertical: 7,
-    backgroundColor: "#faf7ff",
+    backgroundColor: docuWraiteColors.surface,
   },
   docuWraiteCardSecondaryText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#5c3d99",
+    color: docuWraiteColors.textStrong,
   },
   docCommentMetaRow: {
     flexDirection: "row",
@@ -12854,19 +13474,19 @@ const styles = StyleSheet.create({
   },
   docHandoverVitalChip: {
     borderWidth: 1,
-    borderColor: "#d4c2f1",
-    backgroundColor: "#faf7ff",
+    borderColor: docuWraiteColors.border,
+    backgroundColor: docuWraiteColors.surface,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   docHandoverVitalChipActive: {
-    backgroundColor: "#eadfff",
-    borderColor: "#7c3aed",
+    backgroundColor: docuWraiteColors.surfaceAccent,
+    borderColor: docuWraiteColors.primary,
   },
   docHandoverVitalChipText: {
     fontSize: 13,
-    color: "#5c3d99",
+    color: docuWraiteColors.textStrong,
     fontWeight: "600",
   },
   docHandoverVitalChipTextActive: {
@@ -12880,7 +13500,7 @@ const styles = StyleSheet.create({
   },
   docHandoverStatus: {
     fontSize: 12,
-    color: "#5c3d99",
+    color: docuWraiteColors.textStrong,
   },
   docFooterPanel: {
     marginTop: 6,
@@ -12967,6 +13587,64 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginBottom: 8,
     lineHeight: 19,
+  },
+  intelDetailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 12,
+  },
+  intelDetailBullet: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 6,
+    flexShrink: 0,
+  },
+  intelDetailTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  intelDetailTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  intelDetailTitle: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text,
+  },
+  intelDetailMetaChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#f6f0ff",
+    borderWidth: 1,
+    borderColor: colors.rowBorder,
+    flexShrink: 0,
+  },
+  intelDetailMetaText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  intelDetailSubtle: {
+    marginTop: 4,
+    fontSize: 11,
+    color: colors.placeholder,
+  },
+  intelGroup: {
+    marginBottom: 14,
+  },
+  intelGroupLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    color: colors.placeholder,
+    marginBottom: 10,
   },
   intelEmpty: {
     fontSize: 13,

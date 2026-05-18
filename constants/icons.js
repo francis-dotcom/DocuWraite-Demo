@@ -1,0 +1,16 @@
+export const ICONS = {
+  alertTriangle: "alert-triangle",
+  messageCircle: "message-circle",
+  chevronDown: "chevron-down",
+  chevronRight: "chevron-right",
+  calendar: "calendar",
+  clock: "clock",
+  bell: "bell",
+  helpCircle: "help-circle",
+  clipboard: "clipboard",
+  maximize: "maximize-2",
+  externalLink: "external-link",
+  arrowRightCircle: "arrow-right-circle",
+  shield: "shield",
+  target: "target",
+};

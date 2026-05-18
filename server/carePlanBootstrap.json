@@ -1,0 +1,234 @@
+{
+  "mary-bet": {
+    "riskCards": [
+      {
+        "title": "Falls",
+        "severity": "High",
+        "notes": "Mary Bet has had several falls and continues to report or indicate falls, even while seated. Vision decline, balance problems, and gait instability increase risk.",
+        "guidance": "Maintain line-of-sight supervision, follow ambulation instructions, keep assistive equipment available, and document fall-prevention observations."
+      },
+      {
+        "title": "Aspiration / Choking",
+        "severity": "High",
+        "notes": "Mary Bet is at increased risk of choking due to eating pace, talking during meals, loss of food or fluid from the mouth, dentures, and swallowing concerns.",
+        "guidance": "Use teaspoon-size bites, clear mouth before next bite, offer liquids every 2-3 bites, and avoid conversation during active swallowing."
+      },
+      {
+        "title": "Inability to communicate basic needs",
+        "severity": "Medium",
+        "notes": "Mary Bet may have difficulty expressing pain, illness, hunger, or thirst clearly and may sometimes use pain complaints for attention seeking.",
+        "guidance": "Treat discomfort reports seriously, watch body language, check medication and diet compliance, and escalate for medical evaluation if confusion or unusual behavior appears."
+      },
+      {
+        "title": "Medical procedure intolerance",
+        "severity": "Medium",
+        "notes": "Mary Bet may need IV sedation or hospital-level anesthesia for stressful medical or dental procedures because of anxiety and tolerance issues.",
+        "guidance": "Coordinate with PCP before procedures, verify sedation plans, and document PRN supports and anesthesia requirements clearly."
+      },
+      {
+        "title": "Elopement / self-injury / aggression",
+        "severity": "Low",
+        "notes": "Risk history includes elopement awareness, past self-harm such as biting, and minor aggression or throwing items.",
+        "guidance": "Use trained redirection approaches, keep behavior supports available, and document triggers and de-escalation outcomes."
+      }
+    ],
+    "actionPlans": [
+      {
+        "title": "Action Plan 1",
+        "outcome": "Mary Bet follows prescribed meal plan daily for PKU to improve health, sleep, mood, GI stability, and reduce GERD complications.",
+        "issue": "Mary Bet has a history of PKU, GERD, chronic constipation, and high cholesterol.",
+        "steps": [
+          {
+            "step": "Mary Bet follows the prescribed heart healthy meal plan with low sodium, low saturated fat, low cholesterol, and high fiber.",
+            "responsible": "Home: Mary Bet and RD\nOther: Mary Bet and RD",
+            "frequency": "Daily",
+            "record": "Monthly notes",
+            "notes": "Avoid high PHE foods, give supplements daily, track intake logs, monitor labs, promote fluids, fiber, GERD-safe habits, upright posture after meals, and tolerated activity."
+          },
+          {
+            "step": "Mary Bet eats safely with total assistance, teaspoon-size bites, mouth clearing before next bite, liquids every 2-3 bites, and no talking during meals.",
+            "responsible": "Home: Mary Bet and SLP\nOther: Mary Bet and SLP",
+            "frequency": "Daily",
+            "record": "Monthly notes",
+            "notes": "Staff provide close mealtime oversight and follow the modified safe-eating plan exactly as ordered."
+          }
+        ]
+      },
+      {
+        "title": "Action Plan 2",
+        "outcome": "Mary Bet wants to communicate effectively with others.",
+        "issue": "Mary Bet is hard of hearing and previously lost her hearing aids.",
+        "steps": [
+          {
+            "step": "Mary Bet receives hearing aids and uses them during communication supports.",
+            "responsible": "Home: Mary Bet and SLP\nOther: Mary Bet and SLP",
+            "frequency": "Daily",
+            "record": "Monthly notes",
+            "notes": "Staff verify hearing aids are present, functioning, and safely stored when not in use."
+          },
+          {
+            "step": "Mary Bet tells staff when hearing aids are not working.",
+            "responsible": "Home: Mary Bet and SLP\nOther: Mary Bet and SLP",
+            "frequency": "Daily",
+            "record": "Daily documentation",
+            "notes": "Prompt Mary Bet to report hearing problems early so devices can be checked or replaced."
+          },
+          {
+            "step": "Mary Bet completes 1-2 step instructions and verbalizes needs and concerns.",
+            "responsible": "Home: Mary Bet and SLP\nOther: Mary Bet and SLP",
+            "frequency": "Daily",
+            "record": "Monthly documentation",
+            "notes": "Use repeat-back prompts, slower pacing, and teletherapy or home or community supports as needed."
+          }
+        ]
+      },
+      {
+        "title": "Action Plan 3",
+        "outcome": "Mary Bet does much for herself to increase her independence.",
+        "issue": "Due to declining health, Mary Bet cannot perform previous activities such as household chores and some ADLs without support.",
+        "steps": [
+          {
+            "step": "Mary Bet chooses to participate in community activities at least once per week.",
+            "responsible": "Home: Mary Bet, SL, and CP\nOther: Mary Bet, CP, and SL",
+            "frequency": "Daily tracking",
+            "record": "Monthly documentation",
+            "notes": "Offer choices, support decision making, monitor fatigue, and document successful engagement and barriers."
+          }
+        ]
+      }
+    ],
+    "shiftIntelligenceOptions": {
+      "activeRiskFilter": "high-only"
+    }
+  },
+  "mark-brent": {
+    "riskCards": [
+      {
+        "title": "Seizure Activity",
+        "severity": "High",
+        "notes": "Mark Brent has a documented seizure disorder with prior emergency room visits after missed medication and poor sleep. Staff must monitor post-ictal confusion, pacing, and headache complaints.",
+        "guidance": "Follow the seizure action plan, time episodes, clear the area, avoid restraint unless safety requires it, and document triggers and recovery supports."
+      },
+      {
+        "title": "Elopement / Unsafe Wandering",
+        "severity": "High",
+        "notes": "Mark Brent may leave supervised areas when overstimulated or when transitions are rushed. He responds best to visual countdowns and previewed schedule changes.",
+        "guidance": "Use line-of-sight supervision in community settings, confirm door alarms, and document redirection and return-to-program outcomes."
+      },
+      {
+        "title": "Blood Sugar Instability",
+        "severity": "Medium",
+        "notes": "Type 2 diabetes requires consistent meal timing, carbohydrate counting, and glucose checks before community outings and after meals.",
+        "guidance": "Document glucose results, snacks provided, fluid intake, and observed symptoms such as shakiness, irritability, or fatigue."
+      },
+      {
+        "title": "Sensory Overload",
+        "severity": "Medium",
+        "notes": "Crowded stores, loud break rooms, and unexpected schedule changes can lead to pacing, humming, or brief refusal.",
+        "guidance": "Offer noise-reduction supports, scheduled breaks, and a calm recovery space. Document what helped the individual re-engage."
+      },
+      {
+        "title": "Medication Adherence",
+        "severity": "Low",
+        "notes": "Mark Brent sometimes forgets afternoon medication unless staff use a visual checklist and direct handoff at transition points.",
+        "guidance": "Document reminders given, whether medication was taken, and any reported side effects or refusals."
+      }
+    ],
+    "actionPlans": [
+      {
+        "title": "Action Plan 1",
+        "outcome": "Mark Brent will maintain stable blood glucose through consistent meal timing, carbohydrate counting, and staff-supported monitoring.",
+        "issue": "Mark Brent has type 2 diabetes and needs structured meal support to avoid highs and lows during afternoon programming.",
+        "steps": [
+          {
+            "step": "Mark Brent completes a pre-meal glucose check before lunch and dinner with staff documentation.",
+            "responsible": "Home: Mark Brent and RN\nOther: Mark Brent and DSP",
+            "frequency": "Daily",
+            "record": "Shift notes",
+            "notes": "Record result, snack or correction given, and observed response."
+          },
+          {
+            "step": "Mark Brent follows the consistent-carbohydrate meal plan during dinner programming.",
+            "responsible": "Home: Mark Brent and RD\nOther: Mark Brent and DSP",
+            "frequency": "Daily",
+            "record": "Daily documentation",
+            "notes": "Document portions, fluids, and any refusal or nausea."
+          }
+        ]
+      },
+      {
+        "title": "Action Plan 2",
+        "outcome": "Mark Brent will build vocational readiness through structured task practice and community budgeting routines.",
+        "issue": "Mark Brent needs repeated coaching to complete multi-step tasks independently and to use a budget in community settings.",
+        "steps": [
+          {
+            "step": "Mark Brent completes a 3-step vocational task sequence with no more than one verbal prompt.",
+            "responsible": "Home: Mark Brent and Vocational Coach\nOther: Mark Brent and DSP",
+            "frequency": "3x weekly",
+            "record": "ISP data",
+            "notes": "Document task name, prompts used, and completion outcome."
+          },
+          {
+            "step": "Mark Brent practices a community purchase using a prepared list and debit card with staff supervision.",
+            "responsible": "Home: Mark Brent and DSP\nOther: Mark Brent and CP",
+            "frequency": "Weekly",
+            "record": "Community outing notes",
+            "notes": "Document transportation, spending choices, and observed response."
+          }
+        ]
+      },
+      {
+        "title": "Action Plan 3",
+        "outcome": "Mark Brent will use sensory regulation strategies before escalation during transitions.",
+        "issue": "Unexpected changes and noisy environments increase pacing, humming, and brief refusal behaviors.",
+        "steps": [
+          {
+            "step": "Mark Brent identifies one calming strategy before community departure and uses it when prompted.",
+            "responsible": "Home: Mark Brent and BCBA\nOther: Mark Brent and DSP",
+            "frequency": "Daily",
+            "record": "Behavior data",
+            "notes": "Document strategy offered, whether it was effective, and recovery time."
+          }
+        ]
+      }
+    ],
+    "shiftIntelligenceOptions": {
+      "activeRiskFilter": "high-only"
+    }
+  },
+  "elias-brian": {
+    "riskCards": [
+      {
+        "title": "Fatigue During Community Activity",
+        "severity": "High",
+        "notes": "Elias Brian becomes visibly tired during longer outings and may need a seated break or early transition back home.",
+        "guidance": "Document rest breaks, reduced pacing, wheelchair use if offered, and the observed response after recovery support."
+      },
+      {
+        "title": "Fall Risk During Transfers",
+        "severity": "Medium",
+        "notes": "Elias Brian needs close supervision during curb steps, van transfers, and uneven walking surfaces.",
+        "guidance": "Use line-of-sight support and document mobility assistance during all transitions."
+      }
+    ],
+    "actionPlans": [
+      {
+        "title": "Action Plan 1",
+        "outcome": "Elias Brian will participate in community celebrations with fatigue-aware pacing, safe transitions, and clear handoff documentation.",
+        "issue": "Extended outings can lead to fatigue and reduced participation unless staff pace the event and support transitions.",
+        "steps": [
+          {
+            "step": "Elias Brian receives rest-break prompting and pacing support during community activities longer than 30 minutes.",
+            "responsible": "Home: Elias Brian and DSP\nOther: Elias Brian and DSP",
+            "frequency": "As needed",
+            "record": "Case note",
+            "notes": "Document what recovery support was offered and whether participation improved afterward."
+          }
+        ]
+      }
+    ],
+    "shiftIntelligenceOptions": {
+      "activeRiskFilter": "all"
+    }
+  }
+}
