@@ -3842,6 +3842,7 @@ function DocuWraiteGuidedWorkflowPanel({
   onJumpToStep,
   onInsert,
   onGenerateDraft,
+  onClearGuidelineWarning,
   onDraftContextToggle,
   onDraftContextQuestionModeChange,
   onDraftContextSaveResponse,
@@ -3875,6 +3876,7 @@ function DocuWraiteGuidedWorkflowPanel({
   const assignedDraftLoading = Boolean(workflowState?.assignedDraftLoading);
   const assignedDraftError = workflowState?.assignedDraftError || "";
   const assignedDraftFollowUp = String(workflowState?.assignedDraftFollowUp || "").trim();
+  const assignedDraftGuidelineWarning = String(workflowState?.assignedDraftGuidelineWarning || "").trim();
   const assignedAiDraftNote = String(answers.aiDraftNote || "").trim();
   const generatedNote = useAiWorkflow
     ? aiStep?.draftNote || ""
@@ -4526,6 +4528,31 @@ function DocuWraiteGuidedWorkflowPanel({
                 </>
               ) : null}
               <Text style={styles.docuWraiteWorkflowDraftText}>{generatedNote}</Text>
+              {useAssignedNodeWorkflow && assignedDraftGuidelineWarning ? (
+                <View style={styles.docuWraiteWorkflowGuidelineWarningBox}>
+                  <Text style={styles.docuWraiteWorkflowGuidelineWarningText}>
+                    {assignedDraftGuidelineWarning}
+                  </Text>
+                  <View style={styles.docuWraiteWorkflowGuidelineWarningActions}>
+                    <Pressable
+                      style={styles.docuWraiteCardSecondary}
+                      onPress={() => onClearGuidelineWarning?.()}
+                    >
+                      <Text style={styles.docuWraiteCardSecondaryText}>Skip</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.docuWraiteCardSecondary}
+                      onPress={() => {
+                        if (!pendingDraftContextQuestion) {
+                          onGenerateDraft?.();
+                        }
+                      }}
+                    >
+                      <Text style={styles.docuWraiteCardSecondaryText}>Regenerate</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
               {useAssignedNodeWorkflow && assignedDraftFollowUp ? (
                 <View style={styles.docuWraiteWorkflowFollowUpBox}>
                   <Text style={styles.docuWraiteWorkflowFollowUpLabel}>Quick check (optional)</Text>
@@ -4807,6 +4834,7 @@ function DocumentationCommentField({
                   onJumpToStep={onWorkflowJump}
                   onInsert={onWorkflowInsert}
                   onGenerateDraft={onWorkflowGenerateDraft}
+                  onClearGuidelineWarning={onWorkflowClearGuidelineWarning}
                   onDraftContextToggle={onWorkflowDraftContextToggle}
                   onDraftContextQuestionModeChange={onWorkflowDraftContextQuestionModeChange}
                   onDraftContextSaveResponse={onWorkflowDraftContextSaveResponse}
@@ -5220,6 +5248,7 @@ function DocumentationEntryScreen({
           assignedDraftLoading: false,
           assignedDraftError: "",
           assignedDraftFollowUp: String(step?.followUpQuestion || meta?.followUpQuestion || "").trim(),
+          assignedDraftGuidelineWarning: String(meta?.guidelineWarning || "").trim(),
           answers: {
             ...current.answers,
             aiDraftNote: draftNote,
@@ -5242,6 +5271,7 @@ function DocumentationEntryScreen({
           assignedDraftError:
             error?.message ||
             "DocuWraite could not generate a note with OpenAI. Confirm the API server and OPENAI_API_KEY are set.",
+          assignedDraftGuidelineWarning: "",
         };
       });
     }
@@ -5709,6 +5739,7 @@ function DocumentationEntryScreen({
           stepIndex,
           remediationStepKey,
           pendingReturnToReadiness,
+          assignedDraftGuidelineWarning: "",
           forcedStepKey: pendingReturnToReadiness || options.refreshReadiness ? null : current.forcedStepKey || null,
         };
         const shouldRefreshNow =
@@ -5794,6 +5825,7 @@ function DocumentationEntryScreen({
           ...current,
           assignedDraftLoading: true,
           assignedDraftError: "",
+          assignedDraftGuidelineWarning: "",
           draftContextToggles: normalizeDraftContextToggles(current.draftContextToggles),
           answers: {
             ...current.answers,
@@ -5806,6 +5838,18 @@ function DocumentationEntryScreen({
         return next;
       });
       setDocuWraiteExpanded(true);
+    },
+    onWorkflowClearGuidelineWarning: () => {
+      setDocuWraiteWorkflow((current) => {
+        if (!current || current.fieldId !== fieldId || current.workflowId !== "assigned-nodes") {
+          return current;
+        }
+
+        return {
+          ...current,
+          assignedDraftGuidelineWarning: "",
+        };
+      });
     },
     onWorkflowDraftContextToggle: (toggleKey, nextValue) => {
       setDocuWraiteWorkflow((current) => {
@@ -5834,6 +5878,7 @@ function DocumentationEntryScreen({
             aiDraftNote: "",
           },
           assignedDraftFollowUp: "",
+          assignedDraftGuidelineWarning: "",
         };
       });
     },
@@ -5865,6 +5910,7 @@ function DocumentationEntryScreen({
               [responseKey]: value,
             },
           },
+          assignedDraftGuidelineWarning: "",
         };
       });
     },
@@ -6564,7 +6610,7 @@ function DocumentationEntryScreen({
 }
 
 function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const runtimeShiftIntelligence = getShiftIntelligenceRuntime(
     clientProfile || getMaryBetProfile(),
     documentationSession
@@ -6804,12 +6850,34 @@ function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) 
     setActiveIntelFrame(null);
   };
 
-  const popoverWidth = Math.min(340, Math.max(260, width - 24));
+  const popoverViewportPadding = 12;
+  const popoverGap = 8;
+  const popoverWidth = Math.min(340, Math.max(260, width - popoverViewportPadding * 2));
+  const popoverMaxHeight = Math.min(320, Math.max(220, height - popoverViewportPadding * 2));
+  const popoverBodyMaxHeight = Math.max(120, popoverMaxHeight - 80);
   const useCenteredIntelModal = width < 700 || !activeIntelFrame;
   const popoverLeft = activeIntelFrame
-    ? Math.max(12, Math.min(activeIntelFrame.x, width - popoverWidth - 12))
-    : 12;
-  const popoverTop = activeIntelFrame ? activeIntelFrame.y + activeIntelFrame.height + 8 : 120;
+    ? Math.max(popoverViewportPadding, Math.min(activeIntelFrame.x, width - popoverWidth - popoverViewportPadding))
+    : popoverViewportPadding;
+  const popoverTop = (() => {
+    if (!activeIntelFrame) {
+      return Math.max(popoverViewportPadding, Math.min(120, height - popoverMaxHeight - popoverViewportPadding));
+    }
+
+    const belowTop = activeIntelFrame.y + activeIntelFrame.height + popoverGap;
+    const aboveTop = activeIntelFrame.y - popoverMaxHeight - popoverGap;
+    const maxTop = height - popoverMaxHeight - popoverViewportPadding;
+
+    if (belowTop + popoverMaxHeight <= height - popoverViewportPadding) {
+      return belowTop;
+    }
+
+    if (aboveTop >= popoverViewportPadding) {
+      return aboveTop;
+    }
+
+    return Math.max(popoverViewportPadding, maxTop);
+  })();
 
   return (
     <>
@@ -6861,12 +6929,13 @@ function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) 
               style={[
                 styles.intelPopoverCard,
                 useCenteredIntelModal
-                  ? styles.intelPopoverCardCentered
+                  ? [styles.intelPopoverCardCentered, { maxHeight: popoverMaxHeight }]
                   : {
                       position: "absolute",
                       top: popoverTop,
                       left: popoverLeft,
                       width: popoverWidth,
+                      maxHeight: popoverMaxHeight,
                     },
               ]}
             >
@@ -6888,7 +6957,10 @@ function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) 
                   <Icon name="x" size={16} color={colors.headerText} />
                 </Pressable>
               </View>
-              <ScrollView style={styles.intelPopoverBody} contentContainerStyle={styles.intelPopoverBodyContent}>
+              <ScrollView
+                style={[styles.intelPopoverBody, { maxHeight: popoverBodyMaxHeight }]}
+                contentContainerStyle={styles.intelPopoverBodyContent}
+              >
                 {activeIntelGroups.length ? (
                   activeIntelGroups.map((group) => (
                     <View key={group.label} style={styles.intelGroup}>
@@ -10247,10 +10319,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   intelPopoverCard: {
-    backgroundColor: colors.panel,
+    backgroundColor: "#f7f4ff",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#d9d1f0",
     shadowColor: "#2f1f52",
     shadowOpacity: 0.14,
     shadowRadius: 18,
@@ -10269,9 +10341,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 12,
-    backgroundColor: "#fbf9ff",
+    backgroundColor: "#efe9ff",
     borderBottomWidth: 1,
-    borderBottomColor: colors.rowBorder,
+    borderBottomColor: "#ddd4f3",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -10313,6 +10385,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 14,
+    backgroundColor: "#f7f4ff",
   },
   cardHeaderText: {
     color: colors.headerText,
@@ -13129,6 +13202,25 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 10,
+  },
+  docuWraiteWorkflowGuidelineWarningBox: {
+    marginTop: 2,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#f2c47d",
+    backgroundColor: "#fff7e8",
+    rowGap: 8,
+  },
+  docuWraiteWorkflowGuidelineWarningText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#8a5a00",
+  },
+  docuWraiteWorkflowGuidelineWarningActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
   },
   docuWraiteWorkflowFollowUpBox: {
     marginTop: 10,

@@ -7,6 +7,7 @@ const { isSupportedWorkflow } = require("./playbooks");
 const { resolveWorkflowStep } = require("./playbookEngine");
 const { buildDraftNotePrompt } = require("./draftPrompt");
 const { ASSIGNED_NODES_SYSTEM_PROMPT } = require("./assignedNodesDraftPrompt");
+const { evaluateAssignedDraftGuidelines } = require("./assignedNodesGuidelines");
 const { runMorningShiftSync } = require("./morningShiftSync");
 const { runTherapSync, syncClientFromTherap } = require("./therapSync");
 const { createTherapMockRouter } = require("./integrations/therapMockRoutes");
@@ -375,6 +376,11 @@ async function respondWithAssignedNodesDraft(request, response) {
     return;
   }
 
+  const guidelineReview = evaluateAssignedDraftGuidelines({
+    draftNote: draftStep.draftNote,
+    fieldContext,
+  });
+
   response.json({
     step: draftStep,
     meta: {
@@ -387,6 +393,8 @@ async function respondWithAssignedNodesDraft(request, response) {
           : [],
       prioritizedFacts: draftStep.prioritizedFacts || [],
       followUpQuestion: draftStep.followUpQuestion || "",
+      guidelineReview,
+      guidelineWarning: guidelineReview.warning || "",
     },
   });
 }
