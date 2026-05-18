@@ -9,6 +9,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "build:web": "expo export -p web",
     "server": "node server/index.js",
     "sync:morning-shift": "node server/scripts/morningShiftSync.js",
     "sync:therap": "node server/scripts/therapSync.js",

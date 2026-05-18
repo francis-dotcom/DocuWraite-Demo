@@ -8,6 +8,7 @@ const { resolveWorkflowStep } = require("./playbookEngine");
 const { buildDraftNotePrompt } = require("./draftPrompt");
 const { ASSIGNED_NODES_SYSTEM_PROMPT } = require("./assignedNodesDraftPrompt");
 const { evaluateAssignedDraftGuidelines } = require("./assignedNodesGuidelines");
+const { extractCarePlanFromSource } = require("./carePlanSourceExtractor");
 const { runMorningShiftSync } = require("./morningShiftSync");
 const { runTherapSync, syncClientFromTherap } = require("./therapSync");
 const { createTherapMockRouter } = require("./integrations/therapMockRoutes");
@@ -30,7 +31,7 @@ const {
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 const app = express();
-const port = Number(process.env.DOCUWRAITE_API_PORT || 8787);
+const port = Number(process.env.PORT || process.env.DOCUWRAITE_API_PORT || 8787);
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -158,6 +159,25 @@ app.get("/api/clients/:clientId/care-plan", (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/clients/:clientId/care-plan/extract-source", (req, res) => {
+  try {
+    const clientId = req.params.clientId;
+    const currentCarePlan = getClientCarePlanData(clientId);
+    const extraction = extractCarePlanFromSource({
+      fallbackProfile: currentCarePlan?.intelligenceOptions?.editorContent || {},
+    });
+
+    res.json({
+      ok: true,
+      clientId,
+      extraction,
+      dbPath,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Care plan source extraction failed." });
   }
 });
 

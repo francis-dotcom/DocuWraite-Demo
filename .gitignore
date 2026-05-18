@@ -2,6 +2,7 @@
 node_modules/
 .DS_Store
 .expo/
+dist/
 
 # Private dev-only (never ship with the product)
 private/

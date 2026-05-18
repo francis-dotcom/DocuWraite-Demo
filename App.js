@@ -4538,17 +4538,17 @@ function DocuWraiteGuidedWorkflowPanel({
                       style={styles.docuWraiteCardSecondary}
                       onPress={() => onClearGuidelineWarning?.()}
                     >
-                      <Text style={styles.docuWraiteCardSecondaryText}>Skip</Text>
+                      <Text style={styles.docuWraiteCardSecondaryText}>Skip for now</Text>
                     </Pressable>
                     <Pressable
-                      style={styles.docuWraiteCardSecondary}
+                      style={styles.docuWraiteCardPrimary}
                       onPress={() => {
                         if (!pendingDraftContextQuestion) {
                           onGenerateDraft?.();
                         }
                       }}
                     >
-                      <Text style={styles.docuWraiteCardSecondaryText}>Regenerate</Text>
+                      <Text style={styles.docuWraiteCardPrimaryText}>Apply guideline and regenerate</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -4577,7 +4577,7 @@ function DocuWraiteGuidedWorkflowPanel({
                 style={styles.docuWraiteWorkflowExtraInput}
               />
               <View style={styles.docuWraiteCardActions}>
-                {useAssignedNodeWorkflow ? (
+                {useAssignedNodeWorkflow && !assignedDraftGuidelineWarning ? (
                   <Pressable
                     style={styles.docuWraiteCardSecondary}
                     onPress={() => {
@@ -8815,35 +8815,166 @@ function ActionPlanCard({ plan, expandedRowKey, onToggleRow, isPhone, onOpenDocu
   );
 }
 
+function buildCarePlanEditorDraft(profile = {}) {
+  return {
+    carePlanHeader: { ...(profile.carePlanHeader || {}) },
+    aboutMeCards: (profile.aboutMeCards || []).map((card) => ({ ...card })),
+    riskCards: (profile.riskCards || []).map((card) => ({ ...card })),
+    supportCards: (profile.supportCards || []).map((card) => ({ ...card })),
+    serviceCards: (profile.serviceCards || []).map((card) => ({ ...card })),
+    rightsCards: (profile.rightsCards || []).map((card) => ({ ...card })),
+    activityCards: (profile.activityCards || []).map((card) => ({ ...card })),
+    actionPlans: (profile.actionPlans || []).map((plan) => ({
+      ...plan,
+      steps: (plan.steps || []).map((step) => ({ ...step })),
+    })),
+    documentChecklist: [...(profile.documentChecklist || [])],
+    documentFiles: [...(profile.documentFiles || [])],
+    participants: (profile.participants || []).map((item) => ({ ...item })),
+    signatureLogs: [...(profile.signatureLogs || [])],
+    carePlanTextPages: (profile.carePlanTextPages || []).map((page) => ({ ...page })),
+  };
+}
+
+function buildCarePlanEditorContentPayload(draft = {}) {
+  return {
+    carePlanHeader: { ...(draft.carePlanHeader || {}) },
+    aboutMeCards: (draft.aboutMeCards || []).map((card) => ({ ...card })),
+    supportCards: (draft.supportCards || []).map((card) => ({ ...card })),
+    serviceCards: (draft.serviceCards || []).map((card) => ({ ...card })),
+    rightsCards: (draft.rightsCards || []).map((card) => ({ ...card })),
+    activityCards: (draft.activityCards || []).map((card) => ({ ...card })),
+    documentChecklist: [...(draft.documentChecklist || [])],
+    documentFiles: [...(draft.documentFiles || [])],
+    participants: (draft.participants || []).map((item) => ({ ...item })),
+    signatureLogs: [...(draft.signatureLogs || [])],
+    carePlanTextPages: (draft.carePlanTextPages || []).map((page) => ({ ...page })),
+  };
+}
+
+function mergeCarePlanDraftWithExtraction(currentDraft = {}, extraction = {}) {
+  const editorContent = extraction?.editorContent || {};
+  return {
+    ...currentDraft,
+    carePlanHeader: {
+      ...(currentDraft.carePlanHeader || {}),
+      ...(editorContent.carePlanHeader || {}),
+    },
+    documentFiles: editorContent.documentFiles || currentDraft.documentFiles || [],
+    participants: editorContent.participants || currentDraft.participants || [],
+    signatureLogs: editorContent.signatureLogs || currentDraft.signatureLogs || [],
+    carePlanTextPages: editorContent.carePlanTextPages || currentDraft.carePlanTextPages || [],
+  };
+}
+
+function CarePlanEditorField({ value, onChangeText, multiline = false, style, placeholder }) {
+  return (
+    <TextInput
+      value={String(value ?? "")}
+      onChangeText={onChangeText}
+      multiline={multiline}
+      placeholder={placeholder}
+      placeholderTextColor="#8c82a8"
+      style={[styles.carePlanEditorInput, multiline && styles.carePlanEditorInputMultiline, style]}
+    />
+  );
+}
+
+function CarePlanEditorSectionLabel({ children }) {
+  return <Text style={styles.carePlanEditorLabel}>{children}</Text>;
+}
+
 function CarePlanDocument({
   isPhone,
   onOpenDocumentation,
   documentationSession,
   onDocumentationUpdate,
   onDocumentationCancel,
+  onSaveCarePlan,
   clientProfile = null,
   clientPhoto,
 }) {
   const profile = clientProfile || getMaryBetProfile();
-  const header = profile.carePlanHeader ?? carePlanHeader;
-  const aboutCards = profile.aboutMeCards;
-  const risks = profile.riskCards;
-  const supports = profile.supportCards;
-  const services = profile.serviceCards;
-  const rights = profile.rightsCards;
-  const activities = profile.activityCards;
-  const plans = profile.actionPlans;
-  const checklist = profile.documentChecklist;
-  const files = profile.documentFiles;
-  const roster = profile.participants;
-  const signatures = profile.signatureLogs;
-  const sourcePages = profile.carePlanTextPages ?? carePlanText;
+  const [isEditingCarePlan, setIsEditingCarePlan] = useState(false);
+  const [carePlanDraft, setCarePlanDraft] = useState(() => buildCarePlanEditorDraft(profile));
+  const [carePlanSaveState, setCarePlanSaveState] = useState({ saving: false, message: "", error: "" });
   const [activeTab, setActiveTab] = useState("Overview");
-  const [expandedRisk, setExpandedRisk] = useState(risks[0]?.title ?? "Falls");
+  const [expandedRisk, setExpandedRisk] = useState(profile.riskCards[0]?.title ?? "Falls");
   const [expandedSourcePage, setExpandedSourcePage] = useState(1);
   const [expandedActionRow, setExpandedActionRow] = useState(null);
   const scrollRef = useRef(null);
   const sectionPositions = useRef({});
+
+  useEffect(() => {
+    if (!isEditingCarePlan) {
+      setCarePlanDraft(buildCarePlanEditorDraft(profile));
+      setExpandedRisk(profile.riskCards[0]?.title ?? "Falls");
+    }
+  }, [isEditingCarePlan, profile]);
+
+  const setDraftValue = useCallback((path, value) => {
+    setCarePlanDraft((current) => {
+      const next = { ...current };
+      let cursor = next;
+      for (let index = 0; index < path.length - 1; index += 1) {
+        const key = path[index];
+        const source = cursor[key];
+        cursor[key] = Array.isArray(source)
+          ? [...source]
+          : source && typeof source === "object"
+            ? { ...source }
+            : {};
+        cursor = cursor[key];
+      }
+      cursor[path[path.length - 1]] = value;
+      return next;
+    });
+  }, []);
+
+  const startEditingCarePlan = () => {
+    setCarePlanDraft(buildCarePlanEditorDraft(profile));
+    setCarePlanSaveState({ saving: false, message: "", error: "" });
+    setIsEditingCarePlan(true);
+  };
+
+  const cancelEditingCarePlan = () => {
+    setCarePlanDraft(buildCarePlanEditorDraft(profile));
+    setCarePlanSaveState({ saving: false, message: "", error: "" });
+    setIsEditingCarePlan(false);
+  };
+
+  const saveCarePlanEdits = async () => {
+    if (!onSaveCarePlan) {
+      return;
+    }
+
+    setCarePlanSaveState({ saving: true, message: "", error: "" });
+    try {
+      await onSaveCarePlan(carePlanDraft);
+      setCarePlanSaveState({ saving: false, message: "Care plan saved.", error: "" });
+      setIsEditingCarePlan(false);
+    } catch (error) {
+      setCarePlanSaveState({
+        saving: false,
+        message: "",
+        error: error?.message || "Care plan could not be saved.",
+      });
+    }
+  };
+
+  const header = isEditingCarePlan ? carePlanDraft.carePlanHeader : profile.carePlanHeader ?? carePlanHeader;
+  const aboutCards = isEditingCarePlan ? carePlanDraft.aboutMeCards : profile.aboutMeCards;
+  const risks = isEditingCarePlan ? carePlanDraft.riskCards : profile.riskCards;
+  const supports = isEditingCarePlan ? carePlanDraft.supportCards : profile.supportCards;
+  const services = isEditingCarePlan ? carePlanDraft.serviceCards : profile.serviceCards;
+  const rights = isEditingCarePlan ? carePlanDraft.rightsCards : profile.rightsCards;
+  const activities = isEditingCarePlan ? carePlanDraft.activityCards : profile.activityCards;
+  const plans = isEditingCarePlan ? carePlanDraft.actionPlans : profile.actionPlans;
+  const checklist = isEditingCarePlan ? carePlanDraft.documentChecklist : profile.documentChecklist;
+  const files = isEditingCarePlan ? carePlanDraft.documentFiles : profile.documentFiles;
+  const roster = isEditingCarePlan ? carePlanDraft.participants : profile.participants;
+  const signatures = isEditingCarePlan ? carePlanDraft.signatureLogs : profile.signatureLogs;
+  const sourcePages = isEditingCarePlan ? carePlanDraft.carePlanTextPages : profile.carePlanTextPages ?? carePlanText;
 
   const registerSection = (key, y) => {
     sectionPositions.current[key] = y;
@@ -8884,34 +9015,111 @@ function CarePlanDocument({
         <View style={styles.carePlanHeroLeft}>
           <Image source={clientPhoto} style={styles.carePlanHeroPhoto} resizeMode="cover" />
           <View style={styles.carePlanHeroIdentity}>
-            <Text style={styles.carePlanHeroName}>{header.fullName}</Text>
-            <Text style={styles.carePlanHeroMeta}>{`Medicaid ID: ${header.medicaidId}`}</Text>
-            <Text style={styles.carePlanHeroMeta}>{`DOB: ${header.dob}`}</Text>
-            <Text style={styles.carePlanHeroMeta}>{`Oversight ID: ${header.oversightId}`}</Text>
+            {isEditingCarePlan ? (
+              <>
+                <CarePlanEditorSectionLabel>Full name</CarePlanEditorSectionLabel>
+                <CarePlanEditorField
+                  value={header.fullName}
+                  onChangeText={(value) => setDraftValue(["carePlanHeader", "fullName"], value)}
+                  style={styles.carePlanHeroEditorInput}
+                />
+                <CarePlanEditorSectionLabel>Medicaid ID</CarePlanEditorSectionLabel>
+                <CarePlanEditorField
+                  value={header.medicaidId}
+                  onChangeText={(value) => setDraftValue(["carePlanHeader", "medicaidId"], value)}
+                />
+                <CarePlanEditorSectionLabel>Date of birth</CarePlanEditorSectionLabel>
+                <CarePlanEditorField
+                  value={header.dob}
+                  onChangeText={(value) => setDraftValue(["carePlanHeader", "dob"], value)}
+                />
+                <CarePlanEditorSectionLabel>Oversight ID</CarePlanEditorSectionLabel>
+                <CarePlanEditorField
+                  value={header.oversightId}
+                  onChangeText={(value) => setDraftValue(["carePlanHeader", "oversightId"], value)}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.carePlanHeroName}>{header.fullName}</Text>
+                <Text style={styles.carePlanHeroMeta}>{`Medicaid ID: ${header.medicaidId}`}</Text>
+                <Text style={styles.carePlanHeroMeta}>{`DOB: ${header.dob}`}</Text>
+                <Text style={styles.carePlanHeroMeta}>{`Oversight ID: ${header.oversightId}`}</Text>
+              </>
+            )}
           </View>
         </View>
         <View style={styles.carePlanHeroRight}>
-          <Text style={styles.carePlanStatus}>{header.status}</Text>
-          <Text style={styles.carePlanHeroMeta}>{`Guardian: ${header.guardian}`}</Text>
-          <Text style={styles.carePlanHeroMeta}>{`Plan: ${header.planStart} to ${header.planEnd}`}</Text>
+          {isEditingCarePlan ? (
+            <>
+              <CarePlanEditorSectionLabel>Status</CarePlanEditorSectionLabel>
+              <CarePlanEditorField
+                value={header.status}
+                onChangeText={(value) => setDraftValue(["carePlanHeader", "status"], value)}
+              />
+              <CarePlanEditorSectionLabel>Guardian</CarePlanEditorSectionLabel>
+              <CarePlanEditorField
+                value={header.guardian}
+                onChangeText={(value) => setDraftValue(["carePlanHeader", "guardian"], value)}
+              />
+              <CarePlanEditorSectionLabel>Plan start</CarePlanEditorSectionLabel>
+              <CarePlanEditorField
+                value={header.planStart}
+                onChangeText={(value) => setDraftValue(["carePlanHeader", "planStart"], value)}
+              />
+              <CarePlanEditorSectionLabel>Plan end</CarePlanEditorSectionLabel>
+              <CarePlanEditorField
+                value={header.planEnd}
+                onChangeText={(value) => setDraftValue(["carePlanHeader", "planEnd"], value)}
+              />
+            </>
+          ) : (
+            <>
+              <Text style={styles.carePlanStatus}>{header.status}</Text>
+              <Text style={styles.carePlanHeroMeta}>{`Guardian: ${header.guardian}`}</Text>
+              <Text style={styles.carePlanHeroMeta}>{`Plan: ${header.planStart} to ${header.planEnd}`}</Text>
+            </>
+          )}
           <View style={styles.quickActions}>
-            {["Print Summary", "Add Shift Note", "View Docs"].map((label) => (
-              <Pressable
-                key={label}
-                style={styles.quickActionButton}
-                onPress={() => {
-                  if (label === "Add Shift Note") {
-                    onOpenDocumentation?.({
-                      title: "Add Shift Note",
-                      program: "Daily Documentation & Goals",
-                    });
-                  }
-                }}
-              >
-                <Text style={styles.quickActionText}>{label}</Text>
-              </Pressable>
-            ))}
+            {isEditingCarePlan ? (
+              <>
+                <Pressable
+                  style={[styles.quickActionButton, carePlanSaveState.saving && styles.quickActionButtonDisabled]}
+                  onPress={saveCarePlanEdits}
+                  disabled={carePlanSaveState.saving}
+                >
+                  <Text style={styles.quickActionText}>{carePlanSaveState.saving ? "Saving..." : "Save Care Plan"}</Text>
+                </Pressable>
+                <Pressable style={styles.quickActionButton} onPress={cancelEditingCarePlan}>
+                  <Text style={styles.quickActionText}>Cancel</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Pressable style={styles.quickActionButton} onPress={startEditingCarePlan}>
+                  <Text style={styles.quickActionText}>Edit Care Plan</Text>
+                </Pressable>
+                {["Print Summary", "Add Shift Note", "View Docs"].map((label) => (
+                  <Pressable
+                    key={label}
+                    style={styles.quickActionButton}
+                    onPress={() => {
+                      if (label === "Add Shift Note") {
+                        onOpenDocumentation?.({
+                          title: "Add Shift Note",
+                          program: "Daily Documentation & Goals",
+                        });
+                      }
+                    }}
+                  >
+                    <Text style={styles.quickActionText}>{label}</Text>
+                  </Pressable>
+                ))}
+              </>
+            )}
           </View>
+          {carePlanSaveState.message ? <Text style={styles.carePlanEditorSuccess}>{carePlanSaveState.message}</Text> : null}
+          {carePlanSaveState.error ? <Text style={styles.carePlanEditorError}>{carePlanSaveState.error}</Text> : null}
         </View>
       </View>
 
@@ -8960,10 +9168,28 @@ function CarePlanDocument({
         <View onLayout={(event) => registerSection("About Me", event.nativeEvent.layout.y)}>
           <SectionCard title="About Me" subtitle="Narrative support information from the care plan">
             <View style={styles.narrativeGrid}>
-              {aboutCards.map((card) => (
+              {aboutCards.map((card, index) => (
                 <View key={card.title} style={styles.narrativeCard}>
-                  <Text style={styles.narrativeCardTitle}>{card.title}</Text>
-                  <Text style={styles.narrativeCardBody}>{card.body}</Text>
+                  {isEditingCarePlan ? (
+                    <>
+                      <CarePlanEditorSectionLabel>Title</CarePlanEditorSectionLabel>
+                      <CarePlanEditorField
+                        value={card.title}
+                        onChangeText={(value) => setDraftValue(["aboutMeCards", index, "title"], value)}
+                      />
+                      <CarePlanEditorSectionLabel>Body</CarePlanEditorSectionLabel>
+                      <CarePlanEditorField
+                        value={card.body}
+                        onChangeText={(value) => setDraftValue(["aboutMeCards", index, "body"], value)}
+                        multiline
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.narrativeCardTitle}>{card.title}</Text>
+                      <Text style={styles.narrativeCardBody}>{card.body}</Text>
+                    </>
+                  )}
                 </View>
               ))}
             </View>
@@ -8973,14 +9199,41 @@ function CarePlanDocument({
         <View onLayout={(event) => registerSection("Risks", event.nativeEvent.layout.y)}>
           <SectionCard title="Risks" subtitle="Collapsible clinical risk cards with staff guidance">
             <View style={styles.riskGrid}>
-              {risks.map((item) => (
-                <RiskCard
-                  key={item.title}
-                  item={item}
-                  expanded={expandedRisk === item.title}
-                  onToggle={() => setExpandedRisk(expandedRisk === item.title ? null : item.title)}
-                />
-              ))}
+              {risks.map((item, index) =>
+                isEditingCarePlan ? (
+                  <View key={`${item.title}-${index}`} style={styles.riskCard}>
+                    <CarePlanEditorSectionLabel>Risk title</CarePlanEditorSectionLabel>
+                    <CarePlanEditorField
+                      value={item.title}
+                      onChangeText={(value) => setDraftValue(["riskCards", index, "title"], value)}
+                    />
+                    <CarePlanEditorSectionLabel>Severity</CarePlanEditorSectionLabel>
+                    <CarePlanEditorField
+                      value={item.severity}
+                      onChangeText={(value) => setDraftValue(["riskCards", index, "severity"], value)}
+                    />
+                    <CarePlanEditorSectionLabel>Notes</CarePlanEditorSectionLabel>
+                    <CarePlanEditorField
+                      value={item.notes}
+                      onChangeText={(value) => setDraftValue(["riskCards", index, "notes"], value)}
+                      multiline
+                    />
+                    <CarePlanEditorSectionLabel>Guidance</CarePlanEditorSectionLabel>
+                    <CarePlanEditorField
+                      value={item.guidance}
+                      onChangeText={(value) => setDraftValue(["riskCards", index, "guidance"], value)}
+                      multiline
+                    />
+                  </View>
+                ) : (
+                  <RiskCard
+                    key={item.title}
+                    item={item}
+                    expanded={expandedRisk === item.title}
+                    onToggle={() => setExpandedRisk(expandedRisk === item.title ? null : item.title)}
+                  />
+                )
+              )}
             </View>
           </SectionCard>
         </View>
@@ -8988,10 +9241,28 @@ function CarePlanDocument({
         <View onLayout={(event) => registerSection("Supports", event.nativeEvent.layout.y)}>
           <SectionCard title="Supports" subtitle="Home, community, ADLs, and communication supports">
             <View style={styles.narrativeGrid}>
-              {supports.map((card) => (
+              {supports.map((card, index) => (
                 <View key={card.title} style={styles.narrativeCard}>
-                  <Text style={styles.narrativeCardTitle}>{card.title}</Text>
-                  <Text style={styles.narrativeCardBody}>{card.body}</Text>
+                  {isEditingCarePlan ? (
+                    <>
+                      <CarePlanEditorSectionLabel>Title</CarePlanEditorSectionLabel>
+                      <CarePlanEditorField
+                        value={card.title}
+                        onChangeText={(value) => setDraftValue(["supportCards", index, "title"], value)}
+                      />
+                      <CarePlanEditorSectionLabel>Body</CarePlanEditorSectionLabel>
+                      <CarePlanEditorField
+                        value={card.body}
+                        onChangeText={(value) => setDraftValue(["supportCards", index, "body"], value)}
+                        multiline
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.narrativeCardTitle}>{card.title}</Text>
+                      <Text style={styles.narrativeCardBody}>{card.body}</Text>
+                    </>
+                  )}
                 </View>
               ))}
             </View>
@@ -9011,9 +9282,31 @@ function CarePlanDocument({
               </View>
             </View>
             <View style={styles.serviceGrid}>
-              {services.map((item) => (
-                <ServiceCard key={`${item.title}-${item.dateRange}`} item={item} />
-              ))}
+              {services.map((item, index) =>
+                isEditingCarePlan ? (
+                  <View key={`${item.title}-${index}`} style={styles.serviceCard}>
+                    {[
+                      ["Title", "title"],
+                      ["Status", "status"],
+                      ["Provider", "provider"],
+                      ["Funding", "funding"],
+                      ["Date range", "dateRange"],
+                      ["Detail", "detail"],
+                    ].map(([label, key]) => (
+                      <View key={key} style={styles.carePlanEditorGroup}>
+                        <CarePlanEditorSectionLabel>{label}</CarePlanEditorSectionLabel>
+                        <CarePlanEditorField
+                          value={item[key]}
+                          onChangeText={(value) => setDraftValue(["serviceCards", index, key], value)}
+                          multiline={key === "detail"}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <ServiceCard key={`${item.title}-${item.dateRange}`} item={item} />
+                )
+              )}
             </View>
           </SectionCard>
         </View>
@@ -9021,10 +9314,28 @@ function CarePlanDocument({
         <View onLayout={(event) => registerSection("Rights", event.nativeEvent.layout.y)}>
           <SectionCard title="Rights & Decision Making" subtitle="Decision authority, ANE education, and directives">
             <View style={styles.narrativeGrid}>
-              {rights.map((card) => (
+              {rights.map((card, index) => (
                 <View key={card.title} style={styles.narrativeCard}>
-                  <Text style={styles.narrativeCardTitle}>{card.title}</Text>
-                  <Text style={styles.narrativeCardBody}>{card.body}</Text>
+                  {isEditingCarePlan ? (
+                    <>
+                      <CarePlanEditorSectionLabel>Title</CarePlanEditorSectionLabel>
+                      <CarePlanEditorField
+                        value={card.title}
+                        onChangeText={(value) => setDraftValue(["rightsCards", index, "title"], value)}
+                      />
+                      <CarePlanEditorSectionLabel>Body</CarePlanEditorSectionLabel>
+                      <CarePlanEditorField
+                        value={card.body}
+                        onChangeText={(value) => setDraftValue(["rightsCards", index, "body"], value)}
+                        multiline
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.narrativeCardTitle}>{card.title}</Text>
+                      <Text style={styles.narrativeCardBody}>{card.body}</Text>
+                    </>
+                  )}
                 </View>
               ))}
             </View>
@@ -9034,10 +9345,28 @@ function CarePlanDocument({
         <View onLayout={(event) => registerSection("Activities", event.nativeEvent.layout.y)}>
           <SectionCard title="Community Activities" subtitle="Current activities and support needs in the community">
             <View style={styles.narrativeGrid}>
-              {activities.map((card) => (
+              {activities.map((card, index) => (
                 <View key={card.title} style={styles.narrativeCard}>
-                  <Text style={styles.narrativeCardTitle}>{card.title}</Text>
-                  <Text style={styles.narrativeCardBody}>{card.body}</Text>
+                  {isEditingCarePlan ? (
+                    <>
+                      <CarePlanEditorSectionLabel>Title</CarePlanEditorSectionLabel>
+                      <CarePlanEditorField
+                        value={card.title}
+                        onChangeText={(value) => setDraftValue(["activityCards", index, "title"], value)}
+                      />
+                      <CarePlanEditorSectionLabel>Body</CarePlanEditorSectionLabel>
+                      <CarePlanEditorField
+                        value={card.body}
+                        onChangeText={(value) => setDraftValue(["activityCards", index, "body"], value)}
+                        multiline
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.narrativeCardTitle}>{card.title}</Text>
+                      <Text style={styles.narrativeCardBody}>{card.body}</Text>
+                    </>
+                  )}
                 </View>
               ))}
             </View>
@@ -9047,16 +9376,59 @@ function CarePlanDocument({
         <View onLayout={(event) => registerSection("Action Plans", event.nativeEvent.layout.y)}>
           <SectionCard title="Action Plans" subtitle="Measurable outcomes, exact compliance structure, improved usability">
             <View style={styles.actionPlanStack}>
-              {plans.map((plan) => (
-                <ActionPlanCard
-                  key={plan.title}
-                  plan={plan}
-                  expandedRowKey={expandedActionRow}
-                  onToggleRow={setExpandedActionRow}
-                  isPhone={isPhone}
-                  onOpenDocumentation={onOpenDocumentation}
-                />
-              ))}
+              {plans.map((plan, planIndex) =>
+                isEditingCarePlan ? (
+                  <View key={`${plan.title}-${planIndex}`} style={styles.actionPlanCard}>
+                    <CarePlanEditorSectionLabel>Plan title</CarePlanEditorSectionLabel>
+                    <CarePlanEditorField
+                      value={plan.title}
+                      onChangeText={(value) => setDraftValue(["actionPlans", planIndex, "title"], value)}
+                    />
+                    <CarePlanEditorSectionLabel>Desired outcome</CarePlanEditorSectionLabel>
+                    <CarePlanEditorField
+                      value={plan.outcome}
+                      onChangeText={(value) => setDraftValue(["actionPlans", planIndex, "outcome"], value)}
+                      multiline
+                    />
+                    <CarePlanEditorSectionLabel>Need / Issue</CarePlanEditorSectionLabel>
+                    <CarePlanEditorField
+                      value={plan.issue}
+                      onChangeText={(value) => setDraftValue(["actionPlans", planIndex, "issue"], value)}
+                      multiline
+                    />
+                    {(plan.steps || []).map((step, stepIndex) => (
+                      <View key={`${plan.title}-step-${stepIndex}`} style={styles.carePlanEditorBlock}>
+                        <Text style={styles.carePlanEditorBlockTitle}>{`Step ${stepIndex + 1}`}</Text>
+                        {[
+                          ["Step", "step", true],
+                          ["Responsible", "responsible", true],
+                          ["Frequency", "frequency", false],
+                          ["Record", "record", false],
+                          ["Notes", "notes", true],
+                        ].map(([label, key, multiline]) => (
+                          <View key={key} style={styles.carePlanEditorGroup}>
+                            <CarePlanEditorSectionLabel>{label}</CarePlanEditorSectionLabel>
+                            <CarePlanEditorField
+                              value={step[key]}
+                              onChangeText={(value) => setDraftValue(["actionPlans", planIndex, "steps", stepIndex, key], value)}
+                              multiline={multiline}
+                            />
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <ActionPlanCard
+                    key={plan.title}
+                    plan={plan}
+                    expandedRowKey={expandedActionRow}
+                    onToggleRow={setExpandedActionRow}
+                    isPhone={isPhone}
+                    onOpenDocumentation={onOpenDocumentation}
+                  />
+                )
+              )}
             </View>
           </SectionCard>
         </View>
@@ -9066,20 +9438,36 @@ function CarePlanDocument({
             <View style={styles.documentGrid}>
               <View style={styles.documentChecklistCard}>
                 <Text style={styles.documentSubhead}>Documentation Checklists</Text>
-                {checklist.map((item) => (
-                  <View key={item} style={styles.documentChecklistRow}>
-                    <View style={styles.documentCheckbox} />
-                    <Text style={styles.documentChecklistText}>{item}</Text>
-                  </View>
-                ))}
+                {checklist.map((item, index) =>
+                  isEditingCarePlan ? (
+                    <CarePlanEditorField
+                      key={`${item}-${index}`}
+                      value={item}
+                      onChangeText={(value) => setDraftValue(["documentChecklist", index], value)}
+                    />
+                  ) : (
+                    <View key={item} style={styles.documentChecklistRow}>
+                      <View style={styles.documentCheckbox} />
+                      <Text style={styles.documentChecklistText}>{item}</Text>
+                    </View>
+                  )
+                )}
               </View>
               <View style={styles.documentChecklistCard}>
                 <Text style={styles.documentSubhead}>Referenced Attachments</Text>
-                {files.map((item) => (
-                  <Text key={item} style={styles.documentFileText}>
-                    {item}
-                  </Text>
-                ))}
+                {files.map((item, index) =>
+                  isEditingCarePlan ? (
+                    <CarePlanEditorField
+                      key={`${item}-${index}`}
+                      value={item}
+                      onChangeText={(value) => setDraftValue(["documentFiles", index], value)}
+                    />
+                  ) : (
+                    <Text key={item} style={styles.documentFileText}>
+                      {item}
+                    </Text>
+                  )
+                )}
               </View>
             </View>
           </SectionCard>
@@ -9093,20 +9481,50 @@ function CarePlanDocument({
                 <Text style={[styles.participantHeaderCell, { flex: 1.4 }]}>Relationship</Text>
                 <Text style={[styles.participantHeaderCell, { flex: 0.7 }]}>Copy</Text>
               </View>
-              {roster.map((item) => (
-                <View key={item.name} style={styles.participantRow}>
-                  <Text style={[styles.participantCell, { flex: 1.3 }]}>{item.name}</Text>
-                  <Text style={[styles.participantCell, { flex: 1.4 }]}>{item.relationship}</Text>
-                  <Text style={[styles.participantCell, { flex: 0.7 }]}>{item.copy}</Text>
+              {roster.map((item, index) => (
+                <View key={`${item.name}-${index}`} style={styles.participantRow}>
+                  {isEditingCarePlan ? (
+                    <>
+                      <CarePlanEditorField
+                        value={item.name}
+                        onChangeText={(value) => setDraftValue(["participants", index, "name"], value)}
+                        style={[styles.participantCell, styles.carePlanEditorTableInput, { flex: 1.3 }]}
+                      />
+                      <CarePlanEditorField
+                        value={item.relationship}
+                        onChangeText={(value) => setDraftValue(["participants", index, "relationship"], value)}
+                        style={[styles.participantCell, styles.carePlanEditorTableInput, { flex: 1.4 }]}
+                      />
+                      <CarePlanEditorField
+                        value={item.copy}
+                        onChangeText={(value) => setDraftValue(["participants", index, "copy"], value)}
+                        style={[styles.participantCell, styles.carePlanEditorTableInput, { flex: 0.7 }]}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.participantCell, { flex: 1.3 }]}>{item.name}</Text>
+                      <Text style={[styles.participantCell, { flex: 1.4 }]}>{item.relationship}</Text>
+                      <Text style={[styles.participantCell, { flex: 0.7 }]}>{item.copy}</Text>
+                    </>
+                  )}
                 </View>
               ))}
             </View>
             <View style={styles.signatureList}>
-              {signatures.map((item) => (
-                <Text key={item} style={styles.signatureItem}>
-                  {`• ${item}`}
-                </Text>
-              ))}
+              {signatures.map((item, index) =>
+                isEditingCarePlan ? (
+                  <CarePlanEditorField
+                    key={`${item}-${index}`}
+                    value={item}
+                    onChangeText={(value) => setDraftValue(["signatureLogs", index], value)}
+                  />
+                ) : (
+                  <Text key={item} style={styles.signatureItem}>
+                    {`• ${item}`}
+                  </Text>
+                )
+              )}
             </View>
           </SectionCard>
         </View>
@@ -9114,18 +9532,37 @@ function CarePlanDocument({
         <View onLayout={(event) => registerSection("Source Pages", event.nativeEvent.layout.y)}>
           <SectionCard title="Full Source Pages" subtitle="Complete OCR extract retained so all PDF content remains available">
             <View style={styles.sourcePageStack}>
-              {sourcePages.map((page) => {
+              {sourcePages.map((page, index) => {
                 const isExpanded = expandedSourcePage === page.page;
                 return (
                   <View key={`source-page-${page.page}`} style={styles.sourcePageCard}>
-                    <Pressable
-                      onPress={() => setExpandedSourcePage(isExpanded ? null : page.page)}
-                      style={styles.sourcePageHeader}
-                    >
-                      <Text style={styles.sourcePageTitle}>{`Source Page ${page.page}`}</Text>
-                      <Text style={styles.sourcePageToggle}>{isExpanded ? "Hide" : "Show"}</Text>
-                    </Pressable>
-                    {isExpanded ? <Text style={styles.sourcePageText}>{page.text}</Text> : null}
+                    {isEditingCarePlan ? (
+                      <>
+                        <CarePlanEditorSectionLabel>Page</CarePlanEditorSectionLabel>
+                        <CarePlanEditorField
+                          value={String(page.page)}
+                          onChangeText={(value) => setDraftValue(["carePlanTextPages", index, "page"], value)}
+                        />
+                        <CarePlanEditorSectionLabel>Text</CarePlanEditorSectionLabel>
+                        <CarePlanEditorField
+                          value={page.text}
+                          onChangeText={(value) => setDraftValue(["carePlanTextPages", index, "text"], value)}
+                          multiline
+                          style={styles.carePlanSourceEditorInput}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Pressable
+                          onPress={() => setExpandedSourcePage(isExpanded ? null : page.page)}
+                          style={styles.sourcePageHeader}
+                        >
+                          <Text style={styles.sourcePageTitle}>{`Source Page ${page.page}`}</Text>
+                          <Text style={styles.sourcePageToggle}>{isExpanded ? "Hide" : "Show"}</Text>
+                        </Pressable>
+                        {isExpanded ? <Text style={styles.sourcePageText}>{page.text}</Text> : null}
+                      </>
+                    )}
                   </View>
                 );
               })}

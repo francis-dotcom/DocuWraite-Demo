@@ -1,0 +1,15 @@
+# DocuWraite web UI (Expo static export).
+# Set EXPO_PUBLIC_DOCUWRAITE_API_URL in Netlify → Site configuration → Environment variables
+# to your hosted API URL (e.g. https://docuwraite-api.onrender.com).
+
+[build]
+  command = "npm run build:web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

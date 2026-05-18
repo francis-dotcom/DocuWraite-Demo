@@ -1,0 +1,17 @@
+# Host the Express + SQLite API (Netlify cannot run this).
+# After deploy, copy the service URL into Netlify as EXPO_PUBLIC_DOCUWRAITE_API_URL and redeploy the site.
+
+services:
+  - type: web
+    name: docuwraite-api
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm rebuild better-sqlite3
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: THERAP_SYNC_MODE
+        value: demo

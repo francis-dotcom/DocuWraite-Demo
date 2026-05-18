@@ -109,16 +109,41 @@ function mergeClientProfileWithCarePlanData(baseProfile = null, clientCarePlan =
     return null;
   }
 
-  if (!clientCarePlan?.riskCards?.length && !clientCarePlan?.actionPlans?.length) {
+  if (!clientCarePlan) {
     return base;
   }
 
-  return {
+  const editorContent =
+    clientCarePlan?.intelligenceOptions?.editorContent &&
+    typeof clientCarePlan.intelligenceOptions.editorContent === "object"
+      ? clientCarePlan.intelligenceOptions.editorContent
+      : null;
+
+  const merged = {
     ...base,
     riskCards: clientCarePlan.riskCards?.length ? clientCarePlan.riskCards : base.riskCards,
     actionPlans: clientCarePlan.actionPlans?.length ? clientCarePlan.actionPlans : base.actionPlans,
     shiftIntelligenceOptions:
       clientCarePlan.intelligenceOptions || base.shiftIntelligenceOptions || {},
+  };
+
+  if (!editorContent) {
+    return merged;
+  }
+
+  return {
+    ...merged,
+    carePlanHeader: editorContent.carePlanHeader || merged.carePlanHeader,
+    aboutMeCards: editorContent.aboutMeCards || merged.aboutMeCards,
+    supportCards: editorContent.supportCards || merged.supportCards,
+    serviceCards: editorContent.serviceCards || merged.serviceCards,
+    rightsCards: editorContent.rightsCards || merged.rightsCards,
+    activityCards: editorContent.activityCards || merged.activityCards,
+    documentChecklist: editorContent.documentChecklist || merged.documentChecklist,
+    documentFiles: editorContent.documentFiles || merged.documentFiles,
+    participants: editorContent.participants || merged.participants,
+    signatureLogs: editorContent.signatureLogs || merged.signatureLogs,
+    carePlanTextPages: editorContent.carePlanTextPages || merged.carePlanTextPages,
   };
 }
 
