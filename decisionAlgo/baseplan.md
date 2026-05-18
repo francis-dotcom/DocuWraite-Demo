@@ -3448,3 +3448,205 @@
   - Unknown
   - Not observed
   - Not applicable
+
+---
+
+## L. row-note-support
+
+### a1. row-goal-focus
+
+- `Q:` What goal or outcome does this case-note row document?
+
+- `Choices:`
+  - ADL or personal care goal
+  - Behavior or social goal
+  - Health or safety goal
+  - Community or leisure goal
+  - Other measurable outcome
+
+### a2. support-rendered
+
+- `Q:` What support was provided for this row?
+
+- `Choices:`
+  - Verbal prompt or cue
+  - Partial assist
+  - Total assist
+  - Supervision only
+  - No support needed
+
+### a3. observed-response
+
+- `Q:` What was the individual's response for this row?
+
+- `Choices:`
+  - Completed or participated
+  - Partial participation
+  - Refused
+  - Not observed
+  - Deferred
+
+### a4. measurable-data
+
+- `Q:` What measurable or data detail should this row capture?
+
+- `Choices:`
+  - Count or frequency
+  - Percent or rating
+  - Yes or no completion
+  - Narrative only
+  - Not applicable
+
+---
+
+### b1. IF `row-support-selected`
+
+### b2. support-detail
+
+- `Q:` What specific support detail should appear in the row note?
+
+- `Choices:`
+  - Staff action taken
+  - Individual response
+  - Care-plan link
+  - Follow-up need
+  - Skip
+  - Deferred
+  - Unknown
+  - Not observed
+  - Not applicable
+
+### b3. refusal-branch
+
+- `Q:` If the individual refused, what follow-up is required?
+
+- `Choices:`
+  - Retry later this shift
+  - Notify supervisor
+  - Document refusal only
+  - Route to behavior support
+  - Skip
+  - Deferred
+  - Unknown
+  - Not observed
+  - Not applicable
+
+---
+
+### c1. IF `row-includes-safety-or-health`
+
+### c2. row-risk-follow-up
+
+- `Q:` If this row includes safety or health detail, what must be documented?
+
+- `Choices:`
+  - Symptom or concern
+  - Intervention taken
+  - Monitoring plan
+  - Escalation taken
+  - Skip
+  - Deferred
+  - Unknown
+  - Not observed
+  - Not applicable
+
+---
+
+## M. handover-note-support
+
+### a1. handover-focus
+
+- `Q:` What is the primary focus of this handover?
+
+- `Choices:`
+  - Health follow-up
+  - Behavior follow-up
+  - Safety follow-up
+  - Medication follow-up
+  - Routine and transitions
+
+### a2. carryover-items
+
+- `Q:` Which carryover items must the next shift know?
+
+- `Choices:`
+  - Unresolved health items
+  - Unresolved behavior items
+  - Pending medications or MAR
+  - Incomplete goals
+  - Priority reminders
+
+### a3. monitoring-needs
+
+- `Q:` What active monitoring is required after handoff?
+
+- `Choices:`
+  - Vitals or symptoms
+  - Behavior or mood
+  - Safety or elopement
+  - Nutrition or fluids
+  - None
+
+### a4. notifications
+
+- `Q:` Who was notified about urgent handover items?
+
+- `Choices:`
+  - Oncoming staff only
+  - Supervisor
+  - Nurse
+  - No notification yet
+  - Not applicable
+
+---
+
+### b1. IF `handover-items-selected`
+
+### b2. handover-destination
+
+- `Q:` Where should these handover details appear?
+
+- `Choices:`
+  - Shift handoff only
+  - Final case note only
+  - Handoff and final note
+  - Supervisor communication
+  - Skip
+  - Deferred
+  - Unknown
+  - Not observed
+  - Not applicable
+
+### b3. urgency-level
+
+- `Q:` How urgent are the handover items?
+
+- `Choices:`
+  - Routine
+  - Monitor closely
+  - Urgent same shift
+  - Requires immediate action
+  - Skip
+  - Deferred
+  - Unknown
+  - Not observed
+  - Not applicable
+
+---
+
+### c1. IF `urgent-handover-item`
+
+### c2. handover-escalation
+
+- `Q:` If handover items are urgent, what escalation is documented?
+
+- `Choices:`
+  - Supervisor notified
+  - Nurse notified
+  - Incident started
+  - Active monitoring only
+  - Skip
+  - Deferred
+  - Unknown
+  - Not observed
+  - Not applicable

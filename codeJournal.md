@@ -91,6 +91,48 @@ In Markdown, use `<details>` / `<summary>` so each guide collapses in Cursor or 
 </details>
 
 <details>
+<summary><strong>How branch, depth, and sections work</strong> — Topic folders, question levels, and storyline lanes in the Decision Engine.</summary>
+
+1. **Section** — topic folder in the list (e.g. morning ADL, Row Note Draft). Groups questions; not the same as Branch or Depth.
+2. **Depth** — how many levels down: `a` = 1 (main), `b` = 2 (children), `c` = 3 (sub-children). The Depth dropdown caps how far down is shown.
+3. **Branch (library paths)** — parallel lane in a section (usually branch 1 vs 2; baseplan up to 5). Example: trigger path vs content path.
+4. **Branch (selective mode)** — one of five escalation classes: Refusal, Fatigue, Risk & safety, Protocol failure, Incident / emergency (full set in `decisionAlgo/branching.md`).
+5. **Full branch** — all questions for the note type in that library. **Selective branch** — narrow by branch + depth + branching follow-ups for the chosen class.
+6. Pick **Library** + **Note type** for what you document; use **Mode**, **Branch**, and **Depth** when you want a focused slice.
+
+</details>
+
+<details>
+<summary><strong>Which libraries and depths each note type has</strong> — Coverage is split by note type, not one matrix for everything.</summary>
+
+| Note type | Main libraries / sections | Depth (typical) |
+|-----------|----------------------------|-----------------|
+| **Block time** | Baseplan A–J, Careplan, Runtime, Readiness, Playbook R, IntelliDraft block + E | Baseplan up to **5**; others **1–3** |
+| **Row note** | Baseplan **L**, IntelliDraft row + **E**, branching | **1–4** in L; **1–3** elsewhere |
+| **Final note** | Baseplan **K**, IntelliDraft final + **E**, branching | **1–5** in K; **1–3** elsewhere |
+| **Handover note** | Baseplan **M**, Runtime handoff, IntelliDraft handoff + **E**, branching | **1–4** in M; **1–3** elsewhere |
+| **Orders** | Runtime meds/tasks, IntelliDraft orders + **E**, branching — **not** Baseplan I | **1–3** |
+
+- **Branching** (five escalation classes) applies to **all** note types in **Selective branch** mode.
+- **Baseplan I (medication-support)** = **Block time** only; **Orders** = Runtime + IntelliDraft.
+- You still **check** each question, **Final Assign**, then the **bubble** asks that same set on the block or row.
+- Registry: `decisionAlgo/noteTypeRegistry.js`; content: `decisionAlgo/nodes.json` (regenerate with `npm run parse:decision-nodes` after parser edits).
+- **Pick target first:** row target → **Row note**; time block → **Block time** (app auto-suggests). Final / handover / orders = shift-level, choose manually on a time block.
+
+</details>
+
+<details>
+<summary><strong>How to use Smart select (supervisor quick pick)</strong> — Pre-check a subset when you cannot review every question.</summary>
+
+1. Set **Library**, **Note type**, **Mode**, **Branch**, and **Depth** first (Smart select only affects **visible** questions).
+2. Tap **Essential**, **Standard**, **Supervisor focus**, or **All visible** above the question list in Decision Engine.
+3. A **summary** lists what was checked; tap **×** to undo that Smart select batch only (keeps manual checks). **Clear visible** clears everything in the filter.
+4. Review checkboxes, tweak, **lock** → **Final Assign** → DSP **bubble** asks that same set.
+5. Logic: `decisionAlgo/smartSelection.js` (rule-based; not a second AI interview).
+
+</details>
+
+<details>
 <summary><strong>How to fix port 8787 in use</strong> — Free the API port when `npm run server` fails.</summary>
 
 1. Run `lsof -nP -iTCP:8787 -sTCP:LISTEN`.

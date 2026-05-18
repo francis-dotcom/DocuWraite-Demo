@@ -10,7 +10,8 @@ This folder contains the experimental decision-engine source files.
 - `aidraft` is split into:
   - parser source: `decisionAlgo/aidraft/parser.md`
   - human guide: `decisionAlgo/aidraft/guide.md`
-  - note-type template: `decisionAlgo/aidraft/noteTypeTemplate.js` (maps Note type → parser section)
+  - note-type template: `decisionAlgo/aidraft/noteTypeTemplate.js` (IntelliDraft sections)
+  - all libraries: `decisionAlgo/noteTypeRegistry.js` (note-type filters + assign-once rules)
 - It generates structured node JSON in `decisionAlgo/nodes.json`
 - The Decision Engine UI is inside the app (`App.js`), not a standalone localhost route
 

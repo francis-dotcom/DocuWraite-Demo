@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-05-18T21:19:54.201Z",
+  "generatedAt": "2026-05-18T21:30:39.125Z",
   "summary": {
     "libraryCount": 7,
-    "nodeCount": 509
+    "nodeCount": 527
   },
   "libraries": [
     {
@@ -5600,6 +5600,338 @@
             "Generate final case note",
             "Hold for more answers",
             "Route to follow-up question",
+            "Skip",
+            "Deferred",
+            "Unknown",
+            "Not observed",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "a1",
+          "library": "baseplan",
+          "section": "L. row-note-support",
+          "depth": 1,
+          "title": "row-goal-focus",
+          "question": "What goal or outcome does this case-note row document?",
+          "choices": [
+            "ADL or personal care goal",
+            "Behavior or social goal",
+            "Health or safety goal",
+            "Community or leisure goal",
+            "Other measurable outcome"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "a2",
+          "library": "baseplan",
+          "section": "L. row-note-support",
+          "depth": 1,
+          "title": "support-rendered",
+          "question": "What support was provided for this row?",
+          "choices": [
+            "Verbal prompt or cue",
+            "Partial assist",
+            "Total assist",
+            "Supervision only",
+            "No support needed"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "a3",
+          "library": "baseplan",
+          "section": "L. row-note-support",
+          "depth": 1,
+          "title": "observed-response",
+          "question": "What was the individual's response for this row?",
+          "choices": [
+            "Completed or participated",
+            "Partial participation",
+            "Refused",
+            "Not observed",
+            "Deferred"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "a4",
+          "library": "baseplan",
+          "section": "L. row-note-support",
+          "depth": 1,
+          "title": "measurable-data",
+          "question": "What measurable or data detail should this row capture?",
+          "choices": [
+            "Count or frequency",
+            "Percent or rating",
+            "Yes or no completion",
+            "Narrative only",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "b1",
+          "library": "baseplan",
+          "section": "L. row-note-support",
+          "depth": 1,
+          "title": "IF `row-support-selected`",
+          "question": null,
+          "choices": [],
+          "children": [],
+          "conditions": [
+            "row-support-selected"
+          ],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "b2",
+          "library": "baseplan",
+          "section": "L. row-note-support",
+          "depth": 1,
+          "title": "support-detail",
+          "question": "What specific support detail should appear in the row note?",
+          "choices": [
+            "Staff action taken",
+            "Individual response",
+            "Care-plan link",
+            "Follow-up need",
+            "Skip",
+            "Deferred",
+            "Unknown",
+            "Not observed",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "b3",
+          "library": "baseplan",
+          "section": "L. row-note-support",
+          "depth": 1,
+          "title": "refusal-branch",
+          "question": "If the individual refused, what follow-up is required?",
+          "choices": [
+            "Retry later this shift",
+            "Notify supervisor",
+            "Document refusal only",
+            "Route to behavior support",
+            "Skip",
+            "Deferred",
+            "Unknown",
+            "Not observed",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "c1",
+          "library": "baseplan",
+          "section": "L. row-note-support",
+          "depth": 1,
+          "title": "IF `row-includes-safety-or-health`",
+          "question": null,
+          "choices": [],
+          "children": [],
+          "conditions": [
+            "row-includes-safety-or-health"
+          ],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "c2",
+          "library": "baseplan",
+          "section": "L. row-note-support",
+          "depth": 1,
+          "title": "row-risk-follow-up",
+          "question": "If this row includes safety or health detail, what must be documented?",
+          "choices": [
+            "Symptom or concern",
+            "Intervention taken",
+            "Monitoring plan",
+            "Escalation taken",
+            "Skip",
+            "Deferred",
+            "Unknown",
+            "Not observed",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "a1",
+          "library": "baseplan",
+          "section": "M. handover-note-support",
+          "depth": 1,
+          "title": "handover-focus",
+          "question": "What is the primary focus of this handover?",
+          "choices": [
+            "Health follow-up",
+            "Behavior follow-up",
+            "Safety follow-up",
+            "Medication follow-up",
+            "Routine and transitions"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "a2",
+          "library": "baseplan",
+          "section": "M. handover-note-support",
+          "depth": 1,
+          "title": "carryover-items",
+          "question": "Which carryover items must the next shift know?",
+          "choices": [
+            "Unresolved health items",
+            "Unresolved behavior items",
+            "Pending medications or MAR",
+            "Incomplete goals",
+            "Priority reminders"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "a3",
+          "library": "baseplan",
+          "section": "M. handover-note-support",
+          "depth": 1,
+          "title": "monitoring-needs",
+          "question": "What active monitoring is required after handoff?",
+          "choices": [
+            "Vitals or symptoms",
+            "Behavior or mood",
+            "Safety or elopement",
+            "Nutrition or fluids",
+            "None"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "a4",
+          "library": "baseplan",
+          "section": "M. handover-note-support",
+          "depth": 1,
+          "title": "notifications",
+          "question": "Who was notified about urgent handover items?",
+          "choices": [
+            "Oncoming staff only",
+            "Supervisor",
+            "Nurse",
+            "No notification yet",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "b1",
+          "library": "baseplan",
+          "section": "M. handover-note-support",
+          "depth": 1,
+          "title": "IF `handover-items-selected`",
+          "question": null,
+          "choices": [],
+          "children": [],
+          "conditions": [
+            "handover-items-selected"
+          ],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "b2",
+          "library": "baseplan",
+          "section": "M. handover-note-support",
+          "depth": 1,
+          "title": "handover-destination",
+          "question": "Where should these handover details appear?",
+          "choices": [
+            "Shift handoff only",
+            "Final case note only",
+            "Handoff and final note",
+            "Supervisor communication",
+            "Skip",
+            "Deferred",
+            "Unknown",
+            "Not observed",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "b3",
+          "library": "baseplan",
+          "section": "M. handover-note-support",
+          "depth": 1,
+          "title": "urgency-level",
+          "question": "How urgent are the handover items?",
+          "choices": [
+            "Routine",
+            "Monitor closely",
+            "Urgent same shift",
+            "Requires immediate action",
+            "Skip",
+            "Deferred",
+            "Unknown",
+            "Not observed",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "c1",
+          "library": "baseplan",
+          "section": "M. handover-note-support",
+          "depth": 1,
+          "title": "IF `urgent-handover-item`",
+          "question": null,
+          "choices": [],
+          "children": [],
+          "conditions": [
+            "urgent-handover-item"
+          ],
+          "source": "baseplan.md"
+        },
+        {
+          "id": "c2",
+          "library": "baseplan",
+          "section": "M. handover-note-support",
+          "depth": 1,
+          "title": "handover-escalation",
+          "question": "If handover items are urgent, what escalation is documented?",
+          "choices": [
+            "Supervisor notified",
+            "Nurse notified",
+            "Incident started",
+            "Active monitoring only",
             "Skip",
             "Deferred",
             "Unknown",

@@ -44,18 +44,26 @@ import {
 } from "./clientProfiles";
 import { getShiftIntelligenceRuntime, mergeResolvedClientProfile } from "./shiftIntelligence";
 import {
-  getIntelliDraftDefaultTargetType,
-  getIntelliDraftTemplateForNoteType,
-  intelliDraftNoteTypeMatches,
-  resolveIntelliDraftNoteType,
-} from "./decisionAlgo/aidraft/noteTypeTemplate";
+  BRANCHING_FOLLOW_UP_BRANCHES,
+  decisionNoteTypeMatches,
+  getBranchingFollowUpNodes,
+  getDefaultTargetTypeForNoteType,
+  getNodeAssignmentStatus,
+  getNoteTypeSelectionGuidance,
+  getNoteTypeTemplateHint,
+  getRecommendedNoteTypeForTarget,
+  getSectionAssignRule,
+  getSectionAssignmentStatus,
+  resolveDecisionNoteType,
+} from "./decisionAlgo/noteTypeRegistry";
+import { SMART_SELECT_PRESETS, buildSmartSelection } from "./decisionAlgo/smartSelection";
 
 const decisionNodes = require("./decisionAlgo/nodes.json");
 
 const DECISION_LIBRARY_HELP = {
   aidraft: "AI draft rules for when notes are generated, what they must include, and which safety guardrails apply.",
   baseplan: "Core documentation questions that shape the base note structure.",
-  branching: "Branch logic that controls which follow-up questions appear next.",
+  branching: "Follow-up rules (refusal, fatigue, risk) — use Selective branch + Branch/Depth, not this library picker.",
   careplan: "Care-plan-based questions and support rules pulled into documentation.",
   playbookR: "Playbook and response guidance for support actions and workflows.",
   readiness: "Checks that decide whether enough information is present to continue.",
@@ -189,6 +197,56 @@ const documentationHowToGuides = [
       "Open the Decision Engine module and choose the library, note type, and target block or row.",
       "Select the questions and branches you want included, then lock the library assignment.",
       "Use Final Assign to send staged assignments into the DSP Case Note before documentation starts.",
+    ],
+  },
+  {
+    title: "How branch, depth, and sections work",
+    summary: "Topic folders, question levels, and storyline lanes in the Decision Engine.",
+    steps: [
+      "Section is the topic folder in the question list (for example morning ADL, Row Note Draft, Protocol Failure Branching). It groups related questions; it is not the same as Branch or Depth.",
+      "Depth is how many levels down the tree you see. Depth 1 is the main question (node id letter a), depth 2 is the next level under it (b), depth 3 is under that (c), and so on — like main question, then children, then sub-children.",
+      "The Depth control caps how far down the chain is included. Depth 3 shows the main question plus two levels of follow-ups; a lower depth shows only the opening layers.",
+      "Branch is which class or lane you are on at those levels. In most libraries, branch 1 and branch 2 are parallel paths in the same section (for example a trigger path versus a content path). Baseplan can use branches 1 through 5 for different lanes inside a section.",
+      "In Selective branch mode, Branch means one of five escalation classes only: Refusal, Fatigue, Risk and safety, Protocol failure, Incident or emergency. Those five are the full set for that branching guide; there is no sixth class unless the guide is extended.",
+      "Full branch mode shows every question in the library for the selected note type. Selective branch mode narrows the main library by branch and depth and adds matching follow-up questions from the branching guide for the class you picked.",
+      "Use Library and Note type for what you are documenting. Use Mode, Branch, and Depth when you want a focused slice instead of the whole library.",
+    ],
+  },
+  {
+    title: "Which libraries and depths each note type has",
+    summary: "Not every library has every note type — pick the note type that matches what you are charting.",
+    steps: [
+      "The five note types are Block time, Row note, Final note, Handover note, and Orders. Note type controls which sections appear when you filter the Decision Engine list — it is not just a label.",
+      "Block time is the fullest set: Baseplan sections A–J (morning ADL, outing, behavior, medication-support, and similar), plus Careplan, Runtime, Readiness, Playbook R, IntelliDraft block drafts, and branching follow-ups. Baseplan block-time questions can run up to depth 5; most other libraries use depths 1–3.",
+      "Row note uses Baseplan section L (row-note-support), IntelliDraft row-note drafts, shared AI safety section E, and branching. It does not show the big Careplan or Runtime block-time libraries.",
+      "Final note uses Baseplan section K (case-note-final), IntelliDraft final-case-note drafts, section E, and branching — typically depths 1–5 in Baseplan K and 1–3 elsewhere.",
+      "Handover note uses Baseplan section M (handover-note-support), Runtime handoff section, IntelliDraft handoff drafts, section E, and branching.",
+      "Orders uses Runtime medications and due health tasks, IntelliDraft orders and medication drafts, section E, and branching. Baseplan medication-support (section I) is Block time only, not Orders — do not expect orders questions under Baseplan.",
+      "Branching (Refusal through Incident) is available for all five note types in Selective branch mode. The Depth dropdown caps how many levels you see; it does not auto-add every child question — you still check each question you want, then Final Assign. The purple bubble on Scores/Comments asks only what you assigned to that block or row.",
+    ],
+  },
+  {
+    title: "Which note type to pick",
+    summary: "Match note type to what you are assigning — block, row, or whole shift.",
+    steps: [
+      "Block time — timeline / time-block work (morning ADL, outing, behavior, feeding). Use Target: Time block. This is the default and the largest question set (Baseplan A–J, Careplan, Runtime, and more).",
+      "Row note — one DSP case-note row. Use Target: Case-note row and Note type Row note (the app sets this when you pick a row).",
+      "Final note — end-of-shift final case note paragraph. Use once per shift (Baseplan K, IntelliDraft final). Target is usually a time block; assign only one final pack per case note.",
+      "Handover note — next-shift handoff. Baseplan M, Runtime handoff, IntelliDraft handoff.",
+      "Orders — MAR and medication documentation. Runtime + IntelliDraft orders — not Baseplan medication-support (that stays under Block time).",
+      "Rule of thumb: pick Target first; Note type follows the row vs block. Use Smart select after Note type and Branch/Depth are set.",
+    ],
+  },
+  {
+    title: "How to use Smart select (supervisor quick pick)",
+    summary: "Pre-check a sensible subset when you cannot review every question in the list.",
+    steps: [
+      "In Decision Engine, set Library, Note type, Mode, Branch, and Depth first — Smart select only checks questions that are already visible in the list.",
+      "Use Smart select above the question list: Essential (depth 1, one anchor per section), Standard (depths 1–2), Supervisor focus (standard plus risk, refusal, protocol, and supervisor-related prompts), or All visible.",
+      "After you tap a preset, a summary appears under Smart select listing what was checked (section and question). Tap × to undo only that Smart select batch without clearing questions you added by hand.",
+      "Clear visible removes every checked question in the current filter. × on the summary removes only the last Smart select batch.",
+      "Review the list, tweak checkboxes, then lock the library to the target block or row and Final Assign as usual.",
+      "The DSP bubble still asks only what you final-assigned — Smart select is a shortcut for picking, not a separate AI interview.",
     ],
   },
 ];
@@ -1101,87 +1159,11 @@ function getDecisionSectionFilterLabel(sectionKey = "") {
 }
 
 function getDecisionNoteTypeKey(nodeOrSection = "", librarySlug = "") {
-  const section =
-    typeof nodeOrSection === "string"
-      ? nodeOrSection
-      : nodeOrSection?.section || nodeOrSection?.title || "";
-  const library =
-    librarySlug ||
-    (typeof nodeOrSection === "object" ? nodeOrSection?.library || nodeOrSection?.sourceLibrary : "");
-
-  if (library === "aidraft") {
-    return resolveIntelliDraftNoteType(nodeOrSection);
-  }
-
-  const normalized = String(section || "").trim().toLowerCase();
-
-  if (normalized.includes("row note") || normalized.includes("case note row")) {
-    return "row-note";
-  }
-
-  if (
-    normalized.includes("final case note") ||
-    normalized.includes("final note") ||
-    normalized.includes("final case")
-  ) {
-    return "final-note";
-  }
-
-  if (normalized.includes("handoff") || normalized.includes("handover")) {
-    return "handover-note";
-  }
-
-  if (
-    normalized.includes("medication-support") ||
-    /\borders?\b/.test(normalized) ||
-    normalized.includes("mar ") ||
-    normalized.includes("medication order") ||
-    normalized.includes("prescription")
-  ) {
-    return "orders";
-  }
-
-  if (
-    normalized.includes("block summary") ||
-    normalized.includes("block time") ||
-    normalized.includes("runtime") ||
-    normalized.includes("schedule") ||
-    normalized.includes("appointments") ||
-    normalized.includes("adl") ||
-    normalized.includes("behavior") ||
-    normalized.includes("meal") ||
-    normalized.includes("feeding") ||
-    normalized.includes("communication") ||
-    normalized.includes("community") ||
-    normalized.includes("outing") ||
-    normalized.includes("hygiene") ||
-    normalized.includes("leisure") ||
-    normalized.includes("return-home") ||
-    normalized.includes("return home") ||
-    normalized.includes("in-home") ||
-    normalized.includes("medication") ||
-    normalized.includes("playbook") ||
-    normalized.includes("readiness") ||
-    normalized.includes("branch")
-  ) {
-    return "block-time";
-  }
-
-  if (["baseplan", "careplan", "branching", "readiness", "playbookR", "runtime"].includes(library)) {
-    return "block-time";
-  }
-
-  return "block-time";
+  return resolveDecisionNoteType(nodeOrSection, librarySlug);
 }
 
 function nodeMatchesDecisionNoteType(node, noteType, librarySlug = "") {
-  const activeNoteType = normalizeDecisionNoteType(noteType);
-  const library = librarySlug || node?.library || "";
-  if (library === "aidraft") {
-    return intelliDraftNoteTypeMatches(node, activeNoteType);
-  }
-  const nodeNoteType = getDecisionNoteTypeKey(node, library);
-  return nodeNoteType === activeNoteType;
+  return decisionNoteTypeMatches(node, noteType, librarySlug || node?.library);
 }
 
 function normalizeDecisionNoteType(noteTypeKey = "") {
@@ -2342,7 +2324,17 @@ function getDecisionBranchOptions(nodes = []) {
 }
 
 function getAvailableDecisionLibraries() {
-  return decisionNodes.libraries.filter((lib) => String(lib.library || "").toLowerCase() !== "readme");
+  return decisionNodes.libraries.filter((lib) => {
+    const slug = String(lib.library || "").toLowerCase();
+    return slug !== "readme" && slug !== "branching";
+  });
+}
+
+function getBranchingBranchDropdownOptions() {
+  return BRANCHING_FOLLOW_UP_BRANCHES.map((row) => ({
+    value: row.key,
+    label: row.label,
+  }));
 }
 
 function getDefaultDecisionLibrarySlug() {
@@ -3733,6 +3725,7 @@ function DecisionDropdown({
   onToggleDropdown,
   onChange,
   fieldStyle,
+  valueTextStyle,
   disabled = false,
 }) {
   const isOpen = activeDropdown === dropdownId;
@@ -3773,6 +3766,7 @@ function DecisionDropdown({
         <Text
           style={[
             value ? styles.decisionDropdownValue : styles.decisionDropdownPlaceholder,
+            value ? valueTextStyle : null,
             disabled && styles.decisionDropdownValueDisabled,
           ]}
           numberOfLines={1}
@@ -3970,7 +3964,28 @@ function DocuWraiteGuidedWorkflowPanel({
   }
 
   if (!stepMeta) {
-    return null;
+    const emptyWorkflowMessage = useAssignedNodeWorkflow
+      ? assignedNodeSteps.length
+        ? "DocuWraite could not load the next assigned question. Try Back or Dismiss, then open the bubble again."
+        : "No assigned questions loaded for this field. In Decision Engine, lock your library to this block or row, then tap Final Assign to Case Note."
+      : useAiWorkflow
+        ? aiError || "DocuWraite could not load the next question. Confirm the API server is running and EXPO_PUBLIC_DOCUWRAITE_API_URL is set."
+        : workflowId === "community-outing"
+          ? "DocuWraite could not load the next community outing question."
+          : "This guided workflow needs the DocuWraite API (set EXPO_PUBLIC_DOCUWRAITE_RULE_FALLBACK=false and point EXPO_PUBLIC_DOCUWRAITE_API_URL at your server).";
+
+    return (
+      <View style={styles.docuWraiteWorkflowCard}>
+        <Text style={styles.docuWraiteWorkflowEyebrow}>{workflowEyebrow}</Text>
+        <Text style={styles.docuWraiteWorkflowAiNotice}>{emptyWorkflowMessage}</Text>
+        <View style={styles.docuWraiteWorkflowFooter}>
+          <View />
+          <Pressable onPress={onDismiss}>
+            <Text style={styles.docuWraiteWorkflowDismiss}>Dismiss</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   const suggestionOptions =
@@ -4729,6 +4744,7 @@ function DocumentationCommentField({
   onWorkflowJump,
   onWorkflowInsert,
   onWorkflowGenerateDraft,
+  onWorkflowClearGuidelineWarning = () => {},
   onWorkflowDraftContextToggle,
   onWorkflowDraftContextQuestionModeChange,
   onWorkflowDraftContextSaveResponse,
@@ -5146,7 +5162,7 @@ function DocumentationEntryScreen({
 
         let stepIndex = workflowSnapshot.stepIndex ?? current.stepIndex;
         if (workflowSnapshot.pendingReturnToReadiness) {
-          const readinessIndex = meta.stepOrder.indexOf("readiness");
+          const readinessIndex = meta?.stepOrder?.indexOf("readiness") ?? -1;
           if (readinessIndex >= 0) {
             stepIndex = readinessIndex;
           }
@@ -5343,7 +5359,7 @@ function DocumentationEntryScreen({
         const hasAssignedNodes = (assist.fieldContext?.assignedNodes || []).length > 0;
         const useLocalWorkflow =
           assist.workflowId === "assigned-nodes" &&
-          (localSteps.some((step) => step.kind !== "draft") || hasAssignedNodes);
+          localSteps.some((step) => step.kind !== "draft");
 
         const startingWorkflow = {
           fieldId: assist.fieldId,
@@ -5387,8 +5403,7 @@ function DocumentationEntryScreen({
     }
 
     const useAssignedWorkflow =
-      workflowId === "assigned-nodes" &&
-      (localWorkflowSteps.some((step) => step.kind !== "draft") || hasAssignedNodes);
+      workflowId === "assigned-nodes" && localWorkflowSteps.some((step) => step.kind !== "draft");
 
     if (hasAssignedNodes && !localWorkflowSteps.some((step) => step.kind !== "draft")) {
       const alertMessage =
@@ -7033,6 +7048,7 @@ function DecisionEngineScreen({
   onSelectionStateChange,
   externalAssignmentHint = "",
 }) {
+  const { width } = useWindowDimensions();
   const availableDecisionLibraries = getAvailableDecisionLibraries();
   const [selectedLibrary, setSelectedLibrary] = useState(
     initialSelectionState?.selectedLibrary || getDefaultDecisionLibrarySlug()
@@ -7079,6 +7095,7 @@ function DecisionEngineScreen({
   const [rowPromptLoading, setRowPromptLoading] = useState(false);
   const [rowPromptError, setRowPromptError] = useState("");
   const [assignmentHint, setAssignmentHint] = useState("");
+  const [lastSmartSelect, setLastSmartSelect] = useState(null);
   const [stagedAssignmentsExpandAll, setStagedAssignmentsExpandAll] = useState(false);
   const [finalizedAssignmentsExpandAll, setFinalizedAssignmentsExpandAll] = useState(false);
   const libraryHelpButtonRef = useRef(null);
@@ -7445,6 +7462,10 @@ function DecisionEngineScreen({
   const selectedLibraryHelp =
     DECISION_LIBRARY_HELP[selectedLibraryData?.library] ||
     "Choose which decision rule set to browse for this assignment.";
+  const libraryTooltipWidth = Math.min(280, Math.max(220, width - 32));
+  const libraryTooltipLeft = libraryHelpFrame
+    ? Math.max(16, Math.min(libraryHelpFrame.x - 8, width - libraryTooltipWidth - 16))
+    : 16;
   const timeBlockTargets = assignmentTargets.filter((target) => target.type === "time-block");
   const rowAssignmentTargets = assignmentTargets.filter((target) => target.type === "case-note-row");
   const scopedTargets = targetType === "case-note-row" ? rowAssignmentTargets : timeBlockTargets;
@@ -7463,7 +7484,7 @@ function DecisionEngineScreen({
   }));
   const targetDropdownOptions = scopedTargets.map((target) => ({
     value: target.key,
-    label: target.type === "time-block" ? target.label : `Row: ${target.label}`,
+    label: target.label,
   }));
 
   useEffect(() => {
@@ -7482,10 +7503,13 @@ function DecisionEngineScreen({
   const noteTypeScopedLibraryNodes = libraryNodes.filter((node) =>
     nodeMatchesDecisionNoteType(node, activeNoteType, selectedLibrary)
   );
-  const branchDropdownOptions = getDecisionBranchOptions(noteTypeScopedLibraryNodes);
+  const branchDropdownOptions =
+    includeMode === "selective-branch"
+      ? getBranchingBranchDropdownOptions()
+      : getDecisionBranchOptions(noteTypeScopedLibraryNodes);
   const depthDropdownOptions = DECISION_DEPTH_OPTIONS;
 
-  const visibleLibraryNodes = noteTypeScopedLibraryNodes.filter((node) => {
+  const primaryFilteredNodes = noteTypeScopedLibraryNodes.filter((node) => {
     if (includeMode === "full-branch") {
       return true;
     }
@@ -7497,6 +7521,24 @@ function DecisionEngineScreen({
     return matchesBranch && matchesDepth;
   });
 
+  const branchingFollowUpNodes =
+    includeMode === "selective-branch"
+      ? getBranchingFollowUpNodes(decisionNodes.libraries, {
+          noteType: activeNoteType,
+          branchKey: selectedBranchKey,
+          depth: selectedDepth,
+          includeMode,
+        })
+      : [];
+
+  const visibleLibraryNodes = [...primaryFilteredNodes, ...branchingFollowUpNodes];
+
+  useEffect(() => {
+    if (includeMode === "selective-branch" && !selectedBranchKey && branchDropdownOptions.length) {
+      setSelectedBranchKey(branchDropdownOptions[0].value);
+    }
+  }, [includeMode, selectedBranchKey, branchDropdownOptions]);
+
   useEffect(() => {
     const normalized = normalizeDecisionNoteType(selectedNoteType);
     if (normalized !== selectedNoteType) {
@@ -7505,15 +7547,42 @@ function DecisionEngineScreen({
   }, [selectedNoteType]);
 
   useEffect(() => {
-    if (selectedLibrary !== "aidraft") {
-      return;
+    const normalizedNoteType = normalizeDecisionNoteType(selectedNoteType);
+    setTargetType(getDefaultTargetTypeForNoteType(normalizedNoteType, selectedLibrary));
+    if (selectedLibrary !== "aidraft" && normalizedNoteType === "orders") {
+      setSelectedNoteType("block-time");
     }
-    const nextTargetType = getIntelliDraftDefaultTargetType(normalizeDecisionNoteType(selectedNoteType));
-    setTargetType(nextTargetType);
   }, [selectedLibrary, selectedNoteType]);
 
-  const intelliDraftTemplate =
-    selectedLibrary === "aidraft" ? getIntelliDraftTemplateForNoteType(activeNoteType) : null;
+  const noteTypeTemplateHint = getNoteTypeTemplateHint(selectedLibrary, activeNoteType);
+  const noteTypeSelectionGuidance = getNoteTypeSelectionGuidance(targetType, activeNoteType);
+
+  const handleTargetTypeChange = (nextTargetType) => {
+    setTargetType(nextTargetType);
+    setSelectedNoteType((current) => {
+      if (nextTargetType === "case-note-row") {
+        return "row-note";
+      }
+      return current === "row-note" ? getRecommendedNoteTypeForTarget("time-block") : current;
+    });
+  };
+
+  const handleTargetKeyChange = (nextTargetKey) => {
+    setSelectedTargetKey(nextTargetKey);
+    if (String(nextTargetKey).startsWith("row:")) {
+      setTargetType("case-note-row");
+      setSelectedNoteType("row-note");
+      return;
+    }
+    if (String(nextTargetKey).startsWith("time:")) {
+      setTargetType("time-block");
+      setSelectedNoteType((current) => (current === "row-note" ? "block-time" : current));
+    }
+  };
+  const decisionAssignments = useMemo(
+    () => [...stagedAssignments, ...finalizedAssignments],
+    [stagedAssignments, finalizedAssignments]
+  );
 
   const sections = visibleLibraryNodes.reduce((acc, node) => {
     const sectionKey = node.section || "Uncategorized";
@@ -7605,6 +7674,18 @@ function DecisionEngineScreen({
     }));
   };
 
+  const tryToggleDecisionNode = (node) => {
+    if (isDecisionConditionalNode(node)) {
+      return;
+    }
+    const assignStatus = getNodeAssignmentStatus(node, decisionAssignments, selectedTargetKey);
+    if (assignStatus.status === "blocked") {
+      setAssignmentHint(assignStatus.message);
+      return;
+    }
+    toggleNode(buildDecisionNodeSelectionKey(node));
+  };
+
   const toggleNodeChoice = (node, choice) => {
     const nodeKey = buildDecisionNodeSelectionKey(node);
     const isMultiSelect = inferDecisionNodeMultiSelect(getDecisionNodeDisplayQuestion(node), getDecisionNodeDisplayChoices(node));
@@ -7639,8 +7720,23 @@ function DecisionEngineScreen({
   };
 
   const toggleSection = (sectionKey) => {
+    const sectionStatus = getSectionAssignmentStatus(
+      selectedLibrary,
+      sectionKey,
+      decisionAssignments,
+      selectedTargetKey
+    );
+    if (sectionStatus.status === "blocked") {
+      setAssignmentHint(sectionStatus.message);
+      return;
+    }
+
     const sectionNodes = sections[sectionKey] || [];
-    const selectableNodes = sectionNodes.filter((node) => !isDecisionConditionalNode(node));
+    const selectableNodes = sectionNodes.filter(
+      (node) =>
+        !isDecisionConditionalNode(node) &&
+        getNodeAssignmentStatus(node, decisionAssignments, selectedTargetKey).status !== "blocked"
+    );
     const sectionSelected = selectableNodes.every((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]);
     setCheckedNodes((prev) => {
       const next = { ...prev };
@@ -7850,10 +7946,96 @@ function DecisionEngineScreen({
     setShowLibraryHelp(false);
   }, []);
 
+  const isNodeSelectableForAssignment = (node) =>
+    !isDecisionConditionalNode(node) &&
+    getNodeAssignmentStatus(node, decisionAssignments, selectedTargetKey).status !== "blocked";
+
+  const buildSmartSelectSummaryItems = (keys = []) => {
+    const nodesByKey = new Map(allNodes.map((node) => [buildDecisionNodeSelectionKey(node), node]));
+
+    return keys.map((key) => {
+      const node = nodesByKey.get(key);
+      const question = node ? getDecisionNodeDisplayQuestion(node) || node.title || node.id : key;
+      const section = node?.section ? String(node.section).replace(/^[A-Z]\.\s*/, "") : "";
+      return {
+        key,
+        question,
+        section,
+        label: section ? `${section}: ${question}` : question,
+      };
+    });
+  };
+
+  const applySmartSelect = (presetId) => {
+    const { keys, message, preset } = buildSmartSelection(allNodes, presetId, {
+      isSelectable: isNodeSelectableForAssignment,
+      capDepth: Number(selectedDepth) || 99,
+      buildKey: buildDecisionNodeSelectionKey,
+    });
+
+    setCheckedNodes((prev) => {
+      const next = { ...prev };
+      allNodes.forEach((node) => {
+        delete next[buildDecisionNodeSelectionKey(node)];
+      });
+      keys.forEach((key) => {
+        next[key] = true;
+      });
+      return next;
+    });
+
+    if (keys.length) {
+      setLastSmartSelect({
+        presetId: preset.id,
+        presetLabel: preset.label,
+        keys,
+        items: buildSmartSelectSummaryItems(keys),
+      });
+    } else {
+      setLastSmartSelect(null);
+    }
+
+    setAssignmentHint(message);
+  };
+
+  const cancelSmartSelect = () => {
+    if (!lastSmartSelect?.keys?.length) {
+      setLastSmartSelect(null);
+      return;
+    }
+
+    const removedCount = lastSmartSelect.keys.length;
+    setCheckedNodes((prev) => {
+      const next = { ...prev };
+      lastSmartSelect.keys.forEach((key) => {
+        delete next[key];
+      });
+      return next;
+    });
+    setLastSmartSelect(null);
+    setAssignmentHint(`Removed Smart select (${lastSmartSelect.presetLabel}): ${removedCount} question(s) unchecked.`);
+  };
+
+  const clearVisibleSelection = () => {
+    setCheckedNodes((prev) => {
+      const next = { ...prev };
+      allNodes.forEach((node) => {
+        delete next[buildDecisionNodeSelectionKey(node)];
+      });
+      return next;
+    });
+    setLastSmartSelect(null);
+    setAssignmentHint("Cleared selection for visible questions.");
+  };
+
+  useEffect(() => {
+    setLastSmartSelect(null);
+  }, [selectedLibrary, activeNoteType, includeMode, selectedBranchKey, selectedDepth]);
+
   const handleStageCurrentSelection = () => {
     const selectedKeys = Object.keys(checkedNodes).filter((key) => checkedNodes[key]);
     if (!selectedKeys.length) {
-      setAssignmentHint("Select at least one question before locking this library.");
+      setAssignmentHint("Select at least one question before locking this library. Try Smart select if you need a quick starting set.");
       return;
     }
 
@@ -8209,17 +8391,21 @@ function DecisionEngineScreen({
           into the DSP Case Note.
         </Text>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[
+      <View
+        style={[
           styles.decisionAssignForm,
+          isPhone && styles.decisionAssignFormPhone,
           activeDecisionDropdown ? styles.decisionAssignFormActive : null,
         ]}
-        style={styles.decisionAssignFormScroll}
       >
-        <View style={[styles.decisionFormField, styles.decisionFormFieldLibrary]}>
-          <View style={styles.decisionLabelRow}>
+        <View
+          style={[
+            styles.decisionToolbarColumn,
+            styles.decisionToolbarColumnLibrary,
+            isPhone && styles.decisionToolbarColumnPhone,
+          ]}
+        >
+          <View style={styles.decisionToolbarLabelRow}>
             <Text style={styles.decisionToolbarLabel}>Library</Text>
             <Pressable
               ref={libraryHelpButtonRef}
@@ -8241,11 +8427,11 @@ function DecisionEngineScreen({
             activeDropdown={activeDecisionDropdown}
             onToggleDropdown={setActiveDecisionDropdown}
             onChange={setSelectedLibrary}
-            fieldStyle={styles.decisionDropdownLibrary}
+            fieldStyle={styles.decisionDropdownToolbar}
           />
         </View>
 
-        <View style={[styles.decisionFormField, styles.decisionFormFieldMode]}>
+        <View style={[styles.decisionToolbarColumn, isPhone && styles.decisionToolbarColumnPhone]}>
           <Text style={styles.decisionToolbarLabel}>Note Type</Text>
           <DecisionDropdown
             value={getDecisionOptionLabel(noteTypeDropdownOptions, activeNoteType)}
@@ -8255,16 +8441,11 @@ function DecisionEngineScreen({
             activeDropdown={activeDecisionDropdown}
             onToggleDropdown={setActiveDecisionDropdown}
             onChange={setSelectedNoteType}
-            fieldStyle={styles.decisionDropdownNoteType}
+            fieldStyle={styles.decisionDropdownToolbar}
           />
-          {intelliDraftTemplate ? (
-            <Text style={styles.decisionIntelliDraftNoteTypeHint}>
-              {`IntelliDraft: ${intelliDraftTemplate.section} — ${intelliDraftTemplate.summary}`}
-            </Text>
-          ) : null}
         </View>
 
-        <View style={[styles.decisionFormField, styles.decisionFormFieldMode]}>
+        <View style={[styles.decisionToolbarColumn, isPhone && styles.decisionToolbarColumnPhone]}>
           <Text style={styles.decisionToolbarLabel}>Mode</Text>
           <DecisionDropdown
             value={getDecisionOptionLabel(DECISION_MODE_OPTIONS, includeMode)}
@@ -8274,11 +8455,17 @@ function DecisionEngineScreen({
             activeDropdown={activeDecisionDropdown}
             onToggleDropdown={setActiveDecisionDropdown}
             onChange={setIncludeMode}
-            fieldStyle={styles.decisionDropdownMode}
+            fieldStyle={styles.decisionDropdownToolbar}
           />
         </View>
 
-        <View style={styles.decisionFormFieldDepth}>
+        <View
+          style={[
+            styles.decisionToolbarColumn,
+            styles.decisionToolbarColumnBranch,
+            isPhone && styles.decisionToolbarColumnPhone,
+          ]}
+        >
           <Text style={styles.decisionToolbarLabel}>Branch</Text>
           <DecisionDropdown
             value={getDecisionOptionLabel(branchDropdownOptions, selectedBranchKey)}
@@ -8288,12 +8475,18 @@ function DecisionEngineScreen({
             activeDropdown={activeDecisionDropdown}
             onToggleDropdown={setActiveDecisionDropdown}
             onChange={setSelectedBranchKey}
-            fieldStyle={styles.decisionDropdownBranch}
+            fieldStyle={styles.decisionDropdownToolbar}
             disabled={includeMode === "full-branch"}
           />
         </View>
 
-        <View style={styles.decisionFormFieldDepth}>
+        <View
+          style={[
+            styles.decisionToolbarColumn,
+            styles.decisionToolbarColumnDepth,
+            isPhone && styles.decisionToolbarColumnPhone,
+          ]}
+        >
           <Text style={styles.decisionToolbarLabel}>Depth</Text>
           <DecisionDropdown
             value={getDecisionOptionLabel(depthDropdownOptions, selectedDepth)}
@@ -8303,12 +8496,18 @@ function DecisionEngineScreen({
             activeDropdown={activeDecisionDropdown}
             onToggleDropdown={setActiveDecisionDropdown}
             onChange={(value) => setSelectedDepth(Number(value))}
-            fieldStyle={styles.decisionDropdownDepth}
+            fieldStyle={styles.decisionDropdownToolbar}
             disabled={includeMode === "full-branch"}
           />
         </View>
 
-        <View style={[styles.decisionFormField, styles.decisionFormFieldTarget]}>
+        <View
+          style={[
+            styles.decisionToolbarColumn,
+            styles.decisionToolbarColumnTarget,
+            isPhone && styles.decisionToolbarColumnPhone,
+          ]}
+        >
           <Text style={styles.decisionToolbarLabel}>Target</Text>
           <View style={styles.decisionTargetRow}>
             <DecisionDropdown
@@ -8318,15 +8517,13 @@ function DecisionEngineScreen({
               dropdownId="decision-target-type"
               activeDropdown={activeDecisionDropdown}
               onToggleDropdown={setActiveDecisionDropdown}
-              onChange={setTargetType}
-              fieldStyle={styles.decisionDropdownTargetType}
+              onChange={handleTargetTypeChange}
+              fieldStyle={[styles.decisionDropdownToolbar, styles.decisionDropdownToolbarHalf]}
             />
             <DecisionDropdown
               value={
                 selectedTarget && selectedTarget.type === targetType
-                  ? selectedTarget.type === "time-block"
-                    ? selectedTarget.label
-                    : `Row: ${selectedTarget.label}`
+                  ? selectedTarget.label
                   : ""
               }
               options={targetDropdownOptions}
@@ -8334,12 +8531,31 @@ function DecisionEngineScreen({
               dropdownId="decision-target"
               activeDropdown={activeDecisionDropdown}
               onToggleDropdown={setActiveDecisionDropdown}
-              onChange={setSelectedTargetKey}
-              fieldStyle={styles.decisionDropdownTargetValue}
+              onChange={handleTargetKeyChange}
+              fieldStyle={[styles.decisionDropdownToolbar, styles.decisionDropdownToolbarHalf]}
+              valueTextStyle={styles.decisionDropdownTargetValueText}
             />
           </View>
         </View>
-      </ScrollView>
+      </View>
+
+      {noteTypeSelectionGuidance || noteTypeTemplateHint || includeMode ? (
+        <View style={styles.decisionToolbarHints}>
+          {noteTypeSelectionGuidance ? (
+            <Text style={styles.decisionToolbarHintLine}>{noteTypeSelectionGuidance}</Text>
+          ) : null}
+          {noteTypeTemplateHint ? (
+            <Text style={styles.decisionToolbarHintLine}>
+              {`${selectedLibraryLabel}: ${noteTypeTemplateHint.section} — ${noteTypeTemplateHint.summary}`}
+            </Text>
+          ) : null}
+          <Text style={styles.decisionToolbarHintLine}>
+            {includeMode === "selective-branch"
+              ? "Selective branch adds follow-up rules (refusal, fatigue, risk…) for the Branch and Depth you pick."
+              : "Full branch shows every question in this library for the selected note type."}
+          </Text>
+        </View>
+      ) : null}
 
       <Modal transparent visible={showLibraryHelp} animationType="fade" onRequestClose={closeLibraryHelp}>
         <View style={styles.decisionLibraryHelpModalRoot}>
@@ -8350,7 +8566,8 @@ function DecisionEngineScreen({
                 styles.decisionLibraryTooltipModal,
                 {
                   top: libraryHelpFrame.y + libraryHelpFrame.height + 8,
-                  left: Math.max(16, libraryHelpFrame.x - 8),
+                  left: libraryTooltipLeft,
+                  width: libraryTooltipWidth,
                 },
               ]}
             >
@@ -8367,14 +8584,97 @@ function DecisionEngineScreen({
           <Text style={styles.decisionSummaryText}>{`${selectedCount} selected`}</Text>
         </View>
 
+        {allNodes.length ? (
+          <View style={styles.decisionSmartSelectBlock}>
+            <Text style={styles.decisionSmartSelectLabel}>Smart select</Text>
+            <View style={styles.decisionSmartSelectChipRow}>
+              {SMART_SELECT_PRESETS.map((preset) => (
+                <Pressable
+                  key={preset.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Smart select ${preset.label}`}
+                  onPress={() => applySmartSelect(preset.id)}
+                  style={styles.decisionSmartSelectChip}
+                >
+                  <Text style={styles.decisionSmartSelectChipText}>{preset.label}</Text>
+                </Pressable>
+              ))}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear visible question selection"
+                onPress={clearVisibleSelection}
+                style={styles.decisionSmartSelectClear}
+              >
+                <Text style={styles.decisionSmartSelectClearText}>Clear visible</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.decisionSmartSelectHint}>
+              Supervisor shortcut: checks a recommended subset in the current filter. Adjust boxes, then lock and Final Assign.
+            </Text>
+
+            {lastSmartSelect?.keys?.length ? (
+              <View style={styles.decisionSmartSelectResult}>
+                <View style={styles.decisionSmartSelectResultHeader}>
+                  <Text style={styles.decisionSmartSelectResultTitle}>
+                    {`${lastSmartSelect.presetLabel} — ${lastSmartSelect.keys.length} selected`}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel smart select and uncheck those questions"
+                    onPress={cancelSmartSelect}
+                    style={styles.decisionSmartSelectResultDismiss}
+                  >
+                    <Text style={styles.decisionSmartSelectResultDismissText}>×</Text>
+                  </Pressable>
+                </View>
+                <ScrollView
+                  style={styles.decisionSmartSelectResultScroll}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator
+                >
+                  {(lastSmartSelect.items || []).map((item) => (
+                    <Text key={item.key} style={styles.decisionSmartSelectResultItem} numberOfLines={2}>
+                      {`• ${item.label}`}
+                    </Text>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {!allNodes.length ? (
           <Text style={styles.decisionInlineHint}>
-            {`No questions match ${getDecisionNoteTypeLabel(activeNoteType)} for ${selectedLibraryLabel}. Try Block time, open the section headers below, or switch libraries.`}
+            {includeMode === "selective-branch"
+              ? `No questions for ${getDecisionNoteTypeLabel(activeNoteType)} at branch ${selectedBranchKey || "?"}, depth ${selectedDepth}. Try another Branch, Full branch mode, or Block time.`
+              : `No questions match ${getDecisionNoteTypeLabel(activeNoteType)} for ${selectedLibraryLabel}. Try Block time, open the section headers below, or switch libraries.`}
           </Text>
         ) : null}
 
-        {Object.entries(sections).map(([sectionKey, sectionNodes]) => (
-          <View key={sectionKey} style={styles.decisionSectionCard}>
+        {includeMode === "selective-branch" && branchingFollowUpNodes.length ? (
+          <Text style={styles.decisionInlineHint}>
+            {`Including ${branchingFollowUpNodes.length} branching follow-up question(s) for branch ${selectedBranchKey}.`}
+          </Text>
+        ) : null}
+
+        {Object.entries(sections).map(([sectionKey, sectionNodes]) => {
+          const sectionAssignRule = getSectionAssignRule(selectedLibrary, sectionKey);
+          const sectionAssignStatus = getSectionAssignmentStatus(
+            selectedLibrary,
+            sectionKey,
+            decisionAssignments,
+            selectedTargetKey
+          );
+          const sectionBlocked = sectionAssignStatus.status === "blocked";
+
+          return (
+          <View
+            key={sectionKey}
+            style={[
+              styles.decisionSectionCard,
+              sectionBlocked && styles.decisionSectionCardBlocked,
+            ]}
+          >
           <Pressable onPress={() => toggleSectionCollapse(sectionKey)} style={styles.decisionSectionHeader}>
             <View style={styles.decisionSectionHeaderContent}>
               <Icon
@@ -8382,7 +8682,20 @@ function DecisionEngineScreen({
                 size={16}
                 color={colors.headerText}
               />
-              <Text style={styles.decisionSectionTitle}>{sectionKey}</Text>
+              <View style={styles.decisionSectionTitleWrap}>
+                <Text style={styles.decisionSectionTitle}>{sectionKey}</Text>
+                <Text style={styles.decisionSectionAssignRule}>{sectionAssignRule.label}</Text>
+                {sectionAssignStatus.status !== "available" ? (
+                  <Text
+                    style={[
+                      styles.decisionSectionAssignStatus,
+                      sectionAssignStatus.status === "blocked" && styles.decisionSectionAssignStatusBlocked,
+                    ]}
+                  >
+                    {sectionAssignStatus.message}
+                  </Text>
+                ) : null}
+              </View>
             </View>
             <View style={styles.decisionSectionHeaderActions}>
               <Text style={styles.decisionSectionMeta}>{`${sectionNodes.length} questions`}</Text>
@@ -8392,24 +8705,36 @@ function DecisionEngineScreen({
                   toggleSection(sectionKey);
                 }}
                 style={styles.decisionSectionAction}
+                disabled={sectionBlocked}
               >
-                <Text style={styles.decisionSectionActionText}>
+                <Text
+                  style={[
+                    styles.decisionSectionActionText,
+                    sectionBlocked && styles.decisionSectionActionTextDisabled,
+                  ]}
+                >
                   {sectionNodes.filter((node) => !isDecisionConditionalNode(node)).every((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]) ? "Clear" : "Select all"}
                 </Text>
               </Pressable>
             </View>
           </Pressable>
           {!expandedDecisionPanel[sectionKey] ? (
-            sectionNodes.map((node) => (
+            sectionNodes.map((node) => {
+              const nodeAssignStatus = getNodeAssignmentStatus(
+                node,
+                decisionAssignments,
+                selectedTargetKey
+              );
+              const nodeBlocked = nodeAssignStatus.status === "blocked";
+
+              return (
               <Pressable
                 key={buildDecisionNodeSelectionKey(node)}
-                onPress={() => {
-                  if (isDecisionConditionalNode(node)) {
-                    return;
-                  }
-                  toggleNode(buildDecisionNodeSelectionKey(node));
-                }}
-                style={styles.decisionNodeRow}
+                onPress={() => tryToggleDecisionNode(node)}
+                style={[
+                  styles.decisionNodeRow,
+                  nodeBlocked && styles.decisionNodeRowBlocked,
+                ]}
               >
                 <View
                   style={[
@@ -8480,6 +8805,12 @@ function DecisionEngineScreen({
                       ))}
                     </View>
                   ) : null}
+                  {nodeAssignStatus.status === "warn" ? (
+                    <Text style={styles.decisionNodeAssignWarn}>{nodeAssignStatus.message}</Text>
+                  ) : null}
+                  {nodeBlocked ? (
+                    <Text style={styles.decisionNodeAssignBlocked}>{nodeAssignStatus.message}</Text>
+                  ) : null}
                   <View style={styles.decisionNodeFinalRow}>
                     <Pressable
                       onPress={() =>
@@ -8488,9 +8819,11 @@ function DecisionEngineScreen({
                           [buildDecisionNodeSelectionKey(node)]: !p[buildDecisionNodeSelectionKey(node)],
                         }))
                       }
+                      disabled={nodeBlocked}
                       style={[
                         styles.includeFinalToggle,
                         includeInFinalMap[buildDecisionNodeSelectionKey(node)] && styles.includeFinalToggleActive,
+                        nodeBlocked && styles.includeFinalToggleDisabled,
                       ]}
                     >
                       <Text style={styles.includeFinalToggleText}>
@@ -8500,10 +8833,12 @@ function DecisionEngineScreen({
                   </View>
                 </View>
               </Pressable>
-            ))
+            );
+            })
           ) : null}
         </View>
-        ))}
+        );
+        })}
       </View>
       {assignmentHint || externalAssignmentHint ? (
         <Text style={styles.decisionInlineHint}>{assignmentHint || externalAssignmentHint}</Text>
@@ -11273,19 +11608,29 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   decisionAssignForm: {
-    minWidth: "100%",
-    marginBottom: 18,
-    paddingRight: 24,
+    width: "100%",
+    marginBottom: 10,
+    paddingHorizontal: 4,
     flexDirection: "row",
-    flexWrap: "nowrap",
-    alignItems: "flex-start",
-    justifyContent: "flex-start",
-    gap: 12,
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    columnGap: 12,
+    rowGap: 14,
     overflow: "visible",
     position: "relative",
   },
-  decisionAssignFormScroll: {
-    marginBottom: 18,
+  decisionAssignFormPhone: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    justifyContent: "flex-start",
+    columnGap: 0,
+  },
+  decisionToolbarColumnPhone: {
+    flexBasis: "auto",
+    maxWidth: "100%",
+    minWidth: "100%",
+    width: "100%",
   },
   decisionAssignFormActive: {
     zIndex: 20,
@@ -11301,33 +11646,57 @@ const styles = StyleSheet.create({
     overflow: "visible",
     flexShrink: 0,
   },
+  decisionToolbarColumn: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 118,
+    maxWidth: 128,
+    minWidth: 108,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6,
+    overflow: "visible",
+    zIndex: 5,
+  },
+  decisionToolbarColumnLibrary: {
+    zIndex: 6,
+  },
+  decisionToolbarColumnBranch: {
+    flexBasis: 132,
+    maxWidth: 148,
+    minWidth: 124,
+  },
+  decisionToolbarColumnDepth: {
+    flexBasis: 72,
+    maxWidth: 80,
+    minWidth: 64,
+  },
+  decisionToolbarColumnTarget: {
+    flexGrow: 2,
+    flexBasis: 260,
+    maxWidth: 340,
+    minWidth: 220,
+    zIndex: 4,
+  },
+  decisionToolbarLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    columnGap: 4,
+    width: "100%",
+  },
   decisionTargetRow: {
     flexDirection: "row",
     flexWrap: "nowrap",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
+    columnGap: 10,
+    width: "100%",
     overflow: "visible",
-  },
-  decisionFormFieldLibrary: {
-    zIndex: 6,
-  },
-  decisionFormFieldMode: {
-    zIndex: 5,
-  },
-  decisionFormFieldTarget: {
-    zIndex: 4,
-    flexShrink: 0,
   },
   decisionFormFieldGrow: {
     flexShrink: 1,
     gap: 8,
-    overflow: "visible",
-  },
-  decisionFormFieldDepth: {
-    alignItems: "flex-start",
-    gap: 8,
-    flexShrink: 0,
-    zIndex: 5,
     overflow: "visible",
   },
   decisionFormFieldFullWidth: {
@@ -11538,9 +11907,10 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
   decisionScheduleChipText: {
-    fontSize: 13,
+    fontSize: 10,
+    lineHeight: 14,
     color: colors.text,
-    fontWeight: "600",
+    fontWeight: "400",
   },
   decisionScheduleChipAction: {
     width: 22,
@@ -11647,20 +12017,81 @@ const styles = StyleSheet.create({
     flex: 1.35,
   },
   decisionToolbarLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.muted,
     fontWeight: "700",
-    marginBottom: 8,
-    letterSpacing: 0.3,
+    marginBottom: 0,
+    letterSpacing: 0.35,
     textTransform: "uppercase",
     textAlign: "center",
+    width: "100%",
   },
   decisionIntelliDraftNoteTypeHint: {
     fontSize: 11,
     lineHeight: 15,
     color: colors.muted,
     marginTop: 6,
+    textAlign: "left",
+    width: "100%",
+  },
+  decisionToolbarHints: {
+    width: "100%",
+    marginTop: 4,
+    marginBottom: 14,
+    paddingHorizontal: 4,
+    rowGap: 4,
+    alignItems: "center",
+  },
+  decisionToolbarHintLine: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.muted,
     textAlign: "center",
+    width: "100%",
+  },
+  decisionSectionTitleWrap: {
+    flex: 1,
+    rowGap: 2,
+  },
+  decisionSectionAssignRule: {
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.muted,
+    fontWeight: "600",
+  },
+  decisionSectionAssignStatus: {
+    fontSize: 10,
+    lineHeight: 14,
+    color: "#7a5c12",
+    fontWeight: "600",
+  },
+  decisionSectionAssignStatusBlocked: {
+    color: "#9b3d3d",
+  },
+  decisionSectionCardBlocked: {
+    opacity: 0.72,
+  },
+  decisionSectionActionTextDisabled: {
+    color: colors.muted,
+  },
+  decisionNodeRowBlocked: {
+    opacity: 0.65,
+  },
+  decisionNodeAssignWarn: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: "#7a5c12",
+    marginTop: 4,
+  },
+  decisionNodeAssignBlocked: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: "#9b3d3d",
+    marginTop: 4,
+    fontWeight: "600",
+  },
+  includeFinalToggleDisabled: {
+    opacity: 0.5,
   },
   decisionLabelRow: {
     position: "relative",
@@ -11731,23 +12162,34 @@ const styles = StyleSheet.create({
   decisionDropdownWrapDisabled: {
     opacity: 0.55,
   },
+  decisionDropdownToolbar: {
+    width: "100%",
+    alignSelf: "stretch",
+    minWidth: 0,
+  },
+  decisionDropdownToolbarHalf: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: "48%",
+  },
   decisionDropdownLibrary: {
-    width: 174,
+    width: 132,
     maxWidth: "100%",
   },
   decisionDropdownMode: {
-    width: 156,
+    width: 128,
     maxWidth: "100%",
   },
   decisionDropdownNoteType: {
-    width: 164,
+    width: 108,
     maxWidth: "100%",
   },
   decisionDropdownDepth: {
-    width: 60,
+    width: 52,
   },
   decisionDropdownBranch: {
-    width: 88,
+    width: 148,
+    minWidth: 148,
     maxWidth: "100%",
   },
   decisionDropdownScheduleHour: {
@@ -11869,6 +12311,100 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
     gap: 8,
+  },
+  decisionSmartSelectBlock: {
+    marginBottom: 14,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#faf8ff",
+    gap: 8,
+  },
+  decisionSmartSelectLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.headerText,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  decisionSmartSelectChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center",
+  },
+  decisionSmartSelectChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.topPurple,
+    backgroundColor: "#ffffff",
+  },
+  decisionSmartSelectChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.topPurple,
+  },
+  decisionSmartSelectClear: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  decisionSmartSelectClearText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.muted,
+  },
+  decisionSmartSelectHint: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.muted,
+  },
+  decisionSmartSelectResult: {
+    marginTop: 4,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.topPurple,
+    backgroundColor: "#ffffff",
+    gap: 6,
+  },
+  decisionSmartSelectResultHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  decisionSmartSelectResultTitle: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.topPurple,
+  },
+  decisionSmartSelectResultDismiss: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f3f0ff",
+  },
+  decisionSmartSelectResultDismissText: {
+    fontSize: 20,
+    lineHeight: 22,
+    fontWeight: "600",
+    color: colors.topPurple,
+    marginTop: -1,
+  },
+  decisionSmartSelectResultScroll: {
+    maxHeight: 120,
+  },
+  decisionSmartSelectResultItem: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.text,
+    marginBottom: 4,
   },
   decisionSummaryTitleGroup: {
     flex: 1,

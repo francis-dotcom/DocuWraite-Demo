@@ -866,7 +866,7 @@ function seedRowPromptCatalog() {
 
   const adlTemplates = [
     "Document toileting support provided, prompt level required, and observed response.",
-    "Document showering or bathing support, safety assistance used, and how the person tolerated the task.",
+    "Bathing support, safety assist, and tolerance.",
     "Document dressing support, balance assistance provided, and level of independence observed.",
     "Document grooming or hygiene support, verbal or physical prompts used, and completion status.",
     "Document oral care support provided and the person's participation or tolerance.",
