@@ -8893,6 +8893,26 @@ function CarePlanEditorSectionLabel({ children }) {
   return <Text style={styles.carePlanEditorLabel}>{children}</Text>;
 }
 
+function CarePlanEditorRowActions({ onAdd, addLabel, onDelete, deleteLabel = "Delete row" }) {
+  return (
+    <View style={styles.carePlanEditorRowActions}>
+      {onAdd ? (
+        <Pressable style={styles.carePlanEditorActionButton} onPress={onAdd}>
+          <Text style={styles.carePlanEditorActionText}>{addLabel}</Text>
+        </Pressable>
+      ) : null}
+      {onDelete ? (
+        <Pressable
+          style={[styles.carePlanEditorActionButton, styles.carePlanEditorDeleteButton]}
+          onPress={onDelete}
+        >
+          <Text style={[styles.carePlanEditorActionText, styles.carePlanEditorDeleteText]}>{deleteLabel}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 function CarePlanDocument({
   isPhone,
   onOpenDocumentation,
@@ -8939,6 +8959,51 @@ function CarePlanDocument({
       cursor[path[path.length - 1]] = value;
       return next;
     });
+  }, []);
+
+  const addDraftRow = useCallback((listKey, template) => {
+    setCarePlanDraft((current) => ({
+      ...current,
+      [listKey]: [...(current[listKey] || []), JSON.parse(JSON.stringify(template))],
+    }));
+  }, []);
+
+  const removeDraftRow = useCallback((listKey, index) => {
+    setCarePlanDraft((current) => ({
+      ...current,
+      [listKey]: (current[listKey] || []).filter((_, itemIndex) => itemIndex !== index),
+    }));
+  }, []);
+
+  const addActionPlanStep = useCallback((planIndex) => {
+    setCarePlanDraft((current) => ({
+      ...current,
+      actionPlans: (current.actionPlans || []).map((plan, index) =>
+        index === planIndex
+          ? {
+              ...plan,
+              steps: [
+                ...(plan.steps || []),
+                { step: "", responsible: "", frequency: "", record: "", notes: "" },
+              ],
+            }
+          : plan
+      ),
+    }));
+  }, []);
+
+  const removeActionPlanStep = useCallback((planIndex, stepIndex) => {
+    setCarePlanDraft((current) => ({
+      ...current,
+      actionPlans: (current.actionPlans || []).map((plan, index) =>
+        index === planIndex
+          ? {
+              ...plan,
+              steps: (plan.steps || []).filter((_, innerIndex) => innerIndex !== stepIndex),
+            }
+          : plan
+      ),
+    }));
   }, []);
 
   const startEditingCarePlan = () => {
@@ -9211,6 +9276,12 @@ function CarePlanDocument({
 
         <View onLayout={(event) => registerSection("About Me", event.nativeEvent.layout.y)}>
           <SectionCard title="About Me" subtitle="Narrative support information from the care plan">
+            {isEditingCarePlan ? (
+              <CarePlanEditorRowActions
+                onAdd={() => addDraftRow("aboutMeCards", { title: "", body: "" })}
+                addLabel="Add row"
+              />
+            ) : null}
             <View style={styles.narrativeGrid}>
               {aboutCards.map((card, index) => (
                 <View key={card.title} style={styles.narrativeCard}>
@@ -9227,6 +9298,9 @@ function CarePlanDocument({
                         onChangeText={(value) => setDraftValue(["aboutMeCards", index, "body"], value)}
                         multiline
                       />
+                      <CarePlanEditorRowActions
+                        onDelete={() => removeDraftRow("aboutMeCards", index)}
+                      />
                     </>
                   ) : (
                     <>
@@ -9242,6 +9316,12 @@ function CarePlanDocument({
 
         <View onLayout={(event) => registerSection("Risks", event.nativeEvent.layout.y)}>
           <SectionCard title="Risks" subtitle="Collapsible clinical risk cards with staff guidance">
+            {isEditingCarePlan ? (
+              <CarePlanEditorRowActions
+                onAdd={() => addDraftRow("riskCards", { title: "", severity: "", notes: "", guidance: "" })}
+                addLabel="Add row"
+              />
+            ) : null}
             <View style={styles.riskGrid}>
               {risks.map((item, index) =>
                 isEditingCarePlan ? (
@@ -9268,6 +9348,9 @@ function CarePlanDocument({
                       onChangeText={(value) => setDraftValue(["riskCards", index, "guidance"], value)}
                       multiline
                     />
+                    <CarePlanEditorRowActions
+                      onDelete={() => removeDraftRow("riskCards", index)}
+                    />
                   </View>
                 ) : (
                   <RiskCard
@@ -9284,6 +9367,12 @@ function CarePlanDocument({
 
         <View onLayout={(event) => registerSection("Supports", event.nativeEvent.layout.y)}>
           <SectionCard title="Supports" subtitle="Home, community, ADLs, and communication supports">
+            {isEditingCarePlan ? (
+              <CarePlanEditorRowActions
+                onAdd={() => addDraftRow("supportCards", { title: "", body: "" })}
+                addLabel="Add row"
+              />
+            ) : null}
             <View style={styles.narrativeGrid}>
               {supports.map((card, index) => (
                 <View key={card.title} style={styles.narrativeCard}>
@@ -9299,6 +9388,9 @@ function CarePlanDocument({
                         value={card.body}
                         onChangeText={(value) => setDraftValue(["supportCards", index, "body"], value)}
                         multiline
+                      />
+                      <CarePlanEditorRowActions
+                        onDelete={() => removeDraftRow("supportCards", index)}
                       />
                     </>
                   ) : (
@@ -9325,6 +9417,21 @@ function CarePlanDocument({
                 <Text style={styles.serviceLegendText}>Approved</Text>
               </View>
             </View>
+            {isEditingCarePlan ? (
+              <CarePlanEditorRowActions
+                onAdd={() =>
+                  addDraftRow("serviceCards", {
+                    title: "",
+                    status: "",
+                    provider: "",
+                    funding: "",
+                    dateRange: "",
+                    detail: "",
+                  })
+                }
+                addLabel="Add row"
+              />
+            ) : null}
             <View style={styles.serviceGrid}>
               {services.map((item, index) =>
                 isEditingCarePlan ? (
@@ -9346,6 +9453,9 @@ function CarePlanDocument({
                         />
                       </View>
                     ))}
+                    <CarePlanEditorRowActions
+                      onDelete={() => removeDraftRow("serviceCards", index)}
+                    />
                   </View>
                 ) : (
                   <ServiceCard key={`${item.title}-${item.dateRange}`} item={item} />
@@ -9357,6 +9467,12 @@ function CarePlanDocument({
 
         <View onLayout={(event) => registerSection("Rights", event.nativeEvent.layout.y)}>
           <SectionCard title="Rights & Decision Making" subtitle="Decision authority, ANE education, and directives">
+            {isEditingCarePlan ? (
+              <CarePlanEditorRowActions
+                onAdd={() => addDraftRow("rightsCards", { title: "", body: "" })}
+                addLabel="Add row"
+              />
+            ) : null}
             <View style={styles.narrativeGrid}>
               {rights.map((card, index) => (
                 <View key={card.title} style={styles.narrativeCard}>
@@ -9373,6 +9489,9 @@ function CarePlanDocument({
                         onChangeText={(value) => setDraftValue(["rightsCards", index, "body"], value)}
                         multiline
                       />
+                      <CarePlanEditorRowActions
+                        onDelete={() => removeDraftRow("rightsCards", index)}
+                      />
                     </>
                   ) : (
                     <>
@@ -9388,6 +9507,12 @@ function CarePlanDocument({
 
         <View onLayout={(event) => registerSection("Activities", event.nativeEvent.layout.y)}>
           <SectionCard title="Community Activities" subtitle="Current activities and support needs in the community">
+            {isEditingCarePlan ? (
+              <CarePlanEditorRowActions
+                onAdd={() => addDraftRow("activityCards", { title: "", body: "" })}
+                addLabel="Add row"
+              />
+            ) : null}
             <View style={styles.narrativeGrid}>
               {activities.map((card, index) => (
                 <View key={card.title} style={styles.narrativeCard}>
@@ -9404,6 +9529,9 @@ function CarePlanDocument({
                         onChangeText={(value) => setDraftValue(["activityCards", index, "body"], value)}
                         multiline
                       />
+                      <CarePlanEditorRowActions
+                        onDelete={() => removeDraftRow("activityCards", index)}
+                      />
                     </>
                   ) : (
                     <>
@@ -9419,6 +9547,19 @@ function CarePlanDocument({
 
         <View onLayout={(event) => registerSection("Action Plans", event.nativeEvent.layout.y)}>
           <SectionCard title="Action Plans" subtitle="Measurable outcomes, exact compliance structure, improved usability">
+            {isEditingCarePlan ? (
+              <CarePlanEditorRowActions
+                onAdd={() =>
+                  addDraftRow("actionPlans", {
+                    title: "",
+                    outcome: "",
+                    issue: "",
+                    steps: [{ step: "", responsible: "", frequency: "", record: "", notes: "" }],
+                  })
+                }
+                addLabel="Add row"
+              />
+            ) : null}
             <View style={styles.actionPlanStack}>
               {plans.map((plan, planIndex) =>
                 isEditingCarePlan ? (
@@ -9440,6 +9581,9 @@ function CarePlanDocument({
                       onChangeText={(value) => setDraftValue(["actionPlans", planIndex, "issue"], value)}
                       multiline
                     />
+                    <CarePlanEditorRowActions
+                      onDelete={() => removeDraftRow("actionPlans", planIndex)}
+                    />
                     {(plan.steps || []).map((step, stepIndex) => (
                       <View key={`${plan.title}-step-${stepIndex}`} style={styles.carePlanEditorBlock}>
                         <Text style={styles.carePlanEditorBlockTitle}>{`Step ${stepIndex + 1}`}</Text>
@@ -9459,6 +9603,12 @@ function CarePlanDocument({
                             />
                           </View>
                         ))}
+                        <CarePlanEditorRowActions
+                          onAdd={() => addActionPlanStep(planIndex)}
+                          addLabel="Add step"
+                          onDelete={() => removeActionPlanStep(planIndex, stepIndex)}
+                          deleteLabel="Delete step"
+                        />
                       </View>
                     ))}
                   </View>
@@ -9482,13 +9632,23 @@ function CarePlanDocument({
             <View style={styles.documentGrid}>
               <View style={styles.documentChecklistCard}>
                 <Text style={styles.documentSubhead}>Documentation Checklists</Text>
+                {isEditingCarePlan ? (
+                  <CarePlanEditorRowActions
+                    onAdd={() => addDraftRow("documentChecklist", "")}
+                    addLabel="Add row"
+                  />
+                ) : null}
                 {checklist.map((item, index) =>
                   isEditingCarePlan ? (
-                    <CarePlanEditorField
-                      key={`${item}-${index}`}
-                      value={item}
-                      onChangeText={(value) => setDraftValue(["documentChecklist", index], value)}
-                    />
+                    <View key={`${item}-${index}`}>
+                      <CarePlanEditorField
+                        value={item}
+                        onChangeText={(value) => setDraftValue(["documentChecklist", index], value)}
+                      />
+                      <CarePlanEditorRowActions
+                        onDelete={() => removeDraftRow("documentChecklist", index)}
+                      />
+                    </View>
                   ) : (
                     <View key={item} style={styles.documentChecklistRow}>
                       <View style={styles.documentCheckbox} />
@@ -9499,13 +9659,23 @@ function CarePlanDocument({
               </View>
               <View style={styles.documentChecklistCard}>
                 <Text style={styles.documentSubhead}>Referenced Attachments</Text>
+                {isEditingCarePlan ? (
+                  <CarePlanEditorRowActions
+                    onAdd={() => addDraftRow("documentFiles", "")}
+                    addLabel="Add row"
+                  />
+                ) : null}
                 {files.map((item, index) =>
                   isEditingCarePlan ? (
-                    <CarePlanEditorField
-                      key={`${item}-${index}`}
-                      value={item}
-                      onChangeText={(value) => setDraftValue(["documentFiles", index], value)}
-                    />
+                    <View key={`${item}-${index}`}>
+                      <CarePlanEditorField
+                        value={item}
+                        onChangeText={(value) => setDraftValue(["documentFiles", index], value)}
+                      />
+                      <CarePlanEditorRowActions
+                        onDelete={() => removeDraftRow("documentFiles", index)}
+                      />
+                    </View>
                   ) : (
                     <Text key={item} style={styles.documentFileText}>
                       {item}
@@ -9519,6 +9689,12 @@ function CarePlanDocument({
 
         <View onLayout={(event) => registerSection("Participants", event.nativeEvent.layout.y)}>
           <SectionCard title="Participants & Signature Logs" subtitle="Plan participants and acknowledgement trail">
+            {isEditingCarePlan ? (
+              <CarePlanEditorRowActions
+                onAdd={() => addDraftRow("participants", { name: "", relationship: "", copy: "" })}
+                addLabel="Add participant"
+              />
+            ) : null}
             <View style={styles.participantTable}>
               <View style={styles.participantHeader}>
                 <Text style={[styles.participantHeaderCell, { flex: 1.3 }]}>Participant</Text>
@@ -9544,6 +9720,9 @@ function CarePlanDocument({
                         onChangeText={(value) => setDraftValue(["participants", index, "copy"], value)}
                         style={[styles.participantCell, styles.carePlanEditorTableInput, { flex: 0.7 }]}
                       />
+                      <CarePlanEditorRowActions
+                        onDelete={() => removeDraftRow("participants", index)}
+                      />
                     </>
                   ) : (
                     <>
@@ -9556,13 +9735,23 @@ function CarePlanDocument({
               ))}
             </View>
             <View style={styles.signatureList}>
+              {isEditingCarePlan ? (
+                <CarePlanEditorRowActions
+                  onAdd={() => addDraftRow("signatureLogs", "")}
+                  addLabel="Add row"
+                />
+              ) : null}
               {signatures.map((item, index) =>
                 isEditingCarePlan ? (
-                  <CarePlanEditorField
-                    key={`${item}-${index}`}
-                    value={item}
-                    onChangeText={(value) => setDraftValue(["signatureLogs", index], value)}
-                  />
+                  <View key={`${item}-${index}`}>
+                    <CarePlanEditorField
+                      value={item}
+                      onChangeText={(value) => setDraftValue(["signatureLogs", index], value)}
+                    />
+                    <CarePlanEditorRowActions
+                      onDelete={() => removeDraftRow("signatureLogs", index)}
+                    />
+                  </View>
                 ) : (
                   <Text key={item} style={styles.signatureItem}>
                     {`• ${item}`}
@@ -9575,6 +9764,12 @@ function CarePlanDocument({
 
         <View onLayout={(event) => registerSection("Source Pages", event.nativeEvent.layout.y)}>
           <SectionCard title="Full Source Pages" subtitle="Complete OCR extract retained so all PDF content remains available">
+            {isEditingCarePlan ? (
+              <CarePlanEditorRowActions
+                onAdd={() => addDraftRow("carePlanTextPages", { page: "", text: "" })}
+                addLabel="Add page"
+              />
+            ) : null}
             <View style={styles.sourcePageStack}>
               {sourcePages.map((page, index) => {
                 const isExpanded = expandedSourcePage === page.page;
@@ -9582,18 +9777,32 @@ function CarePlanDocument({
                   <View key={`source-page-${page.page}`} style={styles.sourcePageCard}>
                     {isEditingCarePlan ? (
                       <>
-                        <CarePlanEditorSectionLabel>Page</CarePlanEditorSectionLabel>
-                        <CarePlanEditorField
-                          value={String(page.page)}
-                          onChangeText={(value) => setDraftValue(["carePlanTextPages", index, "page"], value)}
-                        />
-                        <CarePlanEditorSectionLabel>Text</CarePlanEditorSectionLabel>
-                        <CarePlanEditorField
-                          value={page.text}
-                          onChangeText={(value) => setDraftValue(["carePlanTextPages", index, "text"], value)}
-                          multiline
-                          style={styles.carePlanSourceEditorInput}
-                        />
+                        <Pressable
+                          onPress={() => setExpandedSourcePage(isExpanded ? null : page.page)}
+                          style={styles.sourcePageHeader}
+                        >
+                          <Text style={styles.sourcePageTitle}>{`Source Page ${page.page || index + 1}`}</Text>
+                          <Text style={styles.sourcePageToggle}>{isExpanded ? "Hide" : "Show"}</Text>
+                        </Pressable>
+                        {isExpanded ? (
+                          <>
+                            <CarePlanEditorSectionLabel>Page</CarePlanEditorSectionLabel>
+                            <CarePlanEditorField
+                              value={String(page.page)}
+                              onChangeText={(value) => setDraftValue(["carePlanTextPages", index, "page"], value)}
+                            />
+                            <CarePlanEditorSectionLabel>Text</CarePlanEditorSectionLabel>
+                            <CarePlanEditorField
+                              value={page.text}
+                              onChangeText={(value) => setDraftValue(["carePlanTextPages", index, "text"], value)}
+                              multiline
+                              style={styles.carePlanSourceEditorInput}
+                            />
+                            <CarePlanEditorRowActions
+                              onDelete={() => removeDraftRow("carePlanTextPages", index)}
+                            />
+                          </>
+                        ) : null}
                       </>
                     ) : (
                       <>
@@ -12366,6 +12575,34 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
     color: "#6f6290",
     marginBottom: 4,
+  },
+  carePlanEditorRowActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 2,
+    marginBottom: 8,
+    alignItems: "center",
+  },
+  carePlanEditorActionButton: {
+    borderWidth: 1,
+    borderColor: "#d9cff0",
+    backgroundColor: "#f7f4ff",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 0,
+  },
+  carePlanEditorDeleteButton: {
+    borderColor: "#efc0c0",
+    backgroundColor: "#fff5f5",
+  },
+  carePlanEditorActionText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  carePlanEditorDeleteText: {
+    color: "#a33b3b",
   },
   carePlanEditorInput: {
     minHeight: 40,
