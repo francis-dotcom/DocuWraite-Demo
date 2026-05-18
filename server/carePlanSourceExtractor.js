@@ -65,23 +65,51 @@ function findFirstMatch(text, patterns = []) {
 }
 
 function extractDocumentFiles(text = "") {
-  const matches = String(text || "").match(/[A-Za-z0-9._-]+\.pdf/gi) || [];
-  return Array.from(new Set(matches.map((item) => item.replace(/\s+/g, ""))));
+  const normalized = String(text || "")
+    .replace(/([A-Za-z0-9])\.\s+([0-9])/g, "$1.$2")
+    .replace(/\s+\.pdf/gi, ".pdf");
+  const matches = normalized.match(/[A-Za-z0-9._-]+\.pdf/gi) || [];
+  return Array.from(
+    new Set(
+      matches
+        .map((item) => item.replace(/\s+/g, ""))
+        .filter((item) => item.split(".").length >= 4)
+    )
+  );
 }
 
 function extractParticipants(pages = []) {
-  const joined = pages.map((page) => page.text).join("\n");
-  const lines = joined.split("\n").map((line) => line.trim()).filter(Boolean);
-  const participants = [];
+  const source = getPageText(pages, 27);
+  const rawLines = source.split("\n").map((line) => line.trim());
+  const sectionStart = rawLines.findIndex((line) => /Participants/i.test(line));
+  const sectionEnd = rawLines.findIndex((line) => /Signature Log/i.test(line));
+  const lines = rawLines
+    .slice(sectionStart >= 0 ? sectionStart + 1 : 0, sectionEnd >= 0 ? sectionEnd : rawLines.length)
+    .filter(Boolean);
+  const mergedLines = [];
 
   for (const line of lines) {
-    if (!/\bYes\b|\bNo\b/i.test(line)) {
+    if (/Relationship with|Participant Individual Plan/i.test(line)) {
       continue;
     }
-    if (!/[A-Za-z]/.test(line) || /Therap|Signature Log|Participant/i.test(line)) {
+    if (
+      mergedLines.length &&
+      !/\b(Yes|No)\b$/i.test(mergedLines[mergedLines.length - 1]) &&
+      !/\b(Yes|No)\b$/i.test(line)
+    ) {
+      mergedLines[mergedLines.length - 1] = `${mergedLines[mergedLines.length - 1]} ${line}`.trim();
       continue;
     }
-    const match = line.match(/^(.+?)\s{2,}(.+?)\s+(Yes|No)$/i) || line.match(/^(.+?)\s+(.+?)\s+(Yes|No)$/i);
+    mergedLines.push(line);
+  }
+
+  const participants = [];
+
+  for (const line of mergedLines) {
+    if (!/\b(Yes|No)\b/i.test(line)) {
+      continue;
+    }
+    const match = line.match(/^([A-Z][A-Za-z'.,-]+(?:\s+[A-Z][A-Za-z'.,-]+)*)\s+(.+?)\s+(Yes|No)$/i);
     if (!match) {
       continue;
     }
@@ -99,6 +127,197 @@ function extractSignatureLogs(documentFiles = []) {
   return documentFiles
     .filter((file) => /signature|informedchoice|risktool|speechpoc/i.test(file))
     .map((file) => `Source attachment found: ${file}`);
+}
+
+function getPageText(pages = [], pageNumber) {
+  return pages.find((page) => page.page === pageNumber)?.text || "";
+}
+
+function cleanExtractedText(value = "") {
+  return String(value || "")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/therapservices\.net\/\S+/gi, " ")
+    .replace(/&backLink=%\S+/gi, " ")
+    .replace(/formid=\S+/gi, " ")
+    .replace(/formld=\S+/gi, " ")
+    .replace(/\b\d+\/28\b/g, " ")
+    .replace(/Therap :: Individual Plan/gi, " ")
+    .replace(/\b5\/11\/26,\s*5:20 PM\b/gi, " ")
+    .replace(/\b§\/11\/26,\s*5:20 PM\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function between(text = "", startPattern, endPattern) {
+  const startMatch = text.match(startPattern);
+  if (!startMatch) {
+    return "";
+  }
+
+  const startIndex = startMatch.index + startMatch[0].length;
+  const tail = text.slice(startIndex);
+  if (!endPattern) {
+    return cleanExtractedText(tail);
+  }
+
+  const endMatch = tail.match(endPattern);
+  const raw = endMatch ? tail.slice(0, endMatch.index) : tail;
+  return cleanExtractedText(raw);
+}
+
+function extractAboutMeCards(pages = [], fallback = []) {
+  const page1 = getPageText(pages, 1);
+  const page2 = getPageText(pages, 2);
+  const merged = `${page1}\n${page2}`;
+
+  const cards = [
+    {
+      title: "What People Admire About Me",
+      body: between(merged, /What People/i, /What is Home:|Community:/i),
+    },
+    {
+      title: "What Is Important To Me",
+      body: cleanExtractedText(
+        `${between(merged, /What is Home:/i, /Community:/i)} ${between(page2, /^.*?to invade her personal space\./i, /Community:/i)}`
+      ),
+    },
+    {
+      title: "Community Preferences",
+      body: between(`${page2}\n${getPageText(pages, 20)}`, /Community:/i, /How to Supports in the Home:|Supports in the Home:|Things \| would like to do/i),
+    },
+  ].filter((card) => card.body);
+
+  return cards.length ? cards : fallback;
+}
+
+function extractSupportCards(pages = [], fallback = []) {
+  const page2 = getPageText(pages, 2);
+  const page3 = getPageText(pages, 3);
+  const page4 = getPageText(pages, 4);
+
+  const cards = [
+    {
+      title: "Supports In The Home",
+      body: between(`${page2}\n${page3}`, /How to Supports in the Home:|Supports in the Home:/i, /Supports in the Community:|ADLs & Household Chores:/i),
+    },
+    {
+      title: "Supports In The Community",
+      body: between(`${page2}\n${page3}`, /Supports in the Community:/i, /ADLs & Household Chores:/i),
+    },
+    {
+      title: "ADLs & Household Chores",
+      body: between(page3, /ADLs & Household Chores:/i, /Physical Therapy Services:|Enabling Technology & Medical Equipment:/i),
+    },
+    {
+      title: "Clinical & Equipment Supports",
+      body: cleanExtractedText(
+        `${between(`${page3}\n${page4}`, /Physical Therapy Services:/i, /Previous Employment:|Consumer Direction:/i)} ${between(`${page3}\n${page4}`, /Enabling Technology & Medical Equipment:/i, /Clinical Nutrition Services:/i)}`
+      ),
+    },
+  ].filter((card) => card.body);
+
+  return cards.length ? cards : fallback;
+}
+
+function extractRightsCards(pages = [], fallback = []) {
+  const page17 = getPageText(pages, 17);
+  const page18 = getPageText(pages, 18);
+  const page19 = getPageText(pages, 19);
+  const joined = `${page17}\n${page18}\n${page19}`;
+
+  const cards = [
+    {
+      title: "Decision Making",
+      body: cleanExtractedText(
+        `${between(page17, /My Decision Making & Rights/i, /Someone else makes decisions for me/i)} Someone else makes decisions for me ${between(page19, /Mary Bet likes to be in charge of her life/i, /Michael Dunn Center is the court appointed/i)}`
+      ),
+    },
+    {
+      title: "Advance Directives & Rights",
+      body: between(joined, /I \(and my natural/i, /According to her previous provider/i),
+    },
+    {
+      title: "Burial Plans & Legal Authority",
+      body: cleanExtractedText(
+        `${between(page19, /According to her previous provider/i, /Mary Bet likes to be in charge/i)} ${between(page19, /Michael Dunn Center is the court appointed/i, /My Community Activities/i)}`
+      ),
+    },
+  ].filter((card) => card.body);
+
+  return cards.length ? cards : fallback;
+}
+
+function extractActivityCards(pages = [], fallback = []) {
+  const page19 = getPageText(pages, 19);
+  const page20 = getPageText(pages, 20);
+  const page21 = getPageText(pages, 21);
+
+  const cards = [
+    {
+      title: "Current Community Activities",
+      body: between(page19, /My Community Activities/i, /Things \| would like to do or learn about in the community include/i),
+    },
+    {
+      title: "Community Goals & Needed Supports",
+      body: between(page20, /Things \| would like to do or learn about in the community include/i, /Mary Bet is transported by/i),
+    },
+    {
+      title: "Transportation & Safety",
+      body: between(`${page20}\n${page21}`, /Mary Bet is transported by/i, /Natural\/Informal Supports|Restrictions|Action Plans/i),
+    },
+  ].filter((card) => card.body);
+
+  return cards.length ? cards : fallback;
+}
+
+function extractDocumentChecklist(pages = [], fallback = []) {
+  const page24 = getPageText(pages, 24);
+  const page25 = getPageText(pages, 25);
+  const page26 = getPageText(pages, 26);
+  const lines = `${page24}\n${page25}\n${page26}`.split("\n").map((line) => line.trim());
+  const items = [];
+  let collecting = false;
+  let current = [];
+
+  const flush = () => {
+    const value = cleanExtractedText(current.join(" "));
+    if (
+      value &&
+      !/^(Checklist Attachment|Description|Uploaded By|Other)$/i.test(value) &&
+      !/\.pdf|\(.*KB\)|Avery Quinn|Therap :: Individual Plan/i.test(value)
+    ) {
+      items.push(value);
+    }
+    current = [];
+  };
+
+  for (const line of lines) {
+    if (/Document Checklist/i.test(line)) {
+      collecting = true;
+      continue;
+    }
+    if (!collecting) {
+      continue;
+    }
+    if (/Participants|Acknowledgement Report/i.test(line)) {
+      flush();
+      break;
+    }
+    if (!line) {
+      flush();
+      continue;
+    }
+    if (/Therap :: Individual Plan|\.pdf|\(.*KB\)|Avery|Quinn,|Indepen|Support|Coordin|Description|Uploade|By/i.test(line)) {
+      flush();
+      continue;
+    }
+    current.push(line);
+  }
+  flush();
+
+  const uniqueItems = Array.from(new Set(items)).filter((item) => item.split(" ").length >= 1);
+  const qualityOk = uniqueItems.length >= 8 && uniqueItems.some((item) => item.split(" ").length >= 2);
+  return qualityOk ? uniqueItems.slice(0, 24) : fallback;
 }
 
 function extractHeader(pages = [], fallbackHeader = {}) {
@@ -135,6 +354,11 @@ function extractCarePlanFromSource({ fallbackProfile = {} } = {}) {
   const participants = extractParticipants(pages);
   const signatureLogs = extractSignatureLogs(documentFiles);
   const header = extractHeader(pages, fallbackProfile.carePlanHeader || {});
+  const aboutMeCards = extractAboutMeCards(pages, fallbackProfile.aboutMeCards || []);
+  const supportCards = extractSupportCards(pages, fallbackProfile.supportCards || []);
+  const rightsCards = extractRightsCards(pages, fallbackProfile.rightsCards || []);
+  const activityCards = extractActivityCards(pages, fallbackProfile.activityCards || []);
+  const documentChecklist = extractDocumentChecklist(pages, fallbackProfile.documentChecklist || []);
 
   return {
     sourcePath: PDF_SOURCE_PATH,
@@ -142,6 +366,11 @@ function extractCarePlanFromSource({ fallbackProfile = {} } = {}) {
     pageCount: pages.length,
     editorContent: {
       carePlanHeader: header,
+      aboutMeCards,
+      supportCards,
+      rightsCards,
+      activityCards,
+      documentChecklist,
       carePlanTextPages: pages,
       documentFiles: documentFiles.length ? documentFiles : fallbackProfile.documentFiles || [],
       participants: participants.length ? participants : fallbackProfile.participants || [],

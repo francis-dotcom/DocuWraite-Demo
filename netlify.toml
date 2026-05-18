@@ -8,6 +8,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # 0.85 ≈ zoomed out ~15% on Netlify (tune in Netlify env vars if needed)
+  EXPO_PUBLIC_WEB_INITIAL_SCALE = "0.85"
 
 [[redirects]]
   from = "/*"

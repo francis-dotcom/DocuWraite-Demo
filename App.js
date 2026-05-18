@@ -21,7 +21,11 @@ import { StatusBar } from "expo-status-bar";
 import Icon from "./components/Icon";
 import { carePlanText } from "./carePlanText";
 import { fetchAssignedNodesDraft, fetchDocuWraiteWorkflowStep } from "./docuWraiteAi";
-import { docuWraiteUseRuleBasedFallback, docuWraiteApiBaseUrl } from "./docuWraiteConfig";
+import {
+  docuWraiteUseRuleBasedFallback,
+  docuWraiteApiBaseUrl,
+  docuWraiteWebInitialScale,
+} from "./docuWraiteConfig";
 import {
   clearDraftContextResponsesForToggle,
   countIncompleteDraftContextQuestions,
@@ -8860,6 +8864,11 @@ function mergeCarePlanDraftWithExtraction(currentDraft = {}, extraction = {}) {
       ...(currentDraft.carePlanHeader || {}),
       ...(editorContent.carePlanHeader || {}),
     },
+    aboutMeCards: editorContent.aboutMeCards || currentDraft.aboutMeCards || [],
+    supportCards: editorContent.supportCards || currentDraft.supportCards || [],
+    rightsCards: editorContent.rightsCards || currentDraft.rightsCards || [],
+    activityCards: editorContent.activityCards || currentDraft.activityCards || [],
+    documentChecklist: editorContent.documentChecklist || currentDraft.documentChecklist || [],
     documentFiles: editorContent.documentFiles || currentDraft.documentFiles || [],
     participants: editorContent.participants || currentDraft.participants || [],
     signatureLogs: editorContent.signatureLogs || currentDraft.signatureLogs || [],
@@ -8891,6 +8900,7 @@ function CarePlanDocument({
   onDocumentationUpdate,
   onDocumentationCancel,
   onSaveCarePlan,
+  onExtractCarePlanFromSource,
   clientProfile = null,
   clientPhoto,
 }) {
@@ -8958,6 +8968,30 @@ function CarePlanDocument({
         saving: false,
         message: "",
         error: error?.message || "Care plan could not be saved.",
+      });
+    }
+  };
+
+  const extractCarePlanFromSource = async () => {
+    if (!onExtractCarePlanFromSource) {
+      return;
+    }
+
+    setCarePlanSaveState({ saving: true, message: "", error: "" });
+    try {
+      const extraction = await onExtractCarePlanFromSource();
+      setCarePlanDraft((current) => mergeCarePlanDraftWithExtraction(current, extraction));
+      setCarePlanSaveState({
+        saving: false,
+        message: `Imported ${extraction?.pageCount || 0} source pages from the care-plan document.`,
+        error: "",
+      });
+      setIsEditingCarePlan(true);
+    } catch (error) {
+      setCarePlanSaveState({
+        saving: false,
+        message: "",
+        error: error?.message || "Source document could not be extracted.",
       });
     }
   };
@@ -9085,6 +9119,13 @@ function CarePlanDocument({
               <>
                 <Pressable
                   style={[styles.quickActionButton, carePlanSaveState.saving && styles.quickActionButtonDisabled]}
+                  onPress={extractCarePlanFromSource}
+                  disabled={carePlanSaveState.saving}
+                >
+                  <Text style={styles.quickActionText}>Extract from Source</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.quickActionButton, carePlanSaveState.saving && styles.quickActionButtonDisabled]}
                   onPress={saveCarePlanEdits}
                   disabled={carePlanSaveState.saving}
                 >
@@ -9096,6 +9137,9 @@ function CarePlanDocument({
               </>
             ) : (
               <>
+                <Pressable style={styles.quickActionButton} onPress={extractCarePlanFromSource}>
+                  <Text style={styles.quickActionText}>Extract from Source</Text>
+                </Pressable>
                 <Pressable style={styles.quickActionButton} onPress={startEditingCarePlan}>
                   <Text style={styles.quickActionText}>Edit Care Plan</Text>
                 </Pressable>
@@ -9627,6 +9671,23 @@ function DocumentationGuideScreen({ expandedDocumentationGuide, onToggleGuide })
 }
 
 export default function App() {
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      return;
+    }
+    const scale = docuWraiteWebInitialScale;
+    if (!Number.isFinite(scale) || scale <= 0 || scale === 1) {
+      return;
+    }
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (meta) {
+      meta.setAttribute(
+        "content",
+        `width=device-width, initial-scale=${scale}, maximum-scale=1`
+      );
+    }
+  }, []);
+
   const { width } = useWindowDimensions();
   const isTablet = width < 1200;
   const isPhone = width < 820;
@@ -9956,6 +10017,50 @@ export default function App() {
   const handleChooseClientSuggestion = (client) => {
     setIndividualQuery(client.displayName);
     handleSelectClient(client.id);
+  };
+
+  const handleSaveCarePlan = async (draft) => {
+    const existingOptions =
+      persistedClientCarePlan?.intelligenceOptions || activeClientProfile.shiftIntelligenceOptions || {};
+    const payload = {
+      riskCards: draft.riskCards || [],
+      actionPlans: draft.actionPlans || [],
+      intelligenceOptions: {
+        ...existingOptions,
+        editorContent: buildCarePlanEditorContentPayload(draft),
+      },
+    };
+
+    const response = await fetch(`${docuWraiteApiBaseUrl}/api/clients/${activeClientId}/care-plan`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Care plan could not be saved.");
+    }
+
+    if (data?.clientCarePlan) {
+      setPersistedClientCarePlan(data.clientCarePlan);
+    }
+
+    return data?.clientCarePlan || null;
+  };
+
+  const handleExtractCarePlanFromSource = async () => {
+    const response = await fetch(`${docuWraiteApiBaseUrl}/api/clients/${activeClientId}/care-plan/extract-source`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Care plan source extraction failed.");
+    }
+
+    return data.extraction || null;
   };
 
   const buildCaseNoteDocumentationSession = (config = {}) => {
@@ -10461,6 +10566,8 @@ export default function App() {
                   documentationSession={documentationSession}
                   onDocumentationUpdate={setDocumentationSession}
                   onDocumentationCancel={() => setDocumentationSession(null)}
+                  onSaveCarePlan={handleSaveCarePlan}
+                  onExtractCarePlanFromSource={handleExtractCarePlanFromSource}
                   clientProfile={activeClientProfile}
                   clientPhoto={activeClientPhoto}
                 />
@@ -12178,10 +12285,25 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
   },
+  quickActionButtonDisabled: {
+    opacity: 0.55,
+  },
   quickActionText: {
     fontSize: 12,
     fontWeight: "700",
     color: colors.headerText,
+  },
+  carePlanEditorSuccess: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#2d7a46",
+    marginTop: 2,
+  },
+  carePlanEditorError: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#b33a3a",
+    marginTop: 2,
   },
   carePlanPillRow: {
     paddingVertical: 2,
@@ -12233,6 +12355,57 @@ const styles = StyleSheet.create({
   },
   carePlanSectionBody: {
     padding: 18,
+  },
+  carePlanEditorLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
+    color: "#6f6290",
+    marginBottom: 4,
+  },
+  carePlanEditorInput: {
+    minHeight: 40,
+    borderWidth: 1,
+    borderColor: "#d9cff0",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#2d2144",
+    marginBottom: 8,
+  },
+  carePlanEditorInputMultiline: {
+    minHeight: 84,
+    textAlignVertical: "top",
+  },
+  carePlanHeroEditorInput: {
+    fontSize: 15,
+  },
+  carePlanEditorGroup: {
+    marginBottom: 6,
+  },
+  carePlanEditorBlock: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#ece3fa",
+  },
+  carePlanEditorBlockTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.headerText,
+    marginBottom: 8,
+  },
+  carePlanEditorTableInput: {
+    marginBottom: 0,
+    minHeight: 36,
+    borderRadius: 6,
+  },
+  carePlanSourceEditorInput: {
+    minHeight: 180,
   },
   overviewGrid: {
     flexDirection: "row",
