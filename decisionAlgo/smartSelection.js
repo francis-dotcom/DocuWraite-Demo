@@ -29,12 +29,23 @@ export const SMART_SELECT_PRESETS = [
     keywordBoost: true,
   },
   {
+    id: "complete",
+    label: "Complete",
+    summary:
+      "Full annotation pack — every question in the current filter (best with Full branch, Block time, Baseplan or Careplan, depth 3–5).",
+    maxDepth: 99,
+    perSectionCap: null,
+    keywordBoost: false,
+    fullVisible: true,
+  },
+  {
     id: "all-visible",
     label: "All visible",
     summary: "Everything in the current library filter (same as section Select all combined).",
     maxDepth: 99,
     perSectionCap: null,
     keywordBoost: false,
+    fullVisible: true,
   },
 ];
 
@@ -85,7 +96,7 @@ export function buildSmartSelection(visibleNodes = [], presetId = "standard", op
   const selectedKeys = [];
   const seen = new Set();
 
-  if (preset.id === "all-visible") {
+  if (preset.fullVisible) {
     selectable.forEach((node) => {
       const key = options.buildKey?.(node) || `${node.library}::${node.section}::${node.id}`;
       if (!seen.has(key)) {
@@ -93,13 +104,28 @@ export function buildSmartSelection(visibleNodes = [], presetId = "standard", op
         selectedKeys.push(key);
       }
     });
+
+    const emptyMessage =
+      "No questions visible. For a full shift pack use Full branch, Note type Block time, library Baseplan or Careplan, and Depth 3–5.";
+
+    if (preset.id === "complete") {
+      return {
+        keys: selectedKeys,
+        preset,
+        message:
+          selectedKeys.length > 0
+            ? `Complete pack: checked ${selectedKeys.length} question(s) in this filter. Review the list, then lock and Final Assign. For whole-shift setup use Full branch + Block time + Baseplan or Careplan.`
+            : `Complete pack: ${emptyMessage}`,
+      };
+    }
+
     return {
       keys: selectedKeys,
       preset,
       message:
         selectedKeys.length > 0
           ? `Smart select (${preset.label}): checked ${selectedKeys.length} question(s). Review, adjust, then lock and Final Assign.`
-          : `Smart select (${preset.label}): no questions matched. Widen Depth, switch to Full branch, or pick another library / note type.`,
+          : `Smart select (${preset.label}): ${emptyMessage}`,
     };
   }
 

@@ -242,7 +242,7 @@ const documentationHowToGuides = [
     summary: "Pre-check a sensible subset when you cannot review every question in the list.",
     steps: [
       "In Decision Engine, set Library, Note type, Mode, Branch, and Depth first — Smart select only checks questions that are already visible in the list.",
-      "Use Smart select above the question list: Essential (depth 1, one anchor per section), Standard (depths 1–2), Supervisor focus (standard plus risk, refusal, protocol, and supervisor-related prompts), or All visible.",
+      "Use Smart select: Essential (minimal), Standard (depths 1–2), Supervisor focus (risk/refusal keywords), Complete (full pack in current filter — use with Full branch + Block time + Baseplan or Careplan for real shift annotation), or All visible.",
       "After you tap a preset, a summary appears under Smart select listing what was checked (section and question). Tap × to undo only that Smart select batch without clearing questions you added by hand.",
       "Clear visible removes every checked question in the current filter. × on the summary removes only the last Smart select batch.",
       "Review the list, tweak checkboxes, then lock the library to the target block or row and Final Assign as usual.",
@@ -7995,7 +7995,16 @@ function DecisionEngineScreen({
       setLastSmartSelect(null);
     }
 
-    setAssignmentHint(message);
+    let hint = message;
+    if (
+      presetId === "complete" &&
+      includeMode === "selective-branch" &&
+      keys.length > 0 &&
+      keys.length < 15
+    ) {
+      hint += " Only a few refusal/branch questions are visible — switch to Full branch, Block time, and Baseplan or Careplan for a full shift pack.";
+    }
+    setAssignmentHint(hint);
   };
 
   const cancelSmartSelect = () => {

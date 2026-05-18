@@ -125,10 +125,11 @@ In Markdown, use `<details>` / `<summary>` so each guide collapses in Cursor or 
 <summary><strong>How to use Smart select (supervisor quick pick)</strong> — Pre-check a subset when you cannot review every question.</summary>
 
 1. Set **Library**, **Note type**, **Mode**, **Branch**, and **Depth** first (Smart select only affects **visible** questions).
-2. Tap **Essential**, **Standard**, **Supervisor focus**, or **All visible** above the question list in Decision Engine.
-3. A **summary** lists what was checked; tap **×** to undo that Smart select batch only (keeps manual checks). **Clear visible** clears everything in the filter.
-4. Review checkboxes, tweak, **lock** → **Final Assign** → DSP **bubble** asks that same set.
-5. Logic: `decisionAlgo/smartSelection.js` (rule-based; not a second AI interview).
+2. Tap **Essential**, **Standard**, **Supervisor focus**, **Complete** (full pack in filter), or **All visible** in Decision Engine.
+3. **Complete** = real annotation for what’s on screen; use **Full branch**, **Block time**, **Baseplan/Careplan**, **Depth 3–5** — not Selective branch + Refusal only (that stays a small slice).
+4. A **summary** lists what was checked; tap **×** to undo that Smart select batch only (keeps manual checks). **Clear visible** clears everything in the filter.
+5. Review checkboxes, tweak, **lock** → **Final Assign** → DSP **bubble** asks that same set.
+6. Logic: `decisionAlgo/smartSelection.js` (rule-based; not a second AI interview).
 
 </details>
 
