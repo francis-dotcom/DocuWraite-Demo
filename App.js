@@ -12272,10 +12272,10 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: "row",
-    flexWrap: "nowrap",
+    flexWrap: "wrap",
     marginTop: 4,
     columnGap: 8,
-    rowGap: 0,
+    rowGap: 8,
     alignItems: "center",
   },
   quickActionButton: {
@@ -12284,7 +12284,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f7f4ff",
     paddingHorizontal: 9,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 0,
     minHeight: 32,
     justifyContent: "center",
   },
