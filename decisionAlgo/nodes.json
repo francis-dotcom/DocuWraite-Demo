@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-05-17T04:24:37.955Z",
+  "generatedAt": "2026-05-18T21:19:54.201Z",
   "summary": {
     "libraryCount": 7,
-    "nodeCount": 504
+    "nodeCount": 509
   },
   "libraries": [
     {
@@ -387,6 +387,103 @@
             "Flag supervisor-aware items",
             "Require unresolved-risk wording",
             "Require clinical follow-up wording",
+            "Skip",
+            "Deferred",
+            "Unknown",
+            "Not observed",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "aidraft/parser.md"
+        },
+        {
+          "id": "a1",
+          "library": "aidraft",
+          "section": "F. Orders and Medication Draft",
+          "depth": 1,
+          "title": "orders-trigger",
+          "question": "When should AI generate an orders or medication documentation draft?",
+          "choices": [
+            "After medication-support questions are complete",
+            "After MAR or order verification is complete",
+            "After readiness passes",
+            "Manual trigger only",
+            "Skip",
+            "Deferred",
+            "Unknown",
+            "Not observed",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "aidraft/parser.md"
+        },
+        {
+          "id": "b1",
+          "library": "aidraft",
+          "section": "F. Orders and Medication Draft",
+          "depth": 1,
+          "title": "IF `orders-generation-selected`",
+          "question": null,
+          "choices": [],
+          "children": [],
+          "conditions": [
+            "orders-generation-selected"
+          ],
+          "source": "aidraft/parser.md"
+        },
+        {
+          "id": "b2",
+          "library": "aidraft",
+          "section": "F. Orders and Medication Draft",
+          "depth": 1,
+          "title": "orders-content",
+          "question": "What content must the orders or medication draft include?",
+          "choices": [
+            "Medication or order name",
+            "Dose, route, or schedule detail",
+            "Staff support rendered",
+            "Observed response or tolerance",
+            "Refusal, hold, or missed dose detail",
+            "Follow-up or notification need",
+            "Skip",
+            "Deferred",
+            "Unknown",
+            "Not observed",
+            "Not applicable"
+          ],
+          "children": [],
+          "conditions": [],
+          "source": "aidraft/parser.md"
+        },
+        {
+          "id": "c1",
+          "library": "aidraft",
+          "section": "F. Orders and Medication Draft",
+          "depth": 1,
+          "title": "IF `orders-content includes Refusal, hold, or missed dose detail`",
+          "question": null,
+          "choices": [],
+          "children": [],
+          "conditions": [
+            "orders-content includes Refusal, hold, or missed dose detail"
+          ],
+          "source": "aidraft/parser.md"
+        },
+        {
+          "id": "c2",
+          "library": "aidraft",
+          "section": "F. Orders and Medication Draft",
+          "depth": 1,
+          "title": "orders-guardrails",
+          "question": "If the orders note includes high-risk medication content, what AI guardrail should apply?",
+          "choices": [
+            "Require escalation language",
+            "Require supervisor-review language",
+            "Require nurse-notification language",
+            "Block draft until readiness passes",
+            "Use cautious neutral wording",
             "Skip",
             "Deferred",
             "Unknown",

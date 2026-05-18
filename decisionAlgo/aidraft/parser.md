@@ -200,6 +200,56 @@
 
 ---
 
+## F. Orders and Medication Draft
+
+### a1. orders-trigger
+- `Q:` When should AI generate an orders or medication documentation draft?
+- `Choices:`
+  - After medication-support questions are complete
+  - After MAR or order verification is complete
+  - After readiness passes
+  - Manual trigger only
+  - Skip
+  - Deferred
+  - Unknown
+  - Not observed
+  - Not applicable
+
+### b1. IF `orders-generation-selected`
+
+### b2. orders-content
+- `Q:` What content must the orders or medication draft include?
+- `Choices:`
+  - Medication or order name
+  - Dose, route, or schedule detail
+  - Staff support rendered
+  - Observed response or tolerance
+  - Refusal, hold, or missed dose detail
+  - Follow-up or notification need
+  - Skip
+  - Deferred
+  - Unknown
+  - Not observed
+  - Not applicable
+
+### c1. IF `orders-content includes Refusal, hold, or missed dose detail`
+
+### c2. orders-guardrails
+- `Q:` If the orders note includes high-risk medication content, what AI guardrail should apply?
+- `Choices:`
+  - Require escalation language
+  - Require supervisor-review language
+  - Require nurse-notification language
+  - Block draft until readiness passes
+  - Use cautious neutral wording
+  - Skip
+  - Deferred
+  - Unknown
+  - Not observed
+  - Not applicable
+
+---
+
 ## E. AI Language and Safety Controls
 
 ### a1. language-policy

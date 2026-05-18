@@ -43,6 +43,12 @@ import {
   searchClients,
 } from "./clientProfiles";
 import { getShiftIntelligenceRuntime, mergeResolvedClientProfile } from "./shiftIntelligence";
+import {
+  getIntelliDraftDefaultTargetType,
+  getIntelliDraftTemplateForNoteType,
+  intelliDraftNoteTypeMatches,
+  resolveIntelliDraftNoteType,
+} from "./decisionAlgo/aidraft/noteTypeTemplate";
 
 const decisionNodes = require("./decisionAlgo/nodes.json");
 
@@ -1102,6 +1108,11 @@ function getDecisionNoteTypeKey(nodeOrSection = "", librarySlug = "") {
   const library =
     librarySlug ||
     (typeof nodeOrSection === "object" ? nodeOrSection?.library || nodeOrSection?.sourceLibrary : "");
+
+  if (library === "aidraft") {
+    return resolveIntelliDraftNoteType(nodeOrSection);
+  }
+
   const normalized = String(section || "").trim().toLowerCase();
 
   if (normalized.includes("row note") || normalized.includes("case note row")) {
@@ -1156,13 +1167,6 @@ function getDecisionNoteTypeKey(nodeOrSection = "", librarySlug = "") {
     return "block-time";
   }
 
-  if (library === "aidraft") {
-    if (normalized.includes("language") || normalized.includes("safety control")) {
-      return "block-time";
-    }
-    return "block-time";
-  }
-
   if (["baseplan", "careplan", "branching", "readiness", "playbookR", "runtime"].includes(library)) {
     return "block-time";
   }
@@ -1172,7 +1176,11 @@ function getDecisionNoteTypeKey(nodeOrSection = "", librarySlug = "") {
 
 function nodeMatchesDecisionNoteType(node, noteType, librarySlug = "") {
   const activeNoteType = normalizeDecisionNoteType(noteType);
-  const nodeNoteType = getDecisionNoteTypeKey(node, librarySlug || node?.library);
+  const library = librarySlug || node?.library || "";
+  if (library === "aidraft") {
+    return intelliDraftNoteTypeMatches(node, activeNoteType);
+  }
+  const nodeNoteType = getDecisionNoteTypeKey(node, library);
   return nodeNoteType === activeNoteType;
 }
 
@@ -7496,6 +7504,17 @@ function DecisionEngineScreen({
     }
   }, [selectedNoteType]);
 
+  useEffect(() => {
+    if (selectedLibrary !== "aidraft") {
+      return;
+    }
+    const nextTargetType = getIntelliDraftDefaultTargetType(normalizeDecisionNoteType(selectedNoteType));
+    setTargetType(nextTargetType);
+  }, [selectedLibrary, selectedNoteType]);
+
+  const intelliDraftTemplate =
+    selectedLibrary === "aidraft" ? getIntelliDraftTemplateForNoteType(activeNoteType) : null;
+
   const sections = visibleLibraryNodes.reduce((acc, node) => {
     const sectionKey = node.section || "Uncategorized";
     if (!acc[sectionKey]) {
@@ -8238,6 +8257,11 @@ function DecisionEngineScreen({
             onChange={setSelectedNoteType}
             fieldStyle={styles.decisionDropdownNoteType}
           />
+          {intelliDraftTemplate ? (
+            <Text style={styles.decisionIntelliDraftNoteTypeHint}>
+              {`IntelliDraft: ${intelliDraftTemplate.section} — ${intelliDraftTemplate.summary}`}
+            </Text>
+          ) : null}
         </View>
 
         <View style={[styles.decisionFormField, styles.decisionFormFieldMode]}>
@@ -11629,6 +11653,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: 0.3,
     textTransform: "uppercase",
+    textAlign: "center",
+  },
+  decisionIntelliDraftNoteTypeHint: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.muted,
+    marginTop: 6,
     textAlign: "center",
   },
   decisionLabelRow: {
