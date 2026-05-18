@@ -6900,6 +6900,7 @@ function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) 
                 <Card
                   title={section.title}
                   titleAccessoryContainerStyle={section.badgeStyle}
+                  titleTextStyle={styles.intelCompactTitleText}
                   titleAccessory={<Icon name={section.icon} size={18} color={colors.headerText} />}
                   bodyStyle={styles.intelCompactBody}
                   containerStyle={styles.intelCompactCard}
@@ -8573,6 +8574,7 @@ function Card({
   title,
   titleAccessory,
   titleAccessoryContainerStyle,
+  titleTextStyle,
   rightAccessory,
   children,
   bodyStyle,
@@ -8585,7 +8587,7 @@ function Card({
           {titleAccessory ? (
             <View style={[styles.cardHeaderTitleIcon, titleAccessoryContainerStyle]}>{titleAccessory}</View>
           ) : null}
-          <Text style={styles.cardHeaderText}>{title}</Text>
+          <Text style={[styles.cardHeaderText, titleTextStyle]}>{title}</Text>
         </View>
         {rightAccessory ?? null}
       </View>
@@ -11071,6 +11073,10 @@ const styles = StyleSheet.create({
   },
   intelCompactCard: {
     minHeight: 0,
+  },
+  intelCompactTitleText: {
+    fontSize: 14,
+    lineHeight: 18,
   },
   intelCompactBody: {
     paddingTop: 10,
