@@ -8931,6 +8931,8 @@ function CarePlanDocument({
   const [activeTab, setActiveTab] = useState("Overview");
   const [expandedRisk, setExpandedRisk] = useState(profile.riskCards[0]?.title ?? "Falls");
   const [expandedSourcePage, setExpandedSourcePage] = useState(1);
+  const [sourcePagesExpanded, setSourcePagesExpanded] = useState(false);
+  const [showAllSourcePages, setShowAllSourcePages] = useState(false);
   const [expandedActionRow, setExpandedActionRow] = useState(null);
   const scrollRef = useRef(null);
   const sectionPositions = useRef({});
@@ -8941,6 +8943,12 @@ function CarePlanDocument({
       setExpandedRisk(profile.riskCards[0]?.title ?? "Falls");
     }
   }, [isEditingCarePlan, profile]);
+
+  useEffect(() => {
+    if (!sourcePagesExpanded) {
+      setShowAllSourcePages(false);
+    }
+  }, [sourcePagesExpanded]);
 
   const setDraftValue = useCallback((path, value) => {
     setCarePlanDraft((current) => {
@@ -9074,6 +9082,10 @@ function CarePlanDocument({
   const roster = isEditingCarePlan ? carePlanDraft.participants : profile.participants;
   const signatures = isEditingCarePlan ? carePlanDraft.signatureLogs : profile.signatureLogs;
   const sourcePages = isEditingCarePlan ? carePlanDraft.carePlanTextPages : profile.carePlanTextPages ?? carePlanText;
+  const visibleSourcePages = (showAllSourcePages ? sourcePages : sourcePages.slice(0, 3)).map((page) => ({
+    page,
+    index: sourcePages.indexOf(page),
+  }));
 
   const registerSection = (key, y) => {
     sectionPositions.current[key] = y;
@@ -9764,62 +9776,89 @@ function CarePlanDocument({
 
         <View onLayout={(event) => registerSection("Source Pages", event.nativeEvent.layout.y)}>
           <SectionCard title="Full Source Pages" subtitle="Complete OCR extract retained so all PDF content remains available">
-            {isEditingCarePlan ? (
-              <CarePlanEditorRowActions
-                onAdd={() => addDraftRow("carePlanTextPages", { page: "", text: "" })}
-                addLabel="Add page"
-              />
-            ) : null}
-            <View style={styles.sourcePageStack}>
-              {sourcePages.map((page, index) => {
-                const isExpanded = expandedSourcePage === page.page;
-                return (
-                  <View key={`source-page-${page.page}`} style={styles.sourcePageCard}>
-                    {isEditingCarePlan ? (
-                      <>
-                        <Pressable
-                          onPress={() => setExpandedSourcePage(isExpanded ? null : page.page)}
-                          style={styles.sourcePageHeader}
-                        >
-                          <Text style={styles.sourcePageTitle}>{`Source Page ${page.page || index + 1}`}</Text>
-                          <Text style={styles.sourcePageToggle}>{isExpanded ? "Hide" : "Show"}</Text>
-                        </Pressable>
-                        {isExpanded ? (
+            <Pressable
+              onPress={() => setSourcePagesExpanded((current) => !current)}
+              style={styles.sourcePagesSectionToggle}
+            >
+              <Text style={styles.sourcePagesSectionToggleText}>
+                {sourcePagesExpanded ? "Hide full source pages" : "Show full source pages"}
+              </Text>
+              <Text style={styles.sourcePagesSectionToggleMeta}>
+                {sourcePagesExpanded
+                  ? `${Math.min(sourcePages.length, showAllSourcePages ? sourcePages.length : 3)} of ${sourcePages.length}`
+                  : `${sourcePages.length} pages available`}
+              </Text>
+            </Pressable>
+            {sourcePagesExpanded ? (
+              <>
+                {isEditingCarePlan ? (
+                  <CarePlanEditorRowActions
+                    onAdd={() => addDraftRow("carePlanTextPages", { page: "", text: "" })}
+                    addLabel="Add page"
+                  />
+                ) : null}
+                <View style={styles.sourcePageStack}>
+                  {visibleSourcePages.map(({ page, index: actualIndex }) => {
+                    const isExpanded = expandedSourcePage === page.page;
+                    return (
+                      <View key={`source-page-${page.page}-${actualIndex}`} style={styles.sourcePageCard}>
+                        {isEditingCarePlan ? (
                           <>
-                            <CarePlanEditorSectionLabel>Page</CarePlanEditorSectionLabel>
-                            <CarePlanEditorField
-                              value={String(page.page)}
-                              onChangeText={(value) => setDraftValue(["carePlanTextPages", index, "page"], value)}
-                            />
-                            <CarePlanEditorSectionLabel>Text</CarePlanEditorSectionLabel>
-                            <CarePlanEditorField
-                              value={page.text}
-                              onChangeText={(value) => setDraftValue(["carePlanTextPages", index, "text"], value)}
-                              multiline
-                              style={styles.carePlanSourceEditorInput}
-                            />
-                            <CarePlanEditorRowActions
-                              onDelete={() => removeDraftRow("carePlanTextPages", index)}
-                            />
+                            <Pressable
+                              onPress={() => setExpandedSourcePage(isExpanded ? null : page.page)}
+                              style={styles.sourcePageHeader}
+                            >
+                              <Text style={styles.sourcePageTitle}>{`Source Page ${page.page || actualIndex + 1}`}</Text>
+                              <Text style={styles.sourcePageToggle}>{isExpanded ? "Hide" : "Show"}</Text>
+                            </Pressable>
+                            {isExpanded ? (
+                              <>
+                                <CarePlanEditorSectionLabel>Page</CarePlanEditorSectionLabel>
+                                <CarePlanEditorField
+                                  value={String(page.page)}
+                                  onChangeText={(value) => setDraftValue(["carePlanTextPages", actualIndex, "page"], value)}
+                                />
+                                <CarePlanEditorSectionLabel>Text</CarePlanEditorSectionLabel>
+                                <CarePlanEditorField
+                                  value={page.text}
+                                  onChangeText={(value) => setDraftValue(["carePlanTextPages", actualIndex, "text"], value)}
+                                  multiline
+                                  style={styles.carePlanSourceEditorInput}
+                                />
+                                <CarePlanEditorRowActions
+                                  onDelete={() => removeDraftRow("carePlanTextPages", actualIndex)}
+                                />
+                              </>
+                            ) : null}
                           </>
-                        ) : null}
-                      </>
-                    ) : (
-                      <>
-                        <Pressable
-                          onPress={() => setExpandedSourcePage(isExpanded ? null : page.page)}
-                          style={styles.sourcePageHeader}
-                        >
-                          <Text style={styles.sourcePageTitle}>{`Source Page ${page.page}`}</Text>
-                          <Text style={styles.sourcePageToggle}>{isExpanded ? "Hide" : "Show"}</Text>
-                        </Pressable>
-                        {isExpanded ? <Text style={styles.sourcePageText}>{page.text}</Text> : null}
-                      </>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+                        ) : (
+                          <>
+                            <Pressable
+                              onPress={() => setExpandedSourcePage(isExpanded ? null : page.page)}
+                              style={styles.sourcePageHeader}
+                            >
+                              <Text style={styles.sourcePageTitle}>{`Source Page ${page.page}`}</Text>
+                              <Text style={styles.sourcePageToggle}>{isExpanded ? "Hide" : "Show"}</Text>
+                            </Pressable>
+                            {isExpanded ? <Text style={styles.sourcePageText}>{page.text}</Text> : null}
+                          </>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+                {sourcePages.length > 3 ? (
+                  <Pressable
+                    onPress={() => setShowAllSourcePages((current) => !current)}
+                    style={styles.sourcePagesShowMoreButton}
+                  >
+                    <Text style={styles.sourcePagesShowMoreText}>
+                      {showAllSourcePages ? "Show fewer pages" : `Show more pages (${sourcePages.length - 3} more)`}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </>
+            ) : null}
           </SectionCard>
         </View>
       </ScrollView>
@@ -13068,6 +13107,38 @@ const styles = StyleSheet.create({
   },
   sourcePageStack: {
     rowGap: 12,
+  },
+  sourcePagesSectionToggle: {
+    borderWidth: 1,
+    borderColor: "#e0d7f4",
+    backgroundColor: "#faf8ff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  sourcePagesSectionToggleText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.headerText,
+    marginBottom: 3,
+  },
+  sourcePagesSectionToggleMeta: {
+    fontSize: 11,
+    color: colors.muted,
+  },
+  sourcePagesShowMoreButton: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#ddd3f2",
+    backgroundColor: "#f8f4ff",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  sourcePagesShowMoreText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.headerText,
   },
   sourcePageCard: {
     backgroundColor: "#fbf9ff",
