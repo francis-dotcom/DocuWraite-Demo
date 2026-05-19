@@ -16,6 +16,25 @@ export const CLIENT_ROSTER = [
   },
 ];
 
+/** Clinical list label: last name, then first-name initials (e.g. "Mary Bet" → "Bet, M."). */
+export function formatClientNameLastFirstInitials(name = "") {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return "";
+  }
+  if (parts.length === 1) {
+    const single = parts[0];
+    return single.charAt(0).toUpperCase() + single.slice(1).toLowerCase();
+  }
+  const lastName = parts[parts.length - 1];
+  const titleLast = lastName.charAt(0).toUpperCase() + lastName.slice(1).toLowerCase();
+  const initials = parts
+    .slice(0, -1)
+    .map((part) => `${part.charAt(0).toUpperCase()}.`)
+    .join(" ");
+  return `${titleLast}, ${initials}`;
+}
+
 export function searchClients(query = "") {
   const normalized = query.trim().toLowerCase();
   if (!normalized) {
@@ -23,7 +42,11 @@ export function searchClients(query = "") {
   }
 
   return CLIENT_ROSTER.filter((client) => {
+    const clinicalName = formatClientNameLastFirstInitials(client.displayName).toLowerCase();
     if (client.displayName.toLowerCase().includes(normalized)) {
+      return true;
+    }
+    if (clinicalName.includes(normalized)) {
       return true;
     }
     return client.searchTerms.some((term) => term.includes(normalized) || normalized.includes(term));

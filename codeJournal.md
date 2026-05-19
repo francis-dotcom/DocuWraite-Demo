@@ -124,12 +124,14 @@ In Markdown, use `<details>` / `<summary>` so each guide collapses in Cursor or 
 <details>
 <summary><strong>How to use Smart select (supervisor quick pick)</strong> — Pre-check a subset when you cannot review every question.</summary>
 
-1. Set **Library**, **Note type**, **Mode**, **Branch**, and **Depth** first (Smart select only affects **visible** questions).
-2. Tap **Essential**, **Standard**, **Supervisor focus**, **Complete** (full pack in filter), or **All visible** in Decision Engine.
-3. **Complete** = real annotation for what’s on screen; use **Full branch**, **Block time**, **Baseplan/Careplan**, **Depth 3–5** — not Selective branch + Refusal only (that stays a small slice).
-4. A **summary** lists what was checked; tap **×** to undo that Smart select batch only (keeps manual checks). **Clear visible** clears everything in the filter.
-5. Review checkboxes, tweak, **lock** → **Final Assign** → DSP **bubble** asks that same set.
-6. Logic: `decisionAlgo/smartSelection.js` (rule-based; not a second AI interview).
+1. Set **Library**, **Note type**, **Mode**, **Branch**, and **Depth** first (Smart select only affects **visible** questions). Checking boxes is not Final Assign — lock and assign after review.
+2. **Essential** — depth 1 only, one opening question per section (fast skim).
+3. **Default** (was Standard/Smartest) — recommended; depths 1–2, opening + first follow-up (normal block/row).
+4. **Supervisor focus** — depths 1–2 plus risk/escalation keywords (refusal, incident, safety, medication, etc.).
+5. **Complete** — every selectable question in the filter; best with **Full branch**, **Block time**, **Baseplan/Careplan**, **Depth 3–5** for a whole-shift pack.
+6. **All visible** — same as checking everything on screen (like Select all for the current filter).
+7. **Clear visible** — uncheck all in the filter; **×** on the summary undoes only the last Smart select batch.
+8. Review → **lock** → **Final Assign** → DSP **bubble** asks that set. Logic: `decisionAlgo/smartSelection.js`.
 
 </details>
 

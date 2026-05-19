@@ -37,6 +37,7 @@ import {
   buildCaseNoteDocumentationItems,
   buildMeasurableDocumentationItems,
   CLIENT_ROSTER,
+  formatClientNameLastFirstInitials,
   getClientById,
   getMaryBetProfile,
   getMarkBrentProfile,
@@ -168,6 +169,7 @@ const documentationHowToGuides = [
     summary: "Open the correct documentation block before writing.",
     steps: [
       "Confirm the correct individual, module, and time block.",
+      "If the same time appears more than once, use the workflow label inside that time cell (for example Behavior or ADL) to pick the correct support entry.",
       "Open the documentation row that matches the service you are charting.",
       "Review active alerts, appointments, and health tasks before entering details.",
     ],
@@ -195,6 +197,7 @@ const documentationHowToGuides = [
     summary: "Build and assign guided question sets for the DSP case note.",
     steps: [
       "Open the Decision Engine module and choose the library, note type, and target block or row.",
+      "Schedule Builder can use the same time range more than once when the workflow is different, such as 8am-9am Behavior and 8am-9am ADL.",
       "Select the questions and branches you want included, then lock the library assignment.",
       "Use Final Assign to send staged assignments into the DSP Case Note before documentation starts.",
     ],
@@ -229,7 +232,7 @@ const documentationHowToGuides = [
     title: "Which note type to pick",
     summary: "Match note type to what you are assigning — block, row, or whole shift.",
     steps: [
-      "Block time — timeline / time-block work (morning ADL, outing, behavior, feeding). Use Target: Time block. This is the default and the largest question set (Baseplan A–J, Careplan, Runtime, and more).",
+      "Block time — timeline / time-block work (morning ADL, outing, behavior, feeding). Use Target: Time block. This is the default and the largest question set (Baseplan A–J, Careplan, Runtime, and more). If two block-time entries share the same hour range, the DSP page groups them under one time cell and labels each workflow separately.",
       "Row note — one DSP case-note row. Use Target: Case-note row and Note type Row note (the app sets this when you pick a row).",
       "Final note — end-of-shift final case note paragraph. Use once per shift (Baseplan K, IntelliDraft final). Target is usually a time block; assign only one final pack per case note.",
       "Handover note — next-shift handoff. Baseplan M, Runtime handoff, IntelliDraft handoff.",
@@ -241,12 +244,16 @@ const documentationHowToGuides = [
     title: "How to use Smart select (supervisor quick pick)",
     summary: "Pre-check a sensible subset when you cannot review every question in the list.",
     steps: [
-      "In Decision Engine, set Library, Note type, Mode, Branch, and Depth first — Smart select only checks questions that are already visible in the list.",
-      "Use Smart select: Essential (minimal), Standard (depths 1–2), Supervisor focus (risk/refusal keywords), Complete (full pack in current filter — use with Full branch + Block time + Baseplan or Careplan for real shift annotation), or All visible.",
-      "After you tap a preset, a summary appears under Smart select listing what was checked (section and question). Tap × to undo only that Smart select batch without clearing questions you added by hand.",
-      "Clear visible removes every checked question in the current filter. × on the summary removes only the last Smart select batch.",
-      "Review the list, tweak checkboxes, then lock the library to the target block or row and Final Assign as usual.",
-      "The DSP bubble still asks only what you final-assigned — Smart select is a shortcut for picking, not a separate AI interview.",
+      "Smart select is a shortcut for checking boxes in the Decision Engine question list. It does not final-assign by itself — review, lock the library, then Final Assign. The DSP bubble still asks only what you final-assigned.",
+      "Set Library, Note type, Mode, Branch, and Depth first. Every preset only affects questions already visible in the current filter (branch, library, note type, and depth control what appears).",
+      "Essential — fastest pass. In each section, checks depth 1 only: the opening or trigger question (one per section). Use when you want a minimal starter set and will add more by hand.",
+      "Default (recommended) — typical setup. Checks depths 1 and 2: opening questions plus the first follow-up layer in each section. Use for a normal block or row without pulling in the whole tree.",
+      "Supervisor focus — risk and escalation lean. Still depths 1–2, but also checks prompts whose text matches supervisor keywords (for example supervisor, escalate, risk, refusal, incident, emergency, protocol, safety, fall, aspiration, medication). Use when safety, refusal, and handoff-style prompts matter most.",
+      "Complete — checks every selectable question in the current filter (full annotation pack for what is on screen). Best with Full branch, Note type Block time, library Baseplan or Careplan, and Depth 3–5. If the filter is narrow (selective branch, low depth), you may only get a few questions — widen the filter for a whole-shift pack.",
+      "All visible — same mechanical idea as Complete: checks everything currently shown, like using Select all on the visible list. Use when you literally want every question in the current filter checked.",
+      "Clear visible — unchecks all questions in the current filter. To undo only the last Smart select batch (and keep manual checks), tap × on the summary line under Smart select.",
+      "After any preset, a summary lists what was checked (section and question). Tweak checkboxes, lock the library to the target block or row, then Final Assign as usual.",
+      "Quick pick: Default = normal block (start here) · Essential = skim · Supervisor focus = safety/escalation · Complete or All visible = full visible pack (pair with Full branch + high depth for real shift setup). Logic lives in decisionAlgo/smartSelection.js (rule-based, not a second AI interview).",
     ],
   },
 ];
@@ -5044,7 +5051,9 @@ function DocumentationEntryScreen({
   clientProfile = null,
   onOpenDecisionAssignment,
 }) {
-  const activePatientName = clientProfile?.displayName ?? patientDisplayName;
+  const activePatientName = formatClientNameLastFirstInitials(
+    clientProfile?.displayName ?? patientDisplayName
+  );
   const previousShiftData = clientProfile?.previousShiftSnapshot ?? getMaryBetProfile().previousShiftSnapshot;
   const isCaseNoteSession = session.sessionType === "case-note";
   const runtimeShiftIntelligence = getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session);
@@ -5056,6 +5065,22 @@ function DocumentationEntryScreen({
   const docuWraitePauseTimers = useRef({});
   const docuWraiteDismissed = useRef(new Set());
   const docuWraiteWorkflowRequestId = useRef(0);
+  const groupedTimeBlocks = useMemo(() => {
+    const groups = [];
+    const groupsByLabel = new Map();
+
+    (session.timeBlocks || []).forEach((block) => {
+      const label = String(block?.label || "");
+      if (!groupsByLabel.has(label)) {
+        const nextGroup = { label, blocks: [] };
+        groupsByLabel.set(label, nextGroup);
+        groups.push(nextGroup);
+      }
+      groupsByLabel.get(label).blocks.push(block);
+    });
+
+    return groups;
+  }, [session.timeBlocks]);
 
   useEffect(() => {
     setExpandedAreas({});
@@ -6325,59 +6350,80 @@ function DocumentationEntryScreen({
             <Text style={[styles.docTableHeaderCell, styles.docDescriptionColumn]}>Description</Text>
             <Text style={[styles.docTableHeaderCell, styles.docScoresColumn]}>Scores/Comments</Text>
           </View>
-          {session.timeBlocks.map((block) => (
-            <View key={block.id} style={[styles.docTableRow, isPhone && styles.docTableRowStacked]}>
+          {groupedTimeBlocks.map((group) => (
+            <View key={group.label} style={[styles.docTableRow, isPhone && styles.docTableRowStacked]}>
               <View style={[styles.docDescriptionColumn, styles.docDescriptionCell]}>
-                <Text style={styles.docTimeLabel}>{block.label}</Text>
-                <Text style={styles.docRowDescription}>
-                  {getTimeBlockPrompt(block, clientProfile)}
-                </Text>
+                <Text style={styles.docTimeLabel}>{group.label}</Text>
+                <View style={styles.docGroupedList}>
+                  {group.blocks.map((block, index) => {
+                    const workflowLabel = getWorkflowEyebrow(getTimeBlockWorkflowId(block, clientProfile));
+                    return (
+                      <View
+                        key={block.id}
+                        style={[
+                          styles.docGroupedItem,
+                          index < group.blocks.length - 1 ? styles.docGroupedItemWithDivider : null,
+                        ]}
+                      >
+                        {workflowLabel ? <Text style={styles.docWorkflowTag}>{workflowLabel}</Text> : null}
+                        <Text style={styles.docRowDescription}>{getTimeBlockPrompt(block, clientProfile)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
               <View style={[styles.docScoresColumn, styles.docScoresCell]}>
-                <DocumentationDropdown
-                  value={block.score}
-                  options={supportLevelOptions}
-                  placeholder="Select Score"
-                  onChange={(score) => updateTimeBlock(block.id, { score })}
-                  dropdownId={`time-${block.id}-score`}
-                  activeDropdown={activeDropdown}
-                  onToggleDropdown={setActiveDropdown}
-                />
-                <DocumentationCommentField
-                  fieldId={`time-${block.id}`}
-                  fieldContext={{
-                    fieldKind: "time",
-                    score: block.score,
-                    label: block.label,
-                    description: getTimeBlockPrompt(block, clientProfile),
-                    source: getTimeBlockSource(block, clientProfile),
-                    workflowId: getTimeBlockWorkflowId(block, clientProfile),
-                    shiftIntelligence: runtimeShiftIntelligence,
-                    assignedNodes: block.assignedNodes || [],
-                    assignedNodeSummary: block.assignedNodeSummary || "",
-                    assignedWorkflowSteps: createAssignedWorkflowSteps(block.assignedNodes || []),
-                  }}
-                  value={block.comment}
-                  onChange={(comment) => updateTimeBlock(block.id, { comment })}
-                  expanded={!!expandedAreas[`time-${block.id}`]}
-                  onToggleExpanded={() => toggleExpanded(`time-${block.id}`)}
-                  {...getCommentAssistProps(`time-${block.id}`, {
-                    fieldKind: "time",
-                    score: block.score,
-                    label: block.label,
-                    description: getTimeBlockPrompt(block, clientProfile),
-                    source: getTimeBlockSource(block, clientProfile),
-                    workflowId: getTimeBlockWorkflowId(block, clientProfile),
-                    shiftIntelligence: runtimeShiftIntelligence,
-                    assignedNodes: block.assignedNodes || [],
-                    assignedNodeSummary: block.assignedNodeSummary || "",
-                    assignedWorkflowSteps: createAssignedWorkflowSteps(block.assignedNodes || []),
-                  }, block.comment)}
-                  onAssistActivity={handleCommentAssistActivity}
-                />
+                <View style={styles.docGroupedList}>
+                  {group.blocks.map((block, index) => {
+                    const workflowId = getTimeBlockWorkflowId(block, clientProfile);
+                    const fieldContext = {
+                      fieldKind: "time",
+                      score: block.score,
+                      label: block.label,
+                      description: getTimeBlockPrompt(block, clientProfile),
+                      source: getTimeBlockSource(block, clientProfile),
+                      workflowId,
+                      shiftIntelligence: runtimeShiftIntelligence,
+                      assignedNodes: block.assignedNodes || [],
+                      assignedNodeSummary: block.assignedNodeSummary || "",
+                      assignedWorkflowSteps: createAssignedWorkflowSteps(block.assignedNodes || []),
+                    };
+
+                    return (
+                      <View
+                        key={block.id}
+                        style={[
+                          styles.docGroupedItem,
+                          index < group.blocks.length - 1 ? styles.docGroupedItemWithDivider : null,
+                        ]}
+                      >
+                        <Text style={styles.docWorkflowTag}>{getWorkflowEyebrow(workflowId)}</Text>
+                        <DocumentationDropdown
+                          value={block.score}
+                          options={supportLevelOptions}
+                          placeholder="Select Score"
+                          onChange={(score) => updateTimeBlock(block.id, { score })}
+                          dropdownId={`time-${block.id}-score`}
+                          activeDropdown={activeDropdown}
+                          onToggleDropdown={setActiveDropdown}
+                        />
+                        <DocumentationCommentField
+                          fieldId={`time-${block.id}`}
+                          fieldContext={fieldContext}
+                          value={block.comment}
+                          onChange={(comment) => updateTimeBlock(block.id, { comment })}
+                          expanded={!!expandedAreas[`time-${block.id}`]}
+                          onToggleExpanded={() => toggleExpanded(`time-${block.id}`)}
+                          {...getCommentAssistProps(`time-${block.id}`, fieldContext, block.comment)}
+                          onAssistActivity={handleCommentAssistActivity}
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
-          </View>
-        ))}
+          ))}
         </View>
 
         <DocumentationFormTable
@@ -7062,7 +7108,9 @@ function DecisionEngineScreen({
   const [includeMode, setIncludeMode] = useState(initialSelectionState?.includeMode || "full-branch");
   const [selectedBranchKey, setSelectedBranchKey] = useState(initialSelectionState?.selectedBranchKey || "");
   const [activeDecisionDropdown, setActiveDecisionDropdown] = useState(null);
-  const [expandedDecisionPanel, setExpandedDecisionPanel] = useState(initialSelectionState?.collapsedSections || {});
+  const [collapsedDecisionSections, setCollapsedDecisionSections] = useState(
+    initialSelectionState?.collapsedSections || {}
+  );
   const [targetType, setTargetType] = useState(
     initialSelectionState?.targetType || (initialTargetKey.startsWith("row:") ? "case-note-row" : "time-block")
   );
@@ -7262,14 +7310,14 @@ function DecisionEngineScreen({
 
   useEffect(() => {
     const uniqueBlocks = [];
-    const seenLabels = new Set();
+    const seenBlockKeys = new Set();
 
     timeBlocks.forEach((block) => {
-      const key = String(block?.label || "");
-      if (seenLabels.has(key)) {
+      const key = [String(block?.label || ""), String(block?.workflowId || "")].join("::");
+      if (seenBlockKeys.has(key)) {
         return;
       }
-      seenLabels.add(key);
+      seenBlockKeys.add(key);
       uniqueBlocks.push(block);
     });
 
@@ -7612,15 +7660,29 @@ function DecisionEngineScreen({
     }
   }, [branchDropdownOptions, depthDropdownOptions, includeMode, selectedBranchKey, selectedDepth]);
 
+  const isDecisionSectionExpanded = (sectionKey) => collapsedDecisionSections[sectionKey] === false;
+
   useEffect(() => {
-    setExpandedDecisionPanel(() => {
+    setCollapsedDecisionSections((prev) => {
+      const next = { ...prev };
+      Object.keys(sections).forEach((sectionKey) => {
+        if (!(sectionKey in next)) {
+          next[sectionKey] = true;
+        }
+      });
+      return Object.fromEntries(Object.entries(next).filter(([key]) => key in sections));
+    });
+  }, [decisionSectionKeys]);
+
+  useEffect(() => {
+    setCollapsedDecisionSections(() => {
       const next = {};
       Object.keys(sections).forEach((sectionKey) => {
         next[sectionKey] = true;
       });
       return next;
     });
-  }, [selectedLibrary, activeNoteType, decisionSectionKeys]);
+  }, [selectedLibrary, activeNoteType]);
 
   useEffect(() => {
     const fallbackLabel =
@@ -7646,12 +7708,12 @@ function DecisionEngineScreen({
       ),
       stagedAssignments,
       finalizedAssignments,
-      collapsedSections: expandedDecisionPanel,
+      collapsedSections: collapsedDecisionSections,
     });
   }, [
     checkedNodes,
     choiceSelections,
-    expandedDecisionPanel,
+    collapsedDecisionSections,
     finalizedAssignments,
     includeInFinalMap,
     includeMode,
@@ -7748,10 +7810,30 @@ function DecisionEngineScreen({
   };
 
   const toggleSectionCollapse = (sectionKey) => {
-    setExpandedDecisionPanel((prev) => ({
+    setCollapsedDecisionSections((prev) => ({
       ...prev,
-      [sectionKey]: !prev[sectionKey],
+      [sectionKey]: prev[sectionKey] === false,
     }));
+  };
+
+  const expandAllDecisionSections = () => {
+    setCollapsedDecisionSections((prev) => {
+      const next = { ...prev };
+      Object.keys(sections).forEach((sectionKey) => {
+        next[sectionKey] = false;
+      });
+      return next;
+    });
+  };
+
+  const collapseAllDecisionSections = () => {
+    setCollapsedDecisionSections((prev) => {
+      const next = { ...prev };
+      Object.keys(sections).forEach((sectionKey) => {
+        next[sectionKey] = true;
+      });
+      return next;
+    });
   };
 
   const addScheduleBlock = () => {
@@ -7765,8 +7847,13 @@ function DecisionEngineScreen({
     }
 
     const nextLabel = buildScheduleBlockLabel(newBlockStartHour, newBlockEndHour);
-    if (timeBlocks.some((block) => block.label === nextLabel)) {
-      setScheduleBuilderHint("That timeline block already exists.");
+    const duplicateWorkflowBlock = timeBlocks.some(
+      (block) => block.label === nextLabel && String(block.workflowId || "") === String(newBlockWorkflowId || "")
+    );
+    if (duplicateWorkflowBlock) {
+      const selectedWorkflowLabel =
+        workflowOptions.find((option) => option.workflowId === newBlockWorkflowId)?.label || "workflow";
+      setScheduleBuilderHint(`That ${selectedWorkflowLabel} timeline block already exists for ${nextLabel}.`);
       setScheduleBuilderGuideNote("");
       return;
     }
@@ -7844,6 +7931,7 @@ function DecisionEngineScreen({
       };
     });
     setBlockBuilderHint("");
+    closeBlockPromptPopover();
   };
 
   const addRowTarget = () => {
@@ -7916,6 +8004,7 @@ function DecisionEngineScreen({
       };
     });
     setRowBuilderHint("");
+    closeRowPromptPopover();
   };
 
   const removeRowTarget = (rowId) => {
@@ -8116,6 +8205,7 @@ function DecisionEngineScreen({
       <View
         style={[
           styles.decisionScheduleEditor,
+          styles.decisionScheduleEditorBlockBuilder,
           (rowPromptPopoverVisible || blockPromptPopoverVisible) && styles.decisionScheduleEditorOverlayActive,
         ]}
       >
@@ -8150,7 +8240,7 @@ function DecisionEngineScreen({
               fieldStyle={styles.decisionDropdownScheduleHour}
             />
           </View>
-          <Pressable style={styles.decisionAssignButton} onPress={addScheduleBlock}>
+          <Pressable style={[styles.decisionAssignButton, styles.decisionAssignButtonBlock]} onPress={addScheduleBlock}>
             <Text style={styles.decisionAssignButtonText}>Add Block</Text>
           </Pressable>
         </View>
@@ -8223,7 +8313,7 @@ function DecisionEngineScreen({
               onPress={() => handleBlockWorkflowOptionPress(option.workflowId)}
               style={[
                 styles.decisionOptionButton,
-                newBlockWorkflowId === option.workflowId && styles.decisionOptionButtonActive,
+                newBlockWorkflowId === option.workflowId && styles.decisionOptionButtonActiveBlock,
               ]}
             >
               <Text
@@ -8283,7 +8373,7 @@ function DecisionEngineScreen({
           <Text style={styles.decisionTimelineBlockEmpty}>No timeline blocks yet. Add a time range and description above.</Text>
         )}
       </View>
-      <View style={styles.decisionScheduleEditor}>
+      <View style={[styles.decisionScheduleEditor, styles.decisionScheduleEditorRowBuilder]}>
         <Text style={styles.decisionScheduleTitle}>Row Builder</Text>
         <Text style={styles.decisionScheduleLead}>
           Create the case-note rows themselves here, then assign markdown questions to them.
@@ -8363,7 +8453,7 @@ function DecisionEngineScreen({
               onPress={() => handleWorkflowOptionPress(option.workflowId)}
               style={[
                 styles.decisionOptionButton,
-                newRowWorkflowId === option.workflowId && styles.decisionOptionButtonActive,
+                newRowWorkflowId === option.workflowId && styles.decisionOptionButtonActiveRow,
               ]}
             >
               <Text
@@ -8376,7 +8466,14 @@ function DecisionEngineScreen({
               </Text>
             </Pressable>
           ))}
-          <Pressable style={[styles.decisionAssignButton, styles.decisionWorkflowAddRowButton]} onPress={addRowTarget}>
+          <Pressable
+            style={[
+              styles.decisionAssignButton,
+              styles.decisionAssignButtonRow,
+              styles.decisionWorkflowAddRowButton,
+            ]}
+            onPress={addRowTarget}
+          >
             <Text style={styles.decisionAssignButtonText}>Add Row</Text>
           </Pressable>
         </View>
@@ -8596,26 +8693,58 @@ function DecisionEngineScreen({
         {allNodes.length ? (
           <View style={styles.decisionSmartSelectBlock}>
             <Text style={styles.decisionSmartSelectLabel}>Smart select</Text>
-            <View style={styles.decisionSmartSelectChipRow}>
-              {SMART_SELECT_PRESETS.map((preset) => (
-                <Pressable
-                  key={preset.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Smart select ${preset.label}`}
-                  onPress={() => applySmartSelect(preset.id)}
-                  style={styles.decisionSmartSelectChip}
-                >
-                  <Text style={styles.decisionSmartSelectChipText}>{preset.label}</Text>
-                </Pressable>
-              ))}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Clear visible question selection"
-                onPress={clearVisibleSelection}
-                style={styles.decisionSmartSelectClear}
-              >
-                <Text style={styles.decisionSmartSelectClearText}>Clear visible</Text>
-              </Pressable>
+            <View style={styles.decisionSmartSelectActions}>
+              {(() => {
+                const defaultPreset = SMART_SELECT_PRESETS.find((preset) => preset.id === "standard");
+                const otherPresets = SMART_SELECT_PRESETS.filter((preset) => preset.id !== "standard");
+
+                return (
+                  <>
+                    {defaultPreset ? (
+                      <Pressable
+                        key={defaultPreset.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Smart select ${defaultPreset.label}`}
+                        onPress={() => applySmartSelect(defaultPreset.id)}
+                        style={[
+                          styles.decisionSmartSelectAction,
+                          styles.decisionSmartSelectDefault,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.decisionSmartSelectActionText,
+                            styles.decisionSmartSelectDefaultText,
+                          ]}
+                        >
+                          {defaultPreset.label}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    <View style={styles.decisionSmartSelectActionGroup}>
+                      {otherPresets.map((preset) => (
+                        <Pressable
+                          key={preset.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Smart select ${preset.label}`}
+                          onPress={() => applySmartSelect(preset.id)}
+                          style={styles.decisionSmartSelectAction}
+                        >
+                          <Text style={styles.decisionSmartSelectActionText}>{preset.label}</Text>
+                        </Pressable>
+                      ))}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Clear visible question selection"
+                        onPress={clearVisibleSelection}
+                        style={styles.decisionSmartSelectClear}
+                      >
+                        <Text style={styles.decisionSmartSelectClearText}>Clear visible</Text>
+                      </Pressable>
+                    </View>
+                  </>
+                );
+              })()}
             </View>
             <Text style={styles.decisionSmartSelectHint}>
               Supervisor shortcut: checks a recommended subset in the current filter. Adjust boxes, then lock and Final Assign.
@@ -8666,6 +8795,25 @@ function DecisionEngineScreen({
           </Text>
         ) : null}
 
+        {Object.keys(sections).length > 1 ? (
+          <View style={styles.decisionSectionBulkRow}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={expandAllDecisionSections}
+              style={styles.decisionSectionBulkAction}
+            >
+              <Text style={styles.decisionSectionBulkActionText}>Expand all</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={collapseAllDecisionSections}
+              style={styles.decisionSectionBulkAction}
+            >
+              <Text style={styles.decisionSectionBulkActionText}>Collapse all</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {Object.entries(sections).map(([sectionKey, sectionNodes]) => {
           const sectionAssignRule = getSectionAssignRule(selectedLibrary, sectionKey);
           const sectionAssignStatus = getSectionAssignmentStatus(
@@ -8675,6 +8823,7 @@ function DecisionEngineScreen({
             selectedTargetKey
           );
           const sectionBlocked = sectionAssignStatus.status === "blocked";
+          const sectionExpanded = isDecisionSectionExpanded(sectionKey);
 
           return (
           <View
@@ -8684,10 +8833,18 @@ function DecisionEngineScreen({
               sectionBlocked && styles.decisionSectionCardBlocked,
             ]}
           >
-          <Pressable onPress={() => toggleSectionCollapse(sectionKey)} style={styles.decisionSectionHeader}>
+          <Pressable
+            onPress={() => toggleSectionCollapse(sectionKey)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: sectionExpanded }}
+            style={[
+              styles.decisionSectionHeader,
+              !sectionExpanded && styles.decisionSectionHeaderCollapsed,
+            ]}
+          >
             <View style={styles.decisionSectionHeaderContent}>
               <Icon
-                name={expandedDecisionPanel[sectionKey] ? "chevronRight" : "chevronDown"}
+                name={sectionExpanded ? "chevronDown" : "chevronRight"}
                 size={16}
                 color={colors.headerText}
               />
@@ -8727,8 +8884,9 @@ function DecisionEngineScreen({
               </Pressable>
             </View>
           </Pressable>
-          {!expandedDecisionPanel[sectionKey] ? (
-            sectionNodes.map((node) => {
+          {sectionExpanded ? (
+            <View style={styles.decisionSectionBody}>
+            {sectionNodes.map((node) => {
               const nodeAssignStatus = getNodeAssignmentStatus(
                 node,
                 decisionAssignments,
@@ -8843,7 +9001,8 @@ function DecisionEngineScreen({
                 </View>
               </Pressable>
             );
-            })
+            })}
+            </View>
           ) : null}
         </View>
         );
@@ -8860,79 +9019,82 @@ function DecisionEngineScreen({
           <Text style={styles.decisionAssignButtonText}>Lock Library Assignment</Text>
         </Pressable>
       </View>
-      <View style={styles.decisionStagedPanel}>
-        <DecisionAssignmentPanelHeader
-          title="Staged assignments"
-          countLabel={`${stagedAssignments.length} staged`}
-          assignments={stagedAssignments}
-          expandAll={stagedAssignmentsExpandAll}
-          onToggleExpandAll={() => setStagedAssignmentsExpandAll((current) => !current)}
-        />
-        {stagedAssignments.length ? (
-          <>
-            {stagedAssignments.length > 1 ? (
-              <Text style={styles.decisionStagedCompactLegend}>
-                Compact view: F = in final, X = excluded. Tap a row or Expand all for full detail.
-              </Text>
-            ) : null}
-            {stagedAssignments.map((assignment) => (
-              <DecisionAssignmentCard
-                key={assignment.id}
-                assignment={assignment}
-                expandAll={stagedAssignmentsExpandAll}
-                onEdit={onEditStagedAssignment}
-                onDelete={onDeleteStagedAssignment}
-                deleteLabel="Delete"
-              />
-            ))}
-          </>
-        ) : (
-          <Text style={styles.decisionStagedEmpty}>Lock each library here first. Final assign will send all staged items to the Case Note together.</Text>
-        )}
-      </View>
-      <View style={styles.decisionAssignRow}>
-        <Pressable
-          onPress={() => onFinalizeAssignments?.()}
-          style={[
-            styles.decisionAssignButton,
-            !stagedAssignments.length && styles.decisionAssignButtonDisabled,
-          ]}
-          disabled={!stagedAssignments.length}
-        >
-          <Text style={styles.decisionAssignButtonText}>Final Assign to Case Note</Text>
-        </Pressable>
-      </View>
-      <View style={styles.decisionStagedPanel}>
-        <DecisionAssignmentPanelHeader
-          title="Finalized assignments"
-          countLabel={`${finalizedAssignments.length} final`}
-          assignments={finalizedAssignments}
-          expandAll={finalizedAssignmentsExpandAll}
-          onToggleExpandAll={() => setFinalizedAssignmentsExpandAll((current) => !current)}
-        />
-        {finalizedAssignments.length ? (
-          <>
-            {finalizedAssignments.length > 1 ? (
-              <Text style={styles.decisionStagedCompactLegend}>
-                Compact view: F = in final, X = excluded. Tap a row or Expand all for full detail.
-              </Text>
-            ) : null}
-            {finalizedAssignments.map((assignment) => (
-              <DecisionAssignmentCard
-                key={assignment.id}
-                assignment={assignment}
-                expandAll={finalizedAssignmentsExpandAll}
-                onEdit={onEditFinalizedAssignment}
-                onDelete={onDeleteFinalizedAssignment}
-                deleteLabel="To Staged"
-              />
-            ))}
-          </>
-        ) : (
-          <Text style={styles.decisionStagedEmpty}>
-            After final assign, saved selections live here. Use To Staged to move one back for editing, or Edit to load it in the library.
-          </Text>
-        )}
+      <View style={styles.decisionAssignmentsCard}>
+        <View style={styles.decisionStagedPanel}>
+          <DecisionAssignmentPanelHeader
+            title="Staged assignments"
+            countLabel={`${stagedAssignments.length} staged`}
+            assignments={stagedAssignments}
+            expandAll={stagedAssignmentsExpandAll}
+            onToggleExpandAll={() => setStagedAssignmentsExpandAll((current) => !current)}
+          />
+          {stagedAssignments.length ? (
+            <>
+              {stagedAssignments.length > 1 ? (
+                <Text style={styles.decisionStagedCompactLegend}>
+                  Compact view: F = in final, X = excluded. Tap a row or Expand all for full detail.
+                </Text>
+              ) : null}
+              {stagedAssignments.map((assignment) => (
+                <DecisionAssignmentCard
+                  key={assignment.id}
+                  assignment={assignment}
+                  expandAll={stagedAssignmentsExpandAll}
+                  onEdit={onEditStagedAssignment}
+                  onDelete={onDeleteStagedAssignment}
+                  deleteLabel="Delete"
+                />
+              ))}
+            </>
+          ) : (
+            <Text style={styles.decisionStagedEmpty}>Lock each library here first. Final assign will send all staged items to the Case Note together.</Text>
+          )}
+        </View>
+        <View style={styles.decisionAssignRow}>
+          <Pressable
+            onPress={() => onFinalizeAssignments?.()}
+            style={[
+              styles.decisionAssignButton,
+              styles.decisionAssignButtonAssignments,
+              !stagedAssignments.length && styles.decisionAssignButtonDisabled,
+            ]}
+            disabled={!stagedAssignments.length}
+          >
+            <Text style={styles.decisionAssignButtonText}>Final Assign to Case Note</Text>
+          </Pressable>
+        </View>
+        <View style={styles.decisionStagedPanel}>
+          <DecisionAssignmentPanelHeader
+            title="Finalized assignments"
+            countLabel={`${finalizedAssignments.length} final`}
+            assignments={finalizedAssignments}
+            expandAll={finalizedAssignmentsExpandAll}
+            onToggleExpandAll={() => setFinalizedAssignmentsExpandAll((current) => !current)}
+          />
+          {finalizedAssignments.length ? (
+            <>
+              {finalizedAssignments.length > 1 ? (
+                <Text style={styles.decisionStagedCompactLegend}>
+                  Compact view: F = in final, X = excluded. Tap a row or Expand all for full detail.
+                </Text>
+              ) : null}
+              {finalizedAssignments.map((assignment) => (
+                <DecisionAssignmentCard
+                  key={assignment.id}
+                  assignment={assignment}
+                  expandAll={finalizedAssignmentsExpandAll}
+                  onEdit={onEditFinalizedAssignment}
+                  onDelete={onDeleteFinalizedAssignment}
+                  deleteLabel="To Staged"
+                />
+              ))}
+            </>
+          ) : (
+            <Text style={styles.decisionStagedEmpty}>
+              After final assign, saved selections live here. Use To Staged to move one back for editing, or Edit to load it in the library.
+            </Text>
+          )}
+        </View>
       </View>
     </Card>
   );
@@ -8995,14 +9157,68 @@ function CarePlanPill({ label, active, onPress }) {
   );
 }
 
-function SectionCard({ title, subtitle, children }) {
+function buildDefaultExpandedCarePlanSections() {
+  return Object.fromEntries(
+    carePlanTabs.map((tab) => [tab, tab === "Overview"])
+  );
+}
+
+function OverviewStatTile({ item }) {
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <View style={styles.carePlanSectionCard}>
-      <View style={styles.carePlanSectionHead}>
+    <Pressable
+      accessibilityRole="summary"
+      accessibilityLabel={`${item.label}: ${item.count} ${item.detail}`}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={[styles.overviewStat, hovered && styles.overviewStatActive]}
+    >
+      <View style={[styles.overviewStatIconBadge, { backgroundColor: item.iconBg }]}>
+        <Icon name={item.icon} size={16} color={item.iconTint} />
+      </View>
+      <Text style={styles.overviewStatCount}>{item.count}</Text>
+      <View style={styles.overviewStatDetailBlock}>
+        <Text style={styles.overviewStatLabel}>{item.label}</Text>
+        <Text style={styles.overviewStatDetail}>{item.detail}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function SectionCard({ title, subtitle, children, expanded = true, onToggle = null }) {
+  const isCollapsible = typeof onToggle === "function";
+  const headInner = (
+    <>
+      <View style={styles.carePlanSectionHeadText}>
         <Text style={styles.carePlanSectionTitle}>{title}</Text>
         {subtitle ? <Text style={styles.carePlanSectionSubtitle}>{subtitle}</Text> : null}
       </View>
-      <View style={styles.carePlanSectionBody}>{children}</View>
+      {isCollapsible ? (
+        <Icon
+          name={expanded ? "chevronDown" : "chevronRight"}
+          size={18}
+          color={colors.headerText}
+        />
+      ) : null}
+    </>
+  );
+
+  return (
+    <View style={styles.carePlanSectionCard}>
+      {isCollapsible ? (
+        <Pressable
+          onPress={onToggle}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          style={[styles.carePlanSectionHead, !expanded && styles.carePlanSectionHeadCollapsed]}
+        >
+          {headInner}
+        </Pressable>
+      ) : (
+        <View style={styles.carePlanSectionHead}>{headInner}</View>
+      )}
+      {expanded ? <View style={styles.carePlanSectionBody}>{children}</View> : null}
     </View>
   );
 }
@@ -9210,6 +9426,10 @@ function buildCarePlanEditorDraft(profile = {}) {
   };
 }
 
+function carePlanDraftSignature(draft = {}) {
+  return JSON.stringify(buildCarePlanEditorDraft(draft));
+}
+
 function buildCarePlanEditorContentPayload(draft = {}) {
   return {
     carePlanHeader: { ...(draft.carePlanHeader || {}) },
@@ -9263,9 +9483,9 @@ function CarePlanEditorSectionLabel({ children }) {
   return <Text style={styles.carePlanEditorLabel}>{children}</Text>;
 }
 
-function CarePlanEditorRowActions({ onAdd, addLabel, onDelete, deleteLabel = "Delete row" }) {
+function CarePlanEditorRowActions({ onAdd, addLabel, onDelete, deleteLabel = "Delete row", style = null }) {
   return (
-    <View style={styles.carePlanEditorRowActions}>
+    <View style={[styles.carePlanEditorRowActions, style]}>
       {onAdd ? (
         <Pressable style={styles.carePlanEditorActionButton} onPress={onAdd}>
           <Text style={styles.carePlanEditorActionText}>{addLabel}</Text>
@@ -9304,13 +9524,21 @@ function CarePlanDocument({
   const [sourcePagesExpanded, setSourcePagesExpanded] = useState(false);
   const [showAllSourcePages, setShowAllSourcePages] = useState(false);
   const [expandedActionRow, setExpandedActionRow] = useState(null);
+  const [expandedCarePlanSections, setExpandedCarePlanSections] = useState(
+    buildDefaultExpandedCarePlanSections
+  );
   const scrollRef = useRef(null);
   const sectionPositions = useRef({});
+  const carePlanEditBaselineRef = useRef(carePlanDraftSignature(buildCarePlanEditorDraft(profile)));
+
+  const carePlanHasUnsavedChanges =
+    isEditingCarePlan && carePlanDraftSignature(carePlanDraft) !== carePlanEditBaselineRef.current;
 
   useEffect(() => {
     if (!isEditingCarePlan) {
       setCarePlanDraft(buildCarePlanEditorDraft(profile));
       setExpandedRisk(profile.riskCards[0]?.title ?? "Falls");
+      carePlanEditBaselineRef.current = carePlanDraftSignature(buildCarePlanEditorDraft(profile));
     }
   }, [isEditingCarePlan, profile]);
 
@@ -9385,13 +9613,17 @@ function CarePlanDocument({
   }, []);
 
   const startEditingCarePlan = () => {
-    setCarePlanDraft(buildCarePlanEditorDraft(profile));
+    const draft = buildCarePlanEditorDraft(profile);
+    setCarePlanDraft(draft);
+    carePlanEditBaselineRef.current = carePlanDraftSignature(draft);
     setCarePlanSaveState({ saving: false, message: "", error: "" });
     setIsEditingCarePlan(true);
   };
 
   const cancelEditingCarePlan = () => {
-    setCarePlanDraft(buildCarePlanEditorDraft(profile));
+    const draft = buildCarePlanEditorDraft(profile);
+    setCarePlanDraft(draft);
+    carePlanEditBaselineRef.current = carePlanDraftSignature(draft);
     setCarePlanSaveState({ saving: false, message: "", error: "" });
     setIsEditingCarePlan(false);
   };
@@ -9404,6 +9636,7 @@ function CarePlanDocument({
     setCarePlanSaveState({ saving: true, message: "", error: "" });
     try {
       await onSaveCarePlan(carePlanDraft);
+      carePlanEditBaselineRef.current = carePlanDraftSignature(carePlanDraft);
       setCarePlanSaveState({ saving: false, message: "Care plan saved.", error: "" });
       setIsEditingCarePlan(false);
     } catch (error) {
@@ -9461,8 +9694,24 @@ function CarePlanDocument({
     sectionPositions.current[key] = y;
   };
 
+  const toggleCarePlanSection = (key) => {
+    setExpandedCarePlanSections((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const carePlanSectionCollapseProps = (key) => ({
+    expanded: Boolean(expandedCarePlanSections[key]),
+    onToggle: () => toggleCarePlanSection(key),
+  });
+
   const jumpToSection = (key) => {
     setActiveTab(key);
+    setExpandedCarePlanSections((prev) => ({
+      ...prev,
+      [key]: true,
+    }));
     const y = sectionPositions.current[key];
     if (scrollRef.current && typeof y === "number") {
       scrollRef.current.scrollTo({ y: Math.max(y - 16, 0), animated: true });
@@ -9522,7 +9771,9 @@ function CarePlanDocument({
               </>
             ) : (
               <>
-                <Text style={styles.carePlanHeroName}>{header.fullName}</Text>
+                <Text style={styles.carePlanHeroName}>
+                  {formatClientNameLastFirstInitials(header.fullName)}
+                </Text>
                 <Text style={styles.carePlanHeroMeta}>{`Medicaid ID: ${header.medicaidId}`}</Text>
                 <Text style={styles.carePlanHeroMeta}>{`DOB: ${header.dob}`}</Text>
                 <Text style={styles.carePlanHeroMeta}>{`Oversight ID: ${header.oversightId}`}</Text>
@@ -9619,6 +9870,27 @@ function CarePlanDocument({
           <CarePlanPill key={tab} label={tab} active={activeTab === tab} onPress={() => jumpToSection(tab)} />
         ))}
       </ScrollView>
+
+      {isEditingCarePlan ? (
+        <View
+          style={[
+            styles.carePlanUnsavedBanner,
+            carePlanHasUnsavedChanges ? styles.carePlanUnsavedBannerActive : styles.carePlanUnsavedBannerIdle,
+          ]}
+        >
+          <Text
+            style={[
+              styles.carePlanUnsavedBannerText,
+              carePlanHasUnsavedChanges ? styles.carePlanUnsavedBannerTextActive : null,
+            ]}
+          >
+            {carePlanHasUnsavedChanges
+              ? "Unsaved changes — one Save Care Plan writes the whole plan to the server."
+              : "Editing care plan — no changes yet."}
+          </Text>
+        </View>
+      ) : null}
+
       {documentationSession ? (
         <DocumentationEntryScreen
           key={`${clientProfile?.id || "client"}-${documentationSession.sessionType}-${documentationSession.title}`}
@@ -9633,31 +9905,75 @@ function CarePlanDocument({
       <ScrollView
         ref={scrollRef}
         style={styles.carePlanContentScroller}
-        contentContainerStyle={styles.carePlanContentScrollerInner}
+        contentContainerStyle={[
+          styles.carePlanContentScrollerInner,
+          isEditingCarePlan && styles.carePlanContentScrollerInnerEditing,
+        ]}
         nestedScrollEnabled
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
         <View onLayout={(event) => registerSection("Overview", event.nativeEvent.layout.y)}>
-          <SectionCard title="Overview" subtitle="Modern AI-enhanced Therap-style care plan viewer">
-            <View style={styles.overviewGrid}>
-              {[
-                { label: "Narrative sections", value: "4 person-centered summaries" },
-                { label: "Risk profiles", value: `${risks.length} active risk cards` },
-                { label: "Service supports", value: `${services.length} approved services` },
-                { label: "Action plans", value: `${plans.length} measurable plan sets` },
-              ].map((item) => (
-                <View key={item.label} style={styles.overviewStat}>
-                  <Text style={styles.overviewStatLabel}>{item.label}</Text>
-                  <Text style={styles.overviewStatValue}>{item.value}</Text>
-                </View>
-              ))}
+          <SectionCard
+            title="Overview"
+            subtitle="Modern AI-enhanced Therap-style care plan viewer"
+            {...carePlanSectionCollapseProps("Overview")}
+          >
+            <View style={styles.overviewGridWrap}>
+              <View style={styles.overviewGrid}>
+                {[
+                  {
+                    key: "narrative",
+                    label: "Narrative sections",
+                    count: aboutCards.length,
+                    detail: "person-centered summaries",
+                    icon: "clipboard",
+                    iconTint: "#5b5bd6",
+                    iconBg: "rgba(91, 91, 214, 0.12)",
+                  },
+                  {
+                    key: "risks",
+                    label: "Risk profiles",
+                    count: risks.length,
+                    detail: "active risk cards",
+                    icon: "shield",
+                    iconTint: "#d26a32",
+                    iconBg: "rgba(210, 106, 50, 0.14)",
+                  },
+                  {
+                    key: "services",
+                    label: "Service supports",
+                    count: services.length,
+                    detail: "approved services",
+                    icon: "heart",
+                    iconTint: "#1f8a70",
+                    iconBg: "rgba(31, 138, 112, 0.14)",
+                  },
+                  {
+                    key: "plans",
+                    label: "Action plans",
+                    count: plans.length,
+                    detail: "measurable plan sets",
+                    icon: "target",
+                    iconTint: "#7c3aed",
+                    iconBg: "rgba(124, 58, 237, 0.14)",
+                  },
+                ].map((item) => (
+                  <View key={item.key} style={styles.overviewStatCell}>
+                    <OverviewStatTile item={item} />
+                  </View>
+                ))}
+              </View>
             </View>
           </SectionCard>
         </View>
 
         <View onLayout={(event) => registerSection("About Me", event.nativeEvent.layout.y)}>
-          <SectionCard title="About Me" subtitle="Narrative support information from the care plan">
+          <SectionCard
+            title="About Me"
+            subtitle="Narrative support information from the care plan"
+            {...carePlanSectionCollapseProps("About Me")}
+          >
             {isEditingCarePlan ? (
               <CarePlanEditorRowActions
                 onAdd={() => addDraftRow("aboutMeCards", { title: "", body: "" })}
@@ -9697,7 +10013,11 @@ function CarePlanDocument({
         </View>
 
         <View onLayout={(event) => registerSection("Risks", event.nativeEvent.layout.y)}>
-          <SectionCard title="Risks" subtitle="Collapsible clinical risk cards with staff guidance">
+          <SectionCard
+            title="Risks"
+            subtitle="Collapsible clinical risk cards with staff guidance"
+            {...carePlanSectionCollapseProps("Risks")}
+          >
             {isEditingCarePlan ? (
               <CarePlanEditorRowActions
                 onAdd={() => addDraftRow("riskCards", { title: "", severity: "", notes: "", guidance: "" })}
@@ -9748,7 +10068,11 @@ function CarePlanDocument({
         </View>
 
         <View onLayout={(event) => registerSection("Supports", event.nativeEvent.layout.y)}>
-          <SectionCard title="Supports" subtitle="Home, community, ADLs, and communication supports">
+          <SectionCard
+            title="Supports"
+            subtitle="Home, community, ADLs, and communication supports"
+            {...carePlanSectionCollapseProps("Supports")}
+          >
             {isEditingCarePlan ? (
               <CarePlanEditorRowActions
                 onAdd={() => addDraftRow("supportCards", { title: "", body: "" })}
@@ -9788,7 +10112,11 @@ function CarePlanDocument({
         </View>
 
         <View onLayout={(event) => registerSection("Services", event.nativeEvent.layout.y)}>
-          <SectionCard title="Services" subtitle="Service supports transformed from authorization tables">
+          <SectionCard
+            title="Services"
+            subtitle="Service supports transformed from authorization tables"
+            {...carePlanSectionCollapseProps("Services")}
+          >
             <View style={styles.serviceToolbar}>
               <View style={styles.serviceSearchBox}>
                 <Text style={styles.serviceSearchText}>Filter/search services</Text>
@@ -9848,7 +10176,11 @@ function CarePlanDocument({
         </View>
 
         <View onLayout={(event) => registerSection("Rights", event.nativeEvent.layout.y)}>
-          <SectionCard title="Rights & Decision Making" subtitle="Decision authority, ANE education, and directives">
+          <SectionCard
+            title="Rights & Decision Making"
+            subtitle="Decision authority, ANE education, and directives"
+            {...carePlanSectionCollapseProps("Rights")}
+          >
             {isEditingCarePlan ? (
               <CarePlanEditorRowActions
                 onAdd={() => addDraftRow("rightsCards", { title: "", body: "" })}
@@ -9888,7 +10220,11 @@ function CarePlanDocument({
         </View>
 
         <View onLayout={(event) => registerSection("Activities", event.nativeEvent.layout.y)}>
-          <SectionCard title="Community Activities" subtitle="Current activities and support needs in the community">
+          <SectionCard
+            title="Community Activities"
+            subtitle="Current activities and support needs in the community"
+            {...carePlanSectionCollapseProps("Activities")}
+          >
             {isEditingCarePlan ? (
               <CarePlanEditorRowActions
                 onAdd={() => addDraftRow("activityCards", { title: "", body: "" })}
@@ -9928,7 +10264,11 @@ function CarePlanDocument({
         </View>
 
         <View onLayout={(event) => registerSection("Action Plans", event.nativeEvent.layout.y)}>
-          <SectionCard title="Action Plans" subtitle="Measurable outcomes, exact compliance structure, improved usability">
+          <SectionCard
+            title="Action Plans"
+            subtitle="Measurable outcomes, exact compliance structure, improved usability"
+            {...carePlanSectionCollapseProps("Action Plans")}
+          >
             {isEditingCarePlan ? (
               <CarePlanEditorRowActions
                 onAdd={() =>
@@ -10010,7 +10350,11 @@ function CarePlanDocument({
         </View>
 
         <View onLayout={(event) => registerSection("Documents", event.nativeEvent.layout.y)}>
-          <SectionCard title="Documents" subtitle="Documentation checklists and referenced files">
+          <SectionCard
+            title="Documents"
+            subtitle="Documentation checklists and referenced files"
+            {...carePlanSectionCollapseProps("Documents")}
+          >
             <View style={styles.documentGrid}>
               <View style={styles.documentChecklistCard}>
                 <Text style={styles.documentSubhead}>Documentation Checklists</Text>
@@ -10070,7 +10414,11 @@ function CarePlanDocument({
         </View>
 
         <View onLayout={(event) => registerSection("Participants", event.nativeEvent.layout.y)}>
-          <SectionCard title="Participants & Signature Logs" subtitle="Plan participants and acknowledgement trail">
+          <SectionCard
+            title="Participants & Signature Logs"
+            subtitle="Plan participants and acknowledgement trail"
+            {...carePlanSectionCollapseProps("Participants")}
+          >
             {isEditingCarePlan ? (
               <CarePlanEditorRowActions
                 onAdd={() => addDraftRow("participants", { name: "", relationship: "", copy: "" })}
@@ -10079,9 +10427,10 @@ function CarePlanDocument({
             ) : null}
             <View style={styles.participantTable}>
               <View style={styles.participantHeader}>
-                <Text style={[styles.participantHeaderCell, { flex: 1.3 }]}>Participant</Text>
-                <Text style={[styles.participantHeaderCell, { flex: 1.4 }]}>Relationship</Text>
-                <Text style={[styles.participantHeaderCell, { flex: 0.7 }]}>Copy</Text>
+                <Text style={[styles.participantHeaderCell, styles.participantNameCol]}>Participant</Text>
+                <Text style={[styles.participantHeaderCell, styles.participantRelationshipCol]}>Relationship</Text>
+                <Text style={[styles.participantHeaderCell, styles.participantCopyCol]}>Copy</Text>
+                {isEditingCarePlan ? <View style={styles.participantActionsCol} /> : null}
               </View>
               {roster.map((item, index) => (
                 <View key={`${item.name}-${index}`} style={styles.participantRow}>
@@ -10090,27 +10439,39 @@ function CarePlanDocument({
                       <CarePlanEditorField
                         value={item.name}
                         onChangeText={(value) => setDraftValue(["participants", index, "name"], value)}
-                        style={[styles.participantCell, styles.carePlanEditorTableInput, { flex: 1.3 }]}
+                        style={[styles.participantCell, styles.carePlanEditorTableInput, styles.participantNameCol]}
                       />
                       <CarePlanEditorField
                         value={item.relationship}
-                        onChangeText={(value) => setDraftValue(["participants", index, "relationship"], value)}
-                        style={[styles.participantCell, styles.carePlanEditorTableInput, { flex: 1.4 }]}
+                        onChangeText={(value) =>
+                          setDraftValue(["participants", index, "relationship"], value)
+                        }
+                        style={[
+                          styles.participantCell,
+                          styles.carePlanEditorTableInput,
+                          styles.participantRelationshipCol,
+                        ]}
                       />
                       <CarePlanEditorField
                         value={item.copy}
                         onChangeText={(value) => setDraftValue(["participants", index, "copy"], value)}
-                        style={[styles.participantCell, styles.carePlanEditorTableInput, { flex: 0.7 }]}
+                        style={[styles.participantCell, styles.carePlanEditorTableInput, styles.participantCopyCol]}
                       />
-                      <CarePlanEditorRowActions
-                        onDelete={() => removeDraftRow("participants", index)}
-                      />
+                      <View style={styles.participantActionsCol}>
+                        <CarePlanEditorRowActions
+                          style={styles.carePlanEditorRowActionsCompact}
+                          deleteLabel="Delete"
+                          onDelete={() => removeDraftRow("participants", index)}
+                        />
+                      </View>
                     </>
                   ) : (
                     <>
-                      <Text style={[styles.participantCell, { flex: 1.3 }]}>{item.name}</Text>
-                      <Text style={[styles.participantCell, { flex: 1.4 }]}>{item.relationship}</Text>
-                      <Text style={[styles.participantCell, { flex: 0.7 }]}>{item.copy}</Text>
+                      <Text style={[styles.participantCell, styles.participantNameCol]}>{item.name}</Text>
+                      <Text style={[styles.participantCell, styles.participantRelationshipCol]}>
+                        {item.relationship}
+                      </Text>
+                      <Text style={[styles.participantCell, styles.participantCopyCol]}>{item.copy}</Text>
                     </>
                   )}
                 </View>
@@ -10145,7 +10506,11 @@ function CarePlanDocument({
         </View>
 
         <View onLayout={(event) => registerSection("Source Pages", event.nativeEvent.layout.y)}>
-          <SectionCard title="Full Source Pages" subtitle="Complete OCR extract retained so all PDF content remains available">
+          <SectionCard
+            title="Full Source Pages"
+            subtitle="Complete OCR extract retained so all PDF content remains available"
+            {...carePlanSectionCollapseProps("Source Pages")}
+          >
             <Pressable
               onPress={() => setSourcePagesExpanded((current) => !current)}
               style={styles.sourcePagesSectionToggle}
@@ -10233,6 +10598,35 @@ function CarePlanDocument({
         </View>
       </ScrollView>
       )}
+
+      {isEditingCarePlan ? (
+        <View style={styles.carePlanStickyEditBar}>
+          <Text style={styles.carePlanStickyEditBarText}>
+            {carePlanHasUnsavedChanges ? "Unsaved changes" : "Care plan edit mode"}
+          </Text>
+          <View style={styles.carePlanStickyEditBarActions}>
+            <Pressable
+              style={[
+                styles.carePlanStickyEditPrimary,
+                carePlanSaveState.saving && styles.quickActionButtonDisabled,
+              ]}
+              onPress={saveCarePlanEdits}
+              disabled={carePlanSaveState.saving}
+            >
+              <Text style={styles.carePlanStickyEditPrimaryText}>
+                {carePlanSaveState.saving ? "Saving..." : "Save Care Plan"}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.carePlanStickyEditSecondary}
+              onPress={cancelEditingCarePlan}
+              disabled={carePlanSaveState.saving}
+            >
+              <Text style={styles.carePlanStickyEditSecondaryText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -10322,7 +10716,9 @@ export default function App() {
   );
   const [documentationSession, setDocumentationSession] = useState(null);
   const [activeClientId, setActiveClientId] = useState("mary-bet");
-  const [individualQuery, setIndividualQuery] = useState("Mary Bet");
+  const [individualQuery, setIndividualQuery] = useState(
+    formatClientNameLastFirstInitials("Mary Bet")
+  );
   const [showIndividualSuggestions, setShowIndividualSuggestions] = useState(false);
   const [hoveredClientSuggestionId, setHoveredClientSuggestionId] = useState(null);
   const [pendingDecisionAssignmentTarget, setPendingDecisionAssignmentTarget] = useState(null);
@@ -10337,7 +10733,7 @@ export default function App() {
     [activeClientId, persistedClientShift, persistedClientCarePlan]
   );
   const activeClientPhoto = activeClientId === "mark-brent" ? markBrentProfilePhoto : maryBetProfilePhoto;
-  const activeDisplayName = activeClientProfile.displayName;
+  const activeDisplayName = formatClientNameLastFirstInitials(activeClientProfile.displayName);
   const activeIspRows = activeClientProfile.ispRows ?? ispRows;
   const clientSuggestions = searchClients(individualQuery);
   const showCarePlan = selectedModule === "Care Plan";
@@ -10609,7 +11005,9 @@ export default function App() {
   const handleSelectClient = (clientId) => {
     setActiveClientId(clientId);
     const selectedClient = CLIENT_ROSTER.find((client) => client.id === clientId);
-    setIndividualQuery(selectedClient?.displayName ?? "");
+    setIndividualQuery(
+      formatClientNameLastFirstInitials(selectedClient?.displayName ?? "")
+    );
     setShowIndividualSuggestions(false);
     setSelectedModule(null);
   };
@@ -10620,7 +11018,11 @@ export default function App() {
       return;
     }
 
-    const exactMatch = CLIENT_ROSTER.find((client) => client.displayName.toLowerCase() === normalized);
+    const exactMatch = CLIENT_ROSTER.find((client) => {
+      const display = client.displayName.toLowerCase();
+      const clinical = formatClientNameLastFirstInitials(client.displayName).toLowerCase();
+      return display === normalized || clinical === normalized;
+    });
     if (exactMatch) {
       handleSelectClient(exactMatch.id);
       return;
@@ -10633,7 +11035,7 @@ export default function App() {
   };
 
   const handleChooseClientSuggestion = (client) => {
-    setIndividualQuery(client.displayName);
+    setIndividualQuery(formatClientNameLastFirstInitials(client.displayName));
     handleSelectClient(client.id);
   };
 
@@ -11126,7 +11528,9 @@ export default function App() {
                             onPress={() => handleChooseClientSuggestion(client)}
                           >
                             <View style={styles.switchSuggestionHitArea}>
-                              <Text style={styles.switchSuggestionText}>{client.displayName}</Text>
+                              <Text style={styles.switchSuggestionText}>
+                                {formatClientNameLastFirstInitials(client.displayName)}
+                              </Text>
                             </View>
                           </Pressable>
                         ))}
@@ -11268,7 +11672,7 @@ export default function App() {
             </View>
           </View>
 
-          <Text style={styles.footer}>ogigrid</Text>
+          <Text style={styles.footer}>ogigrid smart solutions</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -11605,11 +12009,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   decisionCard: {
+    borderColor: "#7fb0f0",
+    backgroundColor: "#f4f9ff",
     overflow: "visible",
     zIndex: 20,
     elevation: 20,
   },
   decisionCardBody: {
+    backgroundColor: "#f8fbff",
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 16,
@@ -11729,6 +12136,14 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     overflow: "visible",
     zIndex: 1,
+  },
+  decisionScheduleEditorBlockBuilder: {
+    borderColor: "#f0b35f",
+    backgroundColor: "#fff7eb",
+  },
+  decisionScheduleEditorRowBuilder: {
+    borderColor: "#7bc9b6",
+    backgroundColor: "#eefaf6",
   },
   decisionScheduleEditorOverlayActive: {
     zIndex: 120,
@@ -12306,6 +12721,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.topPurple,
     borderColor: colors.topPurple,
   },
+  decisionOptionButtonActiveBlock: {
+    backgroundColor: "#d97706",
+    borderColor: "#d97706",
+  },
+  decisionOptionButtonActiveRow: {
+    backgroundColor: "#0f7a63",
+    borderColor: "#0f7a63",
+  },
   decisionOptionText: {
     fontSize: 13,
     color: colors.headerText,
@@ -12337,28 +12760,47 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
-  decisionSmartSelectChipRow: {
+  decisionSmartSelectActions: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    alignItems: "center",
+    alignItems: "stretch",
+    gap: 10,
   },
-  decisionSmartSelectChip: {
-    paddingHorizontal: 12,
+  decisionSmartSelectActionGroup: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    alignItems: "center",
+    minWidth: 200,
+  },
+  decisionSmartSelectAction: {
+    paddingHorizontal: 10,
     paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: 0,
     borderWidth: 1,
-    borderColor: colors.topPurple,
+    borderColor: colors.lightBorder,
     backgroundColor: "#ffffff",
   },
-  decisionSmartSelectChipText: {
+  decisionSmartSelectDefault: {
+    alignSelf: "flex-start",
+    borderColor: "#d4c9f5",
+    backgroundColor: "rgba(124, 108, 240, 0.1)",
+    minWidth: 88,
+  },
+  decisionSmartSelectActionText: {
     fontSize: 12,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  decisionSmartSelectDefaultText: {
     fontWeight: "700",
     color: colors.topPurple,
   },
   decisionSmartSelectClear: {
     paddingHorizontal: 10,
     paddingVertical: 8,
+    borderRadius: 0,
   },
   decisionSmartSelectClearText: {
     fontSize: 12,
@@ -12442,6 +12884,21 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginBottom: 8,
   },
+  decisionSectionBulkRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+    marginBottom: 8,
+  },
+  decisionSectionBulkAction: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  decisionSectionBulkActionText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.link,
+  },
   decisionSectionCard: {
     backgroundColor: "#ffffff",
     borderWidth: 1,
@@ -12457,6 +12914,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 13,
     backgroundColor: "#f6f0ff",
+    ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
+  },
+  decisionSectionHeaderCollapsed: {
+    borderBottomWidth: 0,
+  },
+  decisionSectionBody: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   decisionSectionHeaderContent: {
     flexDirection: "row",
@@ -12640,6 +13105,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  decisionAssignButtonBlock: {
+    backgroundColor: "#d97706",
+  },
+  decisionAssignButtonAssignments: {
+    backgroundColor: "#c2416c",
+  },
+  decisionAssignButtonRow: {
+    backgroundColor: "#0f7a63",
+  },
   decisionAssignButtonDisabled: {
     backgroundColor: "#b9abd9",
   },
@@ -12655,6 +13129,16 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 14,
     backgroundColor: "#fcfbff",
+  },
+  decisionAssignmentsCard: {
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 14,
+    borderWidth: 1,
+    borderColor: "#efb3c9",
+    borderRadius: 16,
+    backgroundColor: "#fff2f7",
   },
   decisionStagedCard: {
     padding: 12,
@@ -13044,6 +13528,92 @@ const styles = StyleSheet.create({
   carePlanContentScrollerInner: {
     paddingBottom: 8,
   },
+  carePlanContentScrollerInnerEditing: {
+    paddingBottom: 96,
+  },
+  carePlanUnsavedBanner: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  carePlanUnsavedBannerActive: {
+    borderColor: "#e8c96a",
+    backgroundColor: "#fff9e8",
+  },
+  carePlanUnsavedBannerIdle: {
+    borderColor: "#d9cff0",
+    backgroundColor: "#f7f4ff",
+  },
+  carePlanUnsavedBannerText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.muted,
+    fontWeight: "600",
+  },
+  carePlanUnsavedBannerTextActive: {
+    color: "#7a5a12",
+  },
+  carePlanStickyEditBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 6,
+    ...(Platform.OS === "web"
+      ? {
+          position: "sticky",
+          bottom: 0,
+          zIndex: 30,
+        }
+      : {}),
+  },
+  carePlanStickyEditBarText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  carePlanStickyEditBarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  carePlanStickyEditPrimary: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 6,
+    backgroundColor: colors.topPurple,
+  },
+  carePlanStickyEditPrimaryText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  carePlanStickyEditSecondary: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#ffffff",
+  },
+  carePlanStickyEditSecondaryText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
   carePlanHero: {
     backgroundColor: "#ffffff",
     borderWidth: 1,
@@ -13170,11 +13740,22 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   carePlanSectionHead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
     backgroundColor: "#f4eeff",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     paddingHorizontal: 18,
     paddingVertical: 14,
+  },
+  carePlanSectionHeadText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  carePlanSectionHeadCollapsed: {
+    borderBottomWidth: 0,
   },
   carePlanSectionTitle: {
     fontSize: 22,
@@ -13204,6 +13785,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 8,
     alignItems: "center",
+  },
+  carePlanEditorRowActionsCompact: {
+    marginTop: 0,
+    marginBottom: 0,
+    gap: 4,
   },
   carePlanEditorActionButton: {
     borderWidth: 1,
@@ -13268,30 +13854,70 @@ const styles = StyleSheet.create({
   carePlanSourceEditorInput: {
     minHeight: 180,
   },
+  overviewGridWrap: {
+    gap: 10,
+  },
   overviewGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 12,
+    justifyContent: "space-between",
+  },
+  overviewStatCell: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: "22%",
+    minWidth: 128,
+    maxWidth: 200,
   },
   overviewStat: {
-    minWidth: 180,
-    backgroundColor: "#fbf9ff",
+    width: "100%",
+    minHeight: 148,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: "#ebe2fb",
     borderRadius: 12,
-    padding: 16,
-    marginRight: 14,
-    marginBottom: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
+  overviewStatActive: {
+    borderColor: "#7c6cf0",
+  },
+  overviewStatIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  overviewStatCount: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: colors.headerText,
+    lineHeight: 36,
+  },
+  overviewStatDetailBlock: {
+    marginTop: 6,
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 4,
   },
   overviewStatLabel: {
-    fontSize: 12,
-    textTransform: "uppercase",
-    color: colors.muted,
-    marginBottom: 8,
-  },
-  overviewStatValue: {
-    fontSize: 16,
+    fontSize: 10,
     fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
+    color: "#5b5bd6",
+    textAlign: "center",
+  },
+  overviewStatDetail: {
+    fontSize: 12,
+    fontWeight: "600",
     color: colors.text,
+    textAlign: "center",
   },
   narrativeGrid: {
     rowGap: 14,
@@ -13651,6 +14277,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   participantTable: {
+    alignSelf: "flex-start",
+    width: "100%",
+    maxWidth: 640,
     borderWidth: 1,
     borderColor: "#e6ddf7",
     borderRadius: 12,
@@ -13658,24 +14287,52 @@ const styles = StyleSheet.create({
   },
   participantHeader: {
     flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#f1ebff",
   },
   participantHeaderCell: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
     fontSize: 13,
     fontWeight: "700",
     color: colors.headerText,
   },
+  participantNameCol: {
+    flex: 1,
+    minWidth: 120,
+    maxWidth: 200,
+  },
+  participantRelationshipCol: {
+    flex: 1.15,
+    minWidth: 140,
+    maxWidth: 260,
+  },
+  participantCopyCol: {
+    width: 52,
+    maxWidth: 52,
+    flexGrow: 0,
+    flexShrink: 0,
+    paddingHorizontal: 6,
+    textAlign: "center",
+  },
+  participantActionsCol: {
+    width: 84,
+    maxWidth: 84,
+    flexGrow: 0,
+    flexShrink: 0,
+    justifyContent: "center",
+    paddingVertical: 4,
+  },
   participantRow: {
     flexDirection: "row",
+    alignItems: "center",
     borderTopWidth: 1,
     borderTopColor: "#efe7fb",
     backgroundColor: "#ffffff",
   },
   participantCell: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
     fontSize: 13,
     color: "#43335b",
   },
@@ -14001,6 +14658,29 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     rowGap: 10,
     overflow: "visible",
+  },
+  docGroupedList: {
+    rowGap: 12,
+  },
+  docGroupedItem: {
+    rowGap: 8,
+  },
+  docGroupedItemWithDivider: {
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ece7f7",
+  },
+  docWorkflowTag: {
+    alignSelf: "flex-start",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
+    color: "#6b4e00",
+    backgroundColor: "#ffe45c",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
   docRowSource: {
     fontSize: 11,

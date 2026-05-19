@@ -14,8 +14,8 @@ export const SMART_SELECT_PRESETS = [
   },
   {
     id: "standard",
-    label: "Standard",
-    summary: "Depths 1–2 — triggers plus first follow-up layer.",
+    label: "Default",
+    summary: "Recommended default — depths 1–2 (opening question plus first follow-up in each section).",
     maxDepth: 2,
     perSectionCap: null,
     keywordBoost: false,
