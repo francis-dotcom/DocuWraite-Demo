@@ -446,13 +446,6 @@ const modules = [
   "Community Input Flow",
   "DSP Input Flow",
   "Documentation and Coordination Input Flow",
-  "Health and Safety Input Flow",
-  "IADL Input Flow",
-  "Meal Support Input Flow",
-  "Medication Input Flow",
-  "Mobility Input Flow",
-  "Safety Monitoring Input Flow",
-  "Sleep Support Input Flow",
   "Supervisor Setup",
   "Case Note",
   "Document Storage",
@@ -8511,7 +8504,6 @@ function DecisionEngineScreen({
   const [blockPromptSuggestions, setBlockPromptSuggestions] = useState([]);
   const [blockPromptLoading, setBlockPromptLoading] = useState(false);
   const [blockPromptError, setBlockPromptError] = useState("");
-  const [blockPromptInputFocused, setBlockPromptInputFocused] = useState(false);
   const [rowPromptPopoverVisible, setRowPromptPopoverVisible] = useState(false);
   const [rowPromptSuggestions, setRowPromptSuggestions] = useState([]);
   const [rowPromptLoading, setRowPromptLoading] = useState(false);
@@ -8528,6 +8520,8 @@ function DecisionEngineScreen({
   const rowPromptRequestRef = useRef(0);
   const blockPromptEngagedRef = useRef(false);
   const rowPromptEngagedRef = useRef(false);
+  const suppressBlockPromptAutoOpenRef = useRef(false);
+  const blockPromptTypedRef = useRef(false);
   const blockPromptIdleTimerRef = useRef(null);
   const rowPromptIdleTimerRef = useRef(null);
   const suppressBuilderHydrationRef = useRef({ block: false, row: false });
@@ -8865,7 +8859,10 @@ function DecisionEngineScreen({
   };
 
   useEffect(() => {
-    if (!blockPromptInputFocused && !String(newBlockDescription).trim()) {
+    if (suppressBlockPromptAutoOpenRef.current) {
+      return;
+    }
+    if (!blockPromptTypedRef.current || !String(newBlockDescription).trim()) {
       return;
     }
     if (blockPromptLoading || blockPromptSuggestions.length || blockPromptError) {
@@ -8874,7 +8871,6 @@ function DecisionEngineScreen({
     loadBlockPromptSuggestions(newBlockWorkflowId);
   }, [
     blockPromptError,
-    blockPromptInputFocused,
     blockPromptLoading,
     blockPromptSuggestions.length,
     loadBlockPromptSuggestions,
@@ -8883,15 +8879,18 @@ function DecisionEngineScreen({
   ]);
 
   useEffect(() => {
+    if (suppressBlockPromptAutoOpenRef.current) {
+      return;
+    }
     const shouldShow =
-      (blockPromptInputFocused || String(newBlockDescription).trim()) &&
+      blockPromptTypedRef.current &&
+      String(newBlockDescription).trim() &&
       (blockPromptLoading || Boolean(blockPromptError) || liveBlockPromptSuggestions.length > 0);
     if (shouldShow) {
       setBlockPromptPopoverVisible(true);
     }
   }, [
     blockPromptError,
-    blockPromptInputFocused,
     blockPromptLoading,
     blockPromptPopoverVisible,
     liveBlockPromptSuggestions.length,
@@ -9591,6 +9590,8 @@ function DecisionEngineScreen({
   };
 
   const handleBlockWorkflowOptionPress = (workflowId) => {
+    suppressBlockPromptAutoOpenRef.current = false;
+    blockPromptTypedRef.current = false;
     setNewBlockWorkflowId(workflowId);
     setBlockGuidedAdlPrompt(buildInitialGuidedAdlPromptState());
     closeBlockPromptPopover();
@@ -9610,9 +9611,10 @@ function DecisionEngineScreen({
       return;
     }
 
+    suppressBlockPromptAutoOpenRef.current = true;
+    blockPromptTypedRef.current = false;
     markBlockPromptEngaged();
     setBlockPromptPopoverVisible(false);
-    setBlockPromptInputFocused(false);
 
     setBlockDraftsByWorkflow((prev) => {
       return {
@@ -9987,19 +9989,21 @@ function DecisionEngineScreen({
                   ...prev,
                   [newBlockWorkflowId]: text,
                 }));
+                suppressBlockPromptAutoOpenRef.current = false;
+                blockPromptTypedRef.current = Boolean(String(text).trim());
                 if (String(text).trim()) {
                   setBlockBuilderHint("");
                 }
-                if (blockPromptInputFocused || String(text).trim()) {
+                if (String(text).trim()) {
                   markBlockPromptEngaged();
+                } else {
+                  setBlockPromptPopoverVisible(false);
                 }
               }}
               onFocus={() => {
-                setBlockPromptInputFocused(true);
-                markBlockPromptEngaged();
+                blockPromptEngagedRef.current = false;
               }}
               onBlur={() => {
-                setBlockPromptInputFocused(false);
                 blockPromptEngagedRef.current = false;
                 scheduleBlockPromptIdleClose();
               }}
