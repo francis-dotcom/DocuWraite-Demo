@@ -454,15 +454,6 @@ const modules = [
   "Health Tracking",
   "Individual Plan",
   "Individual Plan Agenda",
-  "ISP Data",
-  "ISP Program",
-  "MAR Data",
-  "Medication History",
-  "Personal Finance Transaction",
-  "Personal Focus Worksheet",
-  "Priority List",
-  "T-Log",
-  "Time Tracking",
 ];
 
 const pdfs = ["Emergency Data Form", "Face Sheet", "Medical Information", "Glossary"];
@@ -1402,14 +1393,14 @@ function attachClientCarePlanContext(fieldContext = {}, options = {}) {
 }
 
 function inferAiLogicSelection(fieldContext = {}) {
-  const workflowId = String(fieldContext.workflowId || "").trim();
+  const workflowId = String(fieldContext.baseWorkflowId || fieldContext.workflowId || "").trim();
   const haystack = normalizeInferenceText(
     [fieldContext.label, fieldContext.description, fieldContext.source, fieldContext.assignedNodeSummary]
       .filter(Boolean)
       .join(" ")
   );
 
-  if (["adl", "morning-adl"].includes(workflowId)) {
+  if (["adl", "morning-adl", "assigned-nodes", ""].includes(workflowId)) {
     const taskSignals = [
       {
         task: "Toileting",
@@ -1609,6 +1600,43 @@ function getAssignedWorkflowStepsForField(fieldContext = {}) {
     }
   }
   return createAssignedWorkflowSteps(fieldContext.assignedNodes || []);
+}
+
+function buildPrecomputedAssignedWorkflowSteps(fieldContext = {}) {
+  const aiLogicBundle = buildAiLogicWorkflowBundle(fieldContext);
+  if (aiLogicBundle?.steps?.length) {
+    return aiLogicBundle.steps;
+  }
+
+  const configWorkflowId = String(fieldContext.baseWorkflowId || fieldContext.workflowId || "").trim();
+  if (configWorkflowId) {
+    const configDrivenSteps = buildConfigDrivenRowWorkflowSteps(configWorkflowId);
+    if (configDrivenSteps.length) {
+      return configDrivenSteps;
+    }
+  }
+
+  return createAssignedWorkflowSteps(fieldContext.assignedNodes || []);
+}
+
+function workflowStepsContainAiLogic(steps = []) {
+  return steps.some((step) => Boolean(step?.sourceAiLogicPath));
+}
+
+function areWorkflowStepsEquivalent(leftSteps = [], rightSteps = []) {
+  if (leftSteps.length !== rightSteps.length) {
+    return false;
+  }
+
+  return leftSteps.every((leftStep, index) => {
+    const rightStep = rightSteps[index] || {};
+    return (
+      String(leftStep?.stepKey || "") === String(rightStep?.stepKey || "") &&
+      String(leftStep?.kind || "") === String(rightStep?.kind || "") &&
+      String(leftStep?.question || "") === String(rightStep?.question || "") &&
+      String(leftStep?.sourceAiLogicPath || "") === String(rightStep?.sourceAiLogicPath || "")
+    );
+  });
 }
 
 function fieldHasAssignedDecisionWorkflow(fieldContext = {}) {
@@ -3520,8 +3548,15 @@ function buildDecisionEngineCaseNoteRecord(stagedAssignments = []) {
 }
 
 function clearDocumentationTargetAssignmentFields(target = {}) {
+  const restoredWorkflowId =
+    String(target.workflowId || "").trim() === "assigned-nodes" && String(target.baseWorkflowId || "").trim()
+      ? String(target.baseWorkflowId).trim()
+      : target.workflowId;
+
   return {
     ...target,
+    workflowId: restoredWorkflowId,
+    baseWorkflowId: undefined,
     assignedNodes: [],
     assignedNodeSummary: "",
     assignedNodeConfig: undefined,
@@ -3614,9 +3649,11 @@ function applyFinalizedAssignmentsToDocumentationSession(session, finalizedAssig
         return clearDocumentationTargetAssignmentFields(block);
       }
 
+      const baseWorkflowId = String(block.baseWorkflowId || block.workflowId || "").trim();
       return {
         ...block,
         comment: "",
+        baseWorkflowId,
         workflowId: "assigned-nodes",
         assignedLibraries: assignmentGroup.map((assignment) => assignment.selectedLibrary).filter(Boolean),
         ...buildTargetAssignmentDataFromGroup(assignmentGroup),
@@ -3628,9 +3665,11 @@ function applyFinalizedAssignmentsToDocumentationSession(session, finalizedAssig
         return clearDocumentationTargetAssignmentFields(row);
       }
 
+      const baseWorkflowId = String(row.baseWorkflowId || row.workflowId || "").trim();
       return {
         ...row,
         comment: "",
+        baseWorkflowId,
         workflowId: "assigned-nodes",
         assignedLibraries: assignmentGroup.map((assignment) => assignment.selectedLibrary).filter(Boolean),
         ...buildTargetAssignmentDataFromGroup(assignmentGroup),
@@ -5217,6 +5256,7 @@ function DocuWraiteGuidedWorkflowPanel({
   onDismiss,
 }) {
   const [activeReadinessRemediationKey, setActiveReadinessRemediationKey] = useState(null);
+  const [assignedDraftReviewExpanded, setAssignedDraftReviewExpanded] = useState(false);
   const workflowEyebrow =
     workflowState?.fieldContext?.localWorkflowEyebrow || getWorkflowEyebrow(workflowId);
   const answers = workflowState?.answers || {};
@@ -5306,6 +5346,15 @@ function DocuWraiteGuidedWorkflowPanel({
       setActiveReadinessRemediationKey(null);
     }
   }, [stepMeta?.kind, stepMeta?.stepKey]);
+
+  useEffect(() => {
+    if (!(useAssignedNodeWorkflow && stepMeta?.kind === "draft" && generatedNote)) {
+      setAssignedDraftReviewExpanded(false);
+      return;
+    }
+
+    setAssignedDraftReviewExpanded(false);
+  }, [useAssignedNodeWorkflow, stepMeta?.kind, generatedNote]);
 
   if (useAiWorkflow && aiLoading && !stepMeta) {
     return (
@@ -5937,7 +5986,7 @@ function DocuWraiteGuidedWorkflowPanel({
           ) : null}
           {!showAssignedGenerateStep && !assignedDraftLoading && generatedNote ? (
             <>
-              {useAssignedNodeWorkflow ? (
+              {useAssignedNodeWorkflow && assignedDraftReviewExpanded ? (
                 <>
                   <DocuWraiteDraftContextToggles
                     toggles={draftContextToggles}
@@ -5949,7 +5998,7 @@ function DocuWraiteGuidedWorkflowPanel({
                 </>
               ) : null}
               <Text style={styles.docuWraiteWorkflowDraftText}>{generatedNote}</Text>
-              {useAssignedNodeWorkflow && assignedDraftGuidelineWarning ? (
+              {useAssignedNodeWorkflow && assignedDraftReviewExpanded && assignedDraftGuidelineWarning ? (
                 <View style={styles.docuWraiteWorkflowGuidelineWarningBox}>
                   <Text style={styles.docuWraiteWorkflowGuidelineWarningText}>
                     {assignedDraftGuidelineWarning}
@@ -5974,7 +6023,7 @@ function DocuWraiteGuidedWorkflowPanel({
                   </View>
                 </View>
               ) : null}
-              {useAssignedNodeWorkflow && assignedDraftFollowUp ? (
+              {useAssignedNodeWorkflow && assignedDraftReviewExpanded && assignedDraftFollowUp ? (
                 <View style={styles.docuWraiteWorkflowFollowUpBox}>
                   <Text style={styles.docuWraiteWorkflowFollowUpLabel}>Quick check (optional)</Text>
                   <Text style={styles.docuWraiteWorkflowFollowUpQuestion}>{assignedDraftFollowUp}</Text>
@@ -5988,15 +6037,19 @@ function DocuWraiteGuidedWorkflowPanel({
                   />
                 </View>
               ) : null}
-              <Text style={styles.docuWraiteWorkflowExtraLabel}>Additional notes (optional)</Text>
-              <TextInput
-                value={answers.extraNotes || ""}
-                onChangeText={(extraNotes) => onAnswer({ extraNotes })}
-                placeholder="Add any extra details the DSP wants in the note"
-                placeholderTextColor="#888888"
-                multiline
-                style={styles.docuWraiteWorkflowExtraInput}
-              />
+              {(!useAssignedNodeWorkflow || assignedDraftReviewExpanded) ? (
+                <>
+                  <Text style={styles.docuWraiteWorkflowExtraLabel}>Additional notes (optional)</Text>
+                  <TextInput
+                    value={answers.extraNotes || ""}
+                    onChangeText={(extraNotes) => onAnswer({ extraNotes })}
+                    placeholder="Add any extra details the DSP wants in the note"
+                    placeholderTextColor="#888888"
+                    multiline
+                    style={styles.docuWraiteWorkflowExtraInput}
+                  />
+                </>
+              ) : null}
               <View style={styles.docuWraiteCardActions}>
                 {useAssignedNodeWorkflow && !assignedDraftGuidelineWarning ? (
                   <Pressable
@@ -6033,6 +6086,14 @@ function DocuWraiteGuidedWorkflowPanel({
                         : "Insert into note"}
                   </Text>
                 </Pressable>
+                {useAssignedNodeWorkflow && !assignedDraftReviewExpanded ? (
+                  <Pressable
+                    style={styles.docuWraiteCardSecondary}
+                    onPress={() => setAssignedDraftReviewExpanded(true)}
+                  >
+                    <Text style={styles.docuWraiteCardSecondaryText}>Review</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable style={styles.docuWraiteCardSecondary} onPress={onDismiss}>
                   <Text style={styles.docuWraiteCardSecondaryText}>Close</Text>
                 </Pressable>
@@ -6377,23 +6438,26 @@ function DocumentationFormTable({
         <Text style={[styles.docTableHeaderCell, styles.docScoresColumn]}>Scores/Comments</Text>
       </View>
       {rows.map((row) => {
-        const rowConfig = getWorkflowInputSectionConfig(row.workflowId);
-        const configDrivenWorkflowSteps = buildConfigDrivenRowWorkflowSteps(row.workflowId);
-        const rowAssignedWorkflowSteps = configDrivenWorkflowSteps.length
-          ? configDrivenWorkflowSteps
-          : createAssignedWorkflowSteps(row.assignedNodes || []);
-        const rowFieldContext = {
+        const rowWorkflowId = String(row.workflowId || "").trim();
+        const rowBaseWorkflowId = String(row.baseWorkflowId || rowWorkflowId).trim();
+        const rowFieldContextBase = {
           fieldKind: "row",
           score: row.score,
           description: row.description,
           source: row.source,
-          workflowId: row.workflowId,
+          workflowId: rowWorkflowId,
+          baseWorkflowId: rowBaseWorkflowId,
           theme: row.theme,
           shiftIntelligence: runtimeShiftIntelligence,
           assignedNodes: row.assignedNodes || [],
           assignedNodeSummary: row.assignedNodeSummary || "",
+        };
+        const rowAssignedWorkflowSteps = buildPrecomputedAssignedWorkflowSteps(rowFieldContextBase);
+        const rowConfig = getWorkflowInputSectionConfig(rowBaseWorkflowId);
+        const rowFieldContext = {
+          ...rowFieldContextBase,
           assignedWorkflowSteps: rowAssignedWorkflowSteps,
-          localWorkflowEyebrow: rowConfig ? getWorkflowEyebrow(row.workflowId) : "",
+          localWorkflowEyebrow: rowConfig ? getWorkflowEyebrow(rowBaseWorkflowId) : "",
         };
 
         return (
@@ -6783,13 +6847,18 @@ function DocumentationEntryScreen({
     setDocuWraiteAssist(assist);
     if (assist.mode === "workflow") {
       setDocuWraiteWorkflow((current) => {
-        if (current?.fieldId === assist.fieldId && current.workflowId === assist.workflowId) {
-          return current;
-        }
-
         const localSteps = assist.localWorkflowSteps?.length
           ? assist.localWorkflowSteps
           : getAssignedWorkflowStepsForField(assist.fieldContext || {});
+
+        const shouldReuseCurrentWorkflow =
+          current?.fieldId === assist.fieldId &&
+          current.workflowId === assist.workflowId &&
+          areWorkflowStepsEquivalent(current.localSteps || [], localSteps);
+
+        if (shouldReuseCurrentWorkflow) {
+          return current;
+        }
         const hasAssignedNodes = (assist.fieldContext?.assignedNodes || []).length > 0;
         const useLocalWorkflow =
           assist.workflowId === "assigned-nodes" &&
@@ -7014,8 +7083,15 @@ function DocumentationEntryScreen({
       const hasAssignedNodes = (fieldContext.assignedNodes || []).length > 0;
       const isCurrentFieldActive =
         docuWraiteWorkflow?.fieldId === fieldId || docuWraiteAssist?.fieldId === fieldId;
+      const nextLocalWorkflowSteps = hasAssignedNodes ? getAssignedWorkflowStepsForField(fieldContext) : [];
+      const shouldRefreshCurrentAssignedWorkflow =
+        hasAssignedNodes &&
+        docuWraiteWorkflow?.fieldId === fieldId &&
+        docuWraiteWorkflow?.workflowId === "assigned-nodes" &&
+        workflowStepsContainAiLogic(nextLocalWorkflowSteps) &&
+        !workflowStepsContainAiLogic(docuWraiteWorkflow?.localSteps || []);
 
-      if (isCurrentFieldActive) {
+      if (isCurrentFieldActive && !shouldRefreshCurrentAssignedWorkflow) {
         setDocuWraiteExpanded((current) => !current);
         return;
       }
@@ -7655,22 +7731,25 @@ function DocumentationEntryScreen({
                 <View style={styles.docGroupedList}>
                   {group.blocks.map((block, index) => {
                     const workflowId = getTimeBlockWorkflowId(block, clientProfile);
-                    const blockConfig = getWorkflowInputSectionConfig(workflowId);
-                    const configDrivenWorkflowSteps = buildConfigDrivenRowWorkflowSteps(workflowId);
-                    const fieldContext = {
+                    const baseWorkflowId = String(block.baseWorkflowId || block.workflowId || workflowId).trim();
+                    const fieldContextBase = {
                       fieldKind: "time",
                       score: block.score,
                       label: block.label,
                       description: getTimeBlockPrompt(block, clientProfile),
                       source: getTimeBlockSource(block, clientProfile),
                       workflowId,
+                      baseWorkflowId,
                       shiftIntelligence: runtimeShiftIntelligence,
                       assignedNodes: block.assignedNodes || [],
                       assignedNodeSummary: block.assignedNodeSummary || "",
-                      assignedWorkflowSteps: configDrivenWorkflowSteps.length
-                        ? configDrivenWorkflowSteps
-                        : createAssignedWorkflowSteps(block.assignedNodes || []),
-                      localWorkflowEyebrow: blockConfig ? getWorkflowEyebrow(workflowId) : "",
+                    };
+                    const assignedWorkflowSteps = buildPrecomputedAssignedWorkflowSteps(fieldContextBase);
+                    const blockConfig = getWorkflowInputSectionConfig(baseWorkflowId);
+                    const fieldContext = {
+                      ...fieldContextBase,
+                      assignedWorkflowSteps,
+                      localWorkflowEyebrow: blockConfig ? getWorkflowEyebrow(baseWorkflowId) : "",
                     };
 
                     return (
