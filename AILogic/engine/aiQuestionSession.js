@@ -81,6 +81,9 @@ function getNextAiQuestion(logic, answers = {}) {
 
     const questionAnswer = getAnswerValue(answers, question.id);
     if (!isAnswered(questionAnswer)) {
+      if (!question.required) {
+        continue;
+      }
       return question;
     }
 

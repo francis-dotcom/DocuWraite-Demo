@@ -1,0 +1,145 @@
+{
+  "client_id": "BPhagan",
+  "client_name": "Barbara C. Phagan",
+  "workflow_tag": "#dressing",
+  "workflow_label": "Dressing",
+  "source_documents": [
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan.pdf",
+      "label": "Individual Plan"
+    },
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan . monthly reviews.pdf",
+      "label": "Monthly Reviews"
+    }
+  ],
+  "required_context": {
+    "dressing_baseline": {
+      "value": "Barbara now needs total staff assistance with dressing and undressing because of worsening hand tremors, poor body balance, and decreasing cognitive ability.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "Now, she needs total assistance from staff due to her worsening hand tremors, poor body balance, and decreasing cognitive ability... When she is dressing and/or undressing, staff must be within an arm's reach to help for balance."
+    },
+    "dressing_assistance_level": {
+      "value": "Total staff assistance",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "Again, all performance of ADLs and household chores requires total staff assistance."
+    },
+    "dressing_prompt_level": {
+      "value": "Barbara requires both verbal and physical prompts during ADL participation.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "She requires both verbal and physical prompts to complete certain activities."
+    },
+    "clothing_selection_support": {
+      "value": "Barbara needs staff help coordinating clothing and ensuring it is appropriate for the weather.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "She needs staff assistance with coordinating colors to match and ensure the clothing are appropriate for the weather."
+    },
+    "supervision_requirements": {
+      "value": "Close supervision with staff within arm's reach is needed during dressing because of balance problems and fall risk.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "When she is dressing and/or undressing, staff must be within an arm's reach to help for balance... it is important for staff have a line of sight of Barbara to assess for fall prevention."
+    },
+    "fall_risk_status": {
+      "value": "High fall risk with increased falls, unsteady gait, worsening balance, and rapidly declining vision.",
+      "confidence": "high",
+      "source_pages": [2, 6],
+      "evidence": "Staff have witnessed a decline in Barbara's physical mobility and has had an increase in falls. Barbara's vision is rapidly declining which pose a greater fall risk."
+    },
+    "adl_behavior_support_notes": {
+      "value": "Barbara may display minor physical aggression or throw personal items, and staff should redirect using prior BSP training if dressing routines become difficult.",
+      "confidence": "medium",
+      "source_pages": [4],
+      "evidence": "She may display negative behaviors such as throwing personal items and display minor physical acts of aggression towards staff, but staff has been trained to redirect her from these behaviors from the previous BSP."
+    }
+  },
+  "optional_context": {
+    "dressing_sequence_support": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "fastener_support": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "weather_appropriate_clothing_support": {
+      "value": "Staff should ensure Barbara's clothing is appropriate for the weather and chosen with staff assistance.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "She needs staff assistance with coordinating colors to match and ensure the clothing are appropriate for the weather."
+    },
+    "standing_balance_support": {
+      "value": "Staff must stay within arm's reach during dressing and undressing to help with balance.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "When she is dressing and/or undressing, staff must be within an arm's reach to help for balance."
+    },
+    "transfer_support_level": {
+      "value": "Barbara needs close hands-on balance support during ADL movement and standing routines.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "When showering and/or toileting... use... staff's hand for balance. When she is dressing and/or undressing, staff must be within an arm's reach to help for balance."
+    },
+    "adl_preferred_prompting_style": {
+      "value": "Barbara benefits from repeated verbal and physical prompts and one-step instruction support.",
+      "confidence": "medium",
+      "source_pages": [3, 4],
+      "evidence": "She requires both verbal and physical prompts... Barbara shown improvement in following one step instructions. Barbara's short term memory deficit requires staff to repeat instructions."
+    },
+    "adl_privacy_preferences": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "adl_gender_or_staffing_preference": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "adl_adaptive_equipment_preferences": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "mobility_precautions": {
+      "value": "Use close line-of-sight supervision and balance support during standing ADL routines because of worsening gait and fall risk.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "Staff have witnessed a decline... increase in falls... it is important for staff have a line of sight... When she is dressing and/or undressing, staff must be within an arm's reach to help for balance."
+    },
+    "adl_behavior_support_plan_status": {
+      "value": "Behavior analyst services were discontinued, but staff still use redirection based on previous BSP training.",
+      "confidence": "high",
+      "source_pages": [4],
+      "evidence": "COS agreed to the discontinuation of behavioral analysis services... staff has been trained to redirect her from these behaviors from the previous BSP."
+    },
+    "adl_supervisor_notification_threshold": {
+      "value": "Claims of discomfort or pain should be taken seriously, and confusion with basic tasks should trigger medical evaluation.",
+      "confidence": "medium",
+      "source_pages": [6],
+      "evidence": "Any claims of discomfort and pain by Barbara should be taken seriously. If Barbara exhibits confusion for doing basic tasks... she should be taken to be evaluated by a medical professional."
+    },
+    "adl_change_in_baseline_reporting_rule": {
+      "value": "If Barbara shows confusion with basic tasks, she should be medically evaluated because it may represent a serious change from baseline.",
+      "confidence": "high",
+      "source_pages": [6],
+      "evidence": "If Barbara exhibits confusion for doing basic tasks... she should be taken to be evaluated by a medical professional as this is a sign something is very wrong."
+    }
+  },
+  "missing_required_keys": [],
+  "notes": [
+    "This file is a first-pass structured extraction from OCR text, not a clinician-approved abstraction.",
+    "Null values indicate the care plan did not clearly provide the requested item in the reviewed OCR text."
+  ]
+}

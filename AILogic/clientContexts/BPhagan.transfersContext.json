@@ -1,0 +1,163 @@
+{
+  "client_id": "BPhagan",
+  "client_name": "Barbara C. Phagan",
+  "workflow_tag": "#transfers",
+  "workflow_label": "Transfers",
+  "source_documents": [
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan.pdf",
+      "label": "Individual Plan"
+    },
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan . monthly reviews.pdf",
+      "label": "Monthly Reviews"
+    }
+  ],
+  "required_context": {
+    "transfers_baseline": {
+      "value": "Barbara has worsening mobility, poor body balance, and unsteady gait, and needs staff support during transfers and other standing ADL routines.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "She has an unsteady gait... requires hand held assistance or close stand by assistance with ambulation in the home... When showering and/or toileting... use... staff's hand for balance."
+    },
+    "transfer_support_level": {
+      "value": "Barbara needs hands-on balance support during toileting and shower transfers and close staff support during other standing routines.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "When showering and/or toileting... use the safety equipment such as the shower bench/chair, grab bars, raised toilet seat and staff's hand for balance. When she is dressing and/or undressing, staff must be within an arm's reach to help for balance."
+    },
+    "transfer_assistance_level": {
+      "value": "Close hands-on support is needed for ADL transfers and standing balance, with hand-held or close stand-by assistance used for ambulation in the home.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "She also requires hand held assistance or close stand by assistance with ambulation in the home... staff's hand for balance."
+    },
+    "supervision_requirements": {
+      "value": "Close supervision with line-of-sight monitoring is needed because of fall risk, poor balance, and cognitive decline.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "It is important for staff have a line of sight of Barbara to assess for fall prevention... all performance of ADLs requires total staff assistance."
+    },
+    "fall_risk_status": {
+      "value": "High fall risk with increased falls, unsteady gait, worsening balance, and rapidly declining vision.",
+      "confidence": "high",
+      "source_pages": [2, 6],
+      "evidence": "Staff have witnessed a decline in Barbara's physical mobility and has had an increase in falls. Barbara's vision is rapidly declining which pose a greater fall risk."
+    },
+    "mobility_precautions": {
+      "value": "Maintain line of sight, provide balance support, and use available safety equipment during transfers and mobility routines.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "Use the safety equipment such as... staff's hand for balance... it is important for staff have a line of sight of Barbara to assess for fall prevention."
+    }
+  },
+  "optional_context": {
+    "gait_belt_required": {
+      "value": "PT addressed gait training using a gait belt and assistive device to improve confidence with ambulation and balance skills.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "PT services... addressed gait training utilizing a gait belt and assistive device to allow increased confidence with ambulation and balance skills."
+    },
+    "two_person_transfer_required": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "assistive_device_required": {
+      "value": "PT addressed gait training using an assistive device to improve Barbara's ambulation and balance confidence.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "PT services... addressed gait training utilizing a gait belt and assistive device..."
+    },
+    "wheelchair_use": {
+      "value": "Barbara uses a wheelchair when tired from community participation and needs frequent rest breaks.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "When she is feeling tired from community participation, she needs the use of her wheelchair and needs frequent rest breaks."
+    },
+    "weight_bearing_status": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "positioning_support": {
+      "value": "Use shower bench or chair, grab bars, raised toilet seat, and staff hand support for balance during transfer-related positioning.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "Use the safety equipment such as the shower bench/chair, grab bars, raised toilet seat and staff's hand for balance."
+    },
+    "standing_balance_support": {
+      "value": "Staff must remain within arm's reach during dressing and undressing to help with balance.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "When she is dressing and/or undressing, staff must be within an arm's reach to help for balance."
+    },
+    "transfer_surface_setup": {
+      "value": "Bathroom holding bars, wheelchair-accessible ramps, raised toilet seat, and other home safety modifications support safe transfers.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "Her home contain modifications... holding bars located in the bathrooms and wheel-chair accessible ramps... use the raised toilet seat..."
+    },
+    "transfer_safety_protocols": {
+      "value": "Use line-of-sight supervision, staff balance support, and available safety equipment during transfer-related ADLs.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "Use the safety equipment such as... staff's hand for balance... line of sight... for fall prevention."
+    },
+    "pain_with_transfers_history": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "injury_risk_during_transfers": {
+      "value": "High injury risk related to falls, poor balance, declining vision, and worsening mobility.",
+      "confidence": "high",
+      "source_pages": [2, 6],
+      "evidence": "Increase in falls... rapidly declining vision... greater fall risk."
+    },
+    "adl_behavior_support_notes": {
+      "value": "Barbara may display minor physical aggression or throw personal items, and staff should redirect using prior BSP training if transfer-related routines become difficult.",
+      "confidence": "medium",
+      "source_pages": [4],
+      "evidence": "She may display negative behaviors such as throwing personal items and display minor physical acts of aggression towards staff, but staff has been trained to redirect her from these behaviors from the previous BSP."
+    },
+    "adl_behavior_support_plan_status": {
+      "value": "Behavior analyst services were discontinued, but staff still use redirection based on previous BSP training.",
+      "confidence": "high",
+      "source_pages": [4],
+      "evidence": "COS agreed to the discontinuation of behavioral analysis services... staff has been trained to redirect her from these behaviors from the previous BSP."
+    },
+    "adl_supervisor_notification_threshold": {
+      "value": "Claims of discomfort or pain should be taken seriously, and confusion with basic tasks should trigger medical evaluation.",
+      "confidence": "medium",
+      "source_pages": [6],
+      "evidence": "Any claims of discomfort and pain by Barbara should be taken seriously. If Barbara exhibits confusion for doing basic tasks... she should be taken to be evaluated by a medical professional."
+    },
+    "adl_nurse_notification_threshold": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "adl_incident_reporting_threshold": {
+      "value": "Falls and unusual increase in fall claims are part of documented support risks and require follow-up.",
+      "confidence": "medium",
+      "source_pages": [6],
+      "evidence": "Barbara has had several falls and continues to at times say she is falling, even if she is seated."
+    },
+    "adl_change_in_baseline_reporting_rule": {
+      "value": "If Barbara shows confusion with basic tasks, she should be medically evaluated because it may represent a serious change from baseline.",
+      "confidence": "high",
+      "source_pages": [6],
+      "evidence": "If Barbara exhibits confusion for doing basic tasks... she should be taken to be evaluated by a medical professional as this is a sign something is very wrong."
+    }
+  },
+  "missing_required_keys": [],
+  "notes": [
+    "This file is a first-pass structured extraction from OCR text, not a clinician-approved abstraction.",
+    "Null values indicate the care plan did not clearly provide the requested item in the reviewed OCR text."
+  ]
+}

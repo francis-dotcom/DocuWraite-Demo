@@ -1,0 +1,145 @@
+{
+  "client_id": "BPhagan",
+  "client_name": "Barbara C. Phagan",
+  "workflow_tag": "#hygiene",
+  "workflow_label": "Hygiene",
+  "source_documents": [
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan.pdf",
+      "label": "Individual Plan"
+    },
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan . monthly reviews.pdf",
+      "label": "Monthly Reviews"
+    }
+  ],
+  "required_context": {
+    "hygiene_baseline": {
+      "value": "Barbara now needs total staff assistance with personal hygiene routines because of worsening hand tremors, poor body balance, and decreasing cognitive ability.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "Previously, she was able to perform certain ADLs related to personal hygiene and grooming... Now, she needs total assistance from staff due to her worsening hand tremors, poor body balance, and decreasing cognitive ability."
+    },
+    "hygiene_assistance_level": {
+      "value": "Total staff assistance",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "Again, all performance of ADLs and household chores requires total staff assistance."
+    },
+    "hygiene_prompt_level": {
+      "value": "Barbara requires both verbal and physical prompts during ADL participation.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "She requires both verbal and physical prompts to complete certain activities."
+    },
+    "supervision_requirements": {
+      "value": "Close supervision is needed during hygiene routines because Barbara needs total ADL support and has fall risk and cognitive decline.",
+      "confidence": "medium",
+      "source_pages": [2, 3],
+      "evidence": "It is important for staff have a line of sight of Barbara to assess for fall prevention... all performance of ADLs requires total staff assistance."
+    },
+    "infection_control_precautions": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    }
+  },
+  "optional_context": {
+    "handwashing_support": {
+      "value": "Routine hygiene support now falls under Barbara's total-assist ADL needs.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "Previously, she was able to perform certain ADLs related to personal hygiene and grooming... Now, she needs total assistance from staff."
+    },
+    "face_washing_support": {
+      "value": "Routine hygiene support now falls under Barbara's total-assist ADL needs.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "Previously, she was able to perform certain ADLs related to personal hygiene and grooming... Now, she needs total assistance from staff."
+    },
+    "oral_hygiene_support": {
+      "value": "Staff must assist with cleansing Barbara's dentures and lower bridge to prevent choking.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "In performing oral hygiene, staff must assist with the cleansing of her dentures and lower bridge to prevent choking."
+    },
+    "deodorant_or_personal_care_support": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "hygiene_supplies_setup": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "adl_behavior_support_notes": {
+      "value": "Barbara may display minor physical aggression or throw personal items, and staff should redirect using prior BSP training if hygiene routines become difficult.",
+      "confidence": "medium",
+      "source_pages": [4],
+      "evidence": "She may display negative behaviors such as throwing personal items and display minor physical acts of aggression towards staff, but staff has been trained to redirect her from these behaviors from the previous BSP."
+    },
+    "adl_behavior_support_plan_status": {
+      "value": "Behavior analyst services were discontinued, but staff still use redirection based on previous BSP training.",
+      "confidence": "high",
+      "source_pages": [4],
+      "evidence": "COS agreed to the discontinuation of behavioral analysis services... staff has been trained to redirect her from these behaviors from the previous BSP."
+    },
+    "adl_preferred_prompting_style": {
+      "value": "Barbara benefits from repeated verbal and physical prompts and one-step instruction support.",
+      "confidence": "medium",
+      "source_pages": [3, 4],
+      "evidence": "She requires both verbal and physical prompts... Barbara shown improvement in following one step instructions. Barbara's short term memory deficit requires staff to repeat instructions."
+    },
+    "adl_communication_support_needed": {
+      "value": "Barbara may have difficulty communicating pain or illness clearly and needs staff assistance to interpret and escalate concerns.",
+      "confidence": "high",
+      "source_pages": [6],
+      "evidence": "Barbara may have difficulty expressing pain or illness and the cause... Any claims of discomfort and pain by Barbara should be taken seriously."
+    },
+    "skin_integrity_risk": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "universal_precautions_required": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "adl_privacy_preferences": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "adl_gender_or_staffing_preference": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "adl_supervisor_notification_threshold": {
+      "value": "Claims of discomfort or pain should be taken seriously, and confusion with basic tasks should trigger medical evaluation.",
+      "confidence": "medium",
+      "source_pages": [6],
+      "evidence": "Any claims of discomfort and pain by Barbara should be taken seriously. If Barbara exhibits confusion for doing basic tasks... she should be taken to be evaluated by a medical professional."
+    },
+    "adl_change_in_baseline_reporting_rule": {
+      "value": "If Barbara shows confusion with basic tasks, she should be medically evaluated because it may represent a serious change from baseline.",
+      "confidence": "high",
+      "source_pages": [6],
+      "evidence": "If Barbara exhibits confusion for doing basic tasks... she should be taken to be evaluated by a medical professional as this is a sign something is very wrong."
+    }
+  },
+  "missing_required_keys": ["infection_control_precautions"],
+  "notes": [
+    "This file is a first-pass structured extraction from OCR text, not a clinician-approved abstraction.",
+    "Null values indicate the care plan did not clearly provide the requested item in the reviewed OCR text."
+  ]
+}

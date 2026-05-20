@@ -1,0 +1,187 @@
+{
+  "workflowId": "adl-grooming",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "ADL",
+    "task": "Grooming",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing grooming note using structured answers, care-plan context, and safety escalation rules.",
+    "documentationGoals": [
+      "Capture the grooming support provided",
+      "Capture assistance level, cueing, and observed tolerance",
+      "Capture oral-care, shaving, or skin-safety concerns when present",
+      "Generate a concise but defensible grooming narrative"
+    ],
+    "requiredCarePlanContext": [
+      "grooming_baseline",
+      "grooming_assistance_level",
+      "grooming_prompt_level",
+      "supervision_requirements",
+      "adl_behavior_support_notes"
+    ],
+    "regulatoryRiskLevel": "medium",
+    "clinicalSensitivity": ["skin integrity", "oral care tolerance", "behavioral refusal"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "grooming_task_type",
+      "outcome",
+      "assistance_level",
+      "engagement",
+      "observed_response",
+      "risks_and_protocols",
+      "task_observations",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "grooming_task_type",
+        "label": "What grooming support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Hair care", "Oral care", "Shaving", "Nail care observation", "Face grooming", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "grooming_task_type_other" }]
+      },
+      {
+        "id": "grooming_task_type_other",
+        "label": "Describe the grooming task.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "grooming_task_type", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Not completed", "Not needed"]
+      },
+      {
+        "id": "assistance_level",
+        "label": "What assistance level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Independent", "Verbal prompt", "Standby assist", "Partial assist", "Full assist", "Hand over hand", "Dependent"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during grooming support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Hesitant", "Distracted", "Withdrawn", "Refused initially", "Re-engaged", "Cooperative", "Resistant"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Tolerated well", "Tolerated with support", "Required repeated prompting", "Accepted redirection", "Demonstrated discomfort", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "risks_and_protocols",
+        "label": "Which risks or protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Skin integrity concern", "Infection control precautions", "Behavior support plan active", "Sensitive oral care", "None"]
+      },
+      {
+        "id": "task_observations",
+        "label": "Were any grooming-related observations noted?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["No unusual finding", "Skin irritation", "Oral discomfort", "Minor bleeding concern", "Refusal or guarding", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "task_observations_other" }]
+      },
+      {
+        "id": "task_observations_other",
+        "label": "Describe the grooming-related observation.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "task_observations", "value": "Other" }
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Pain reported", "Supervisor notification needed", "Nurse notification needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra grooming note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "grooming_skin_trigger",
+        "whenAnySelected": ["Skin irritation", "Minor bleeding concern"],
+        "sourceQuestionId": "task_observations",
+        "flag": "skin_concern",
+        "severity": "medium",
+        "requiredEscalations": ["Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must mention the grooming-related skin or bleeding concern and the follow-up taken."
+      },
+      {
+        "id": "grooming_oral_trigger",
+        "whenAnySelected": ["Oral discomfort"],
+        "sourceQuestionId": "task_observations",
+        "flag": "oral_care_concern",
+        "severity": "medium",
+        "requiredEscalations": ["Nurse notification needed", "Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must mention the oral-care concern, observed response, and required nurse or supervisor follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": {
+      "structuredAnswers": true,
+      "carePlanRow": true,
+      "shiftContext": true,
+      "runtimeAlerts": true,
+      "supervisorInstructions": true
+    },
+    "compositionOrder": ["task and support rendered", "assistance and cueing", "engagement and observed response", "risks and protocols followed", "task observations", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "stable": { "style": "calm, routine, non-escalatory", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the grooming support rendered, assist level, cueing, and observed response.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "skin_concern": {
+        "mustMention": ["grooming-related skin concern", "staff response", "follow-up required"],
+        "toneOverride": "concern_heavy"
+      },
+      "oral_care_concern": {
+        "mustMention": ["oral-care concern", "staff response", "nurse or supervisor follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "assistance_level", "observed_response"],
+      "optionalSections": ["task_observations", "follow_up"]
+    }
+  }
+}

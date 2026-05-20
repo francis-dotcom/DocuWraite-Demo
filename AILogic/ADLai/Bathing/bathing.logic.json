@@ -1,0 +1,198 @@
+{
+  "workflowId": "adl-bathing",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "ADL",
+    "task": "Bathing",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing bathing note using structured answers, care-plan context, and safety escalation rules.",
+    "documentationGoals": [
+      "Capture the bathing support rendered and task setup",
+      "Capture assistance level, prompt level, and engagement",
+      "Capture transfer and safety precautions used during bathing",
+      "Generate a concise but defensible bathing narrative"
+    ],
+    "requiredCarePlanContext": [
+      "bathing_baseline",
+      "bathing_assistance_level",
+      "bathing_prompt_level",
+      "transfer_support_level",
+      "fall_risk_status",
+      "skin_integrity_risk",
+      "bathing_safety_protocols",
+      "supervision_requirements"
+    ],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["fall risk", "skin integrity", "privacy", "behavioral refusal"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "bathing_task_type",
+      "outcome",
+      "assistance_level",
+      "engagement",
+      "observed_response",
+      "risks_and_protocols",
+      "clinical_observations",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "bathing_task_type",
+        "label": "What bathing support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Shower", "Tub bath", "Bath setup", "Hair washing", "Skin care during bath", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "bathing_task_type_other" }]
+      },
+      {
+        "id": "bathing_task_type_other",
+        "label": "Describe the bathing task.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "bathing_task_type", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Not completed", "Interrupted", "Safety prevented completion"]
+      },
+      {
+        "id": "assistance_level",
+        "label": "What assistance level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Independent", "Verbal prompt", "Standby assist", "Partial assist", "Full assist", "Two-person assist", "Dependent"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during bathing support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Hesitant", "Distracted", "Withdrawn", "Refused initially", "Re-engaged", "Cooperative", "Resistant"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Tolerated well", "Tolerated with support", "Required repeated prompting", "Accepted redirection", "Demonstrated discomfort", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "risks_and_protocols",
+        "label": "Which risks or protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Fall risk", "Gait belt required", "Two-person transfer required", "Bath chair required", "Privacy support", "Skin breakdown risk", "Behavior support plan active", "None"]
+      },
+      {
+        "id": "clinical_observations",
+        "label": "Were any bathing-related observations noted?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["No unusual finding", "Skin redness", "Skin breakdown concern", "Unsafe balance", "Dizziness or weakness", "Pain with bathing", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "clinical_observations_other" }]
+      },
+      {
+        "id": "clinical_observations_other",
+        "label": "Describe the bathing-related observation.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "clinical_observations", "value": "Other" }
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Pain reported", "Change in baseline", "Nurse notification needed", "Supervisor notification needed", "Incident follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra bathing note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "bathing_skin_concern_trigger",
+        "whenAnySelected": ["Skin redness", "Skin breakdown concern"],
+        "sourceQuestionId": "clinical_observations",
+        "flag": "skin_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must explicitly mention the bathing-related skin concern, staff response, and that supervisor follow-up is required."
+      },
+      {
+        "id": "bathing_fall_safety_trigger",
+        "whenAnySelected": ["Unsafe balance", "Dizziness or weakness"],
+        "sourceQuestionId": "clinical_observations",
+        "flag": "fall_safety_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed", "Incident follow-up needed"],
+        "requiredNoteDirective": "The generated note must explicitly mention the safety concern during bathing, precautions used, and required follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": {
+      "structuredAnswers": true,
+      "carePlanRow": true,
+      "shiftContext": true,
+      "runtimeAlerts": true,
+      "supervisorInstructions": true
+    },
+    "compositionOrder": [
+      "task and setup",
+      "assistance and prompting",
+      "engagement and observed response",
+      "risks and protocols followed",
+      "clinical observations",
+      "alerts and follow-up"
+    ],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "stable": { "style": "calm, routine, non-escalatory", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the bathing support rendered, prompt or assist level, observed response, and any relevant precautions.",
+      "If a safety flag is active, elevate it in the note and include required escalation language.",
+      "If no unusual findings are present, avoid overdramatizing the note."
+    ],
+    "safetyFlagDirectives": {
+      "skin_concern": {
+        "mustMention": ["skin concern observed during bathing support", "staff response", "supervisor follow-up required"],
+        "toneOverride": "concern_heavy"
+      },
+      "fall_safety_concern": {
+        "mustMention": ["safety concern during bathing", "precautions used", "follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "assistance_level", "observed_response"],
+      "optionalSections": ["clinical_observations", "follow_up"]
+    }
+  }
+}

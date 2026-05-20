@@ -20,10 +20,11 @@
     "requiredCarePlanContext": [
       "toileting_baseline",
       "continence_support_level",
+      "toileting_assistance_level",
       "transfer_support_level",
       "skin_integrity_risk",
       "uti_history_or_risk",
-      "behavior_support_plan",
+      "behavior_support_notes",
       "mobility_precautions",
       "supervision_requirements"
     ],

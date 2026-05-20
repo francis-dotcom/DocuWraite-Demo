@@ -1,0 +1,188 @@
+{
+  "workflowId": "adl-transfers",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "ADL",
+    "task": "Transfers",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing transfer note using structured answers, care-plan context, and safety escalation rules.",
+    "documentationGoals": [
+      "Capture the transfer support rendered",
+      "Capture assistance level, equipment use, and observed tolerance",
+      "Capture transfer-related safety concerns and follow-up needs",
+      "Generate a concise but defensible transfer narrative"
+    ],
+    "requiredCarePlanContext": [
+      "transfers_baseline",
+      "transfer_support_level",
+      "transfer_assistance_level",
+      "supervision_requirements",
+      "fall_risk_status",
+      "mobility_precautions"
+    ],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["fall risk", "pain", "injury risk", "equipment use"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "transfer_task_type",
+      "outcome",
+      "assistance_level",
+      "engagement",
+      "observed_response",
+      "risks_and_protocols",
+      "task_observations",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "transfer_task_type",
+        "label": "What transfer support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Bed to chair", "Chair to toilet", "Standing transfer", "Wheelchair transfer", "Repositioning transfer", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "transfer_task_type_other" }]
+      },
+      {
+        "id": "transfer_task_type_other",
+        "label": "Describe the transfer task.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "transfer_task_type", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Safety prevented completion", "Incident occurred", "Not completed"]
+      },
+      {
+        "id": "assistance_level",
+        "label": "What assistance level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Independent", "Standby assist", "Supervision only", "Verbal prompt", "Partial assist", "Full assist", "Two-person assist", "Dependent"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during transfer support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Hesitant", "Distracted", "Withdrawn", "Refused initially", "Re-engaged", "Cooperative", "Resistant"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Tolerated well", "Tolerated with support", "Required repeated cueing", "Accepted redirection", "Demonstrated discomfort", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "risks_and_protocols",
+        "label": "Which risks or protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Fall risk", "Gait belt required", "Two-person transfer required", "Assistive device required", "Wheelchair safety protocol", "None"]
+      },
+      {
+        "id": "task_observations",
+        "label": "Were any transfer-related observations noted?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["No unusual finding", "Unsafe balance", "Pain with transfer", "Weakness or fatigue", "Near fall concern", "Equipment difficulty", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "task_observations_other" }]
+      },
+      {
+        "id": "task_observations_other",
+        "label": "Describe the transfer-related observation.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "task_observations", "value": "Other" }
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Pain reported", "Change in baseline", "Nurse notification needed", "Supervisor notification needed", "Incident follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra transfer note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "transfer_fall_trigger",
+        "whenAnySelected": ["Unsafe balance", "Near fall concern"],
+        "sourceQuestionId": "task_observations",
+        "flag": "fall_safety_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed", "Incident follow-up needed"],
+        "requiredNoteDirective": "The generated note must explicitly mention the transfer safety concern, precautions used, and required follow-up."
+      },
+      {
+        "id": "transfer_pain_trigger",
+        "whenAnySelected": ["Pain with transfer", "Weakness or fatigue"],
+        "sourceQuestionId": "task_observations",
+        "flag": "transfer_tolerance_concern",
+        "severity": "high",
+        "requiredEscalations": ["Nurse notification needed", "Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must explicitly mention the transfer-related pain or tolerance concern and required nurse or supervisor follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": {
+      "structuredAnswers": true,
+      "carePlanRow": true,
+      "shiftContext": true,
+      "runtimeAlerts": true,
+      "supervisorInstructions": true
+    },
+    "compositionOrder": ["task and support rendered", "assistance and equipment", "engagement and observed response", "risks and protocols followed", "task observations", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "stable": { "style": "calm, routine, non-escalatory", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the transfer support rendered, assist level, equipment or protocol use, and observed response.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "fall_safety_concern": {
+        "mustMention": ["transfer-related safety concern", "precautions used", "follow-up required"],
+        "toneOverride": "concern_heavy"
+      },
+      "transfer_tolerance_concern": {
+        "mustMention": ["transfer-related pain or tolerance concern", "staff response", "nurse or supervisor follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "assistance_level", "observed_response"],
+      "optionalSections": ["task_observations", "follow_up"]
+    }
+  }
+}

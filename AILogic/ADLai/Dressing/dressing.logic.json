@@ -1,0 +1,176 @@
+{
+  "workflowId": "adl-dressing",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "ADL",
+    "task": "Dressing",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing dressing note using structured answers, care-plan context, and safety escalation rules.",
+    "documentationGoals": [
+      "Capture the dressing support provided",
+      "Capture prompting, assistance, and sequencing support",
+      "Capture safety concerns related to standing balance or clothing selection",
+      "Generate a concise but defensible dressing narrative"
+    ],
+    "requiredCarePlanContext": [
+      "dressing_baseline",
+      "dressing_assistance_level",
+      "dressing_prompt_level",
+      "clothing_selection_support",
+      "supervision_requirements",
+      "fall_risk_status",
+      "adl_behavior_support_notes"
+    ],
+    "regulatoryRiskLevel": "medium",
+    "clinicalSensitivity": ["fall risk", "behavioral refusal", "baseline change"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "dressing_task_type",
+      "outcome",
+      "assistance_level",
+      "engagement",
+      "observed_response",
+      "risks_and_protocols",
+      "task_observations",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "dressing_task_type",
+        "label": "What dressing support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Upper-body dressing", "Lower-body dressing", "Clothing selection", "Fastener support", "Weather-appropriate dressing", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "dressing_task_type_other" }]
+      },
+      {
+        "id": "dressing_task_type_other",
+        "label": "Describe the dressing task.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "dressing_task_type", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Not completed", "Safety prevented completion", "Not needed"]
+      },
+      {
+        "id": "assistance_level",
+        "label": "What assistance level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Independent", "Verbal prompt", "Standby assist", "Partial assist", "Full assist", "Hand over hand", "Dependent"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during dressing support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Hesitant", "Distracted", "Withdrawn", "Refused initially", "Re-engaged", "Cooperative", "Resistant"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Tolerated well", "Tolerated with support", "Required repeated prompting", "Accepted redirection", "Needed step-by-step cueing", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "risks_and_protocols",
+        "label": "Which risks or protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Fall risk", "Standing balance support", "Adaptive equipment used", "Privacy support", "Behavior support plan active", "None"]
+      },
+      {
+        "id": "task_observations",
+        "label": "Were any dressing-related observations noted?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["No unusual finding", "Trouble with sequencing", "Difficulty with fasteners", "Unsafe balance", "Clothing refusal", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "task_observations_other" }]
+      },
+      {
+        "id": "task_observations_other",
+        "label": "Describe the dressing-related observation.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "task_observations", "value": "Other" }
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Change in baseline", "Supervisor notification needed", "Incident follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra dressing note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "dressing_balance_trigger",
+        "whenAnySelected": ["Unsafe balance"],
+        "sourceQuestionId": "task_observations",
+        "flag": "fall_safety_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must explicitly mention the dressing-related balance concern, support provided, and that follow-up is required."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": {
+      "structuredAnswers": true,
+      "carePlanRow": true,
+      "shiftContext": true,
+      "runtimeAlerts": true,
+      "supervisorInstructions": true
+    },
+    "compositionOrder": ["task and support rendered", "assistance and cueing", "engagement and observed response", "risks and protocols followed", "task observations", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "stable": { "style": "calm, routine, non-escalatory", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the dressing support rendered, assist level, cueing, and observed response.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "fall_safety_concern": {
+        "mustMention": ["balance concern during dressing support", "staff response", "follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "assistance_level", "observed_response"],
+      "optionalSections": ["task_observations", "follow_up"]
+    }
+  }
+}

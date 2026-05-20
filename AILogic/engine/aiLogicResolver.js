@@ -1,10 +1,50 @@
-const fs = require("fs");
-const path = require("path");
-
-const AI_LOGIC_ROOT = path.resolve(__dirname, "..");
+const bathingLogic = require("../ADLai/Bathing/bathing.logic.json");
+const dressingLogic = require("../ADLai/Dressing/dressing.logic.json");
+const groomingLogic = require("../ADLai/Grooming/grooming.logic.json");
+const hygieneLogic = require("../ADLai/Hygiene/hygiene.logic.json");
+const toiletingLogic = require("../ADLai/Toileting/toileting.logic.json");
+const transfersLogic = require("../ADLai/Transfers/transfers.logic.json");
 
 const WORKFLOW_TASK_FILE_MAP = {
-  "adl:toileting": path.join(AI_LOGIC_ROOT, "ADLai", "Toileting", "toileting.logic.json"),
+  "adl:bathing": "adl:bathing",
+  "adl:dressing": "adl:dressing",
+  "adl:grooming": "adl:grooming",
+  "adl:hygiene": "adl:hygiene",
+  "adl:toileting": "adl:toileting",
+  "adl:transfers": "adl:transfers",
+};
+
+const AI_LOGIC_REGISTRY = {
+  "adl:bathing": {
+    key: "adl:bathing",
+    source: "AILogic/ADLai/Bathing/bathing.logic.json",
+    raw: bathingLogic,
+  },
+  "adl:dressing": {
+    key: "adl:dressing",
+    source: "AILogic/ADLai/Dressing/dressing.logic.json",
+    raw: dressingLogic,
+  },
+  "adl:grooming": {
+    key: "adl:grooming",
+    source: "AILogic/ADLai/Grooming/grooming.logic.json",
+    raw: groomingLogic,
+  },
+  "adl:hygiene": {
+    key: "adl:hygiene",
+    source: "AILogic/ADLai/Hygiene/hygiene.logic.json",
+    raw: hygieneLogic,
+  },
+  "adl:toileting": {
+    key: "adl:toileting",
+    source: "AILogic/ADLai/Toileting/toileting.logic.json",
+    raw: toiletingLogic,
+  },
+  "adl:transfers": {
+    key: "adl:transfers",
+    source: "AILogic/ADLai/Transfers/transfers.logic.json",
+    raw: transfersLogic,
+  },
 };
 
 function normalizeKeyPart(value = "") {
@@ -36,11 +76,11 @@ function resolveAiLogicPath({ category = "", task = "", workflowId = "", fieldCo
 }
 
 function aiLogicExists(logicPath = "") {
-  return Boolean(logicPath) && fs.existsSync(logicPath);
+  return Boolean(logicPath) && Boolean(AI_LOGIC_REGISTRY[logicPath]);
 }
 
 module.exports = {
-  AI_LOGIC_ROOT,
+  AI_LOGIC_REGISTRY,
   WORKFLOW_TASK_FILE_MAP,
   resolveAiLogicPath,
   aiLogicExists,

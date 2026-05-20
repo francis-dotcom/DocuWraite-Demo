@@ -415,6 +415,363 @@
       "description": "Escalation requirements when UTI-related signs or urinary concerns are observed.",
       "data_type": "string",
       "tags": ["#toileting", "#uti-risk", "#escalation"]
+    },
+    {
+      "context_key": "adl_behavior_support_notes",
+      "label": "ADL Behavior Support Notes",
+      "description": "Behavioral support notes that affect ADL participation, cooperation, refusal response, or redirection.",
+      "data_type": "string",
+      "tags": ["#adl", "#behavior-support", "#overlay"]
+    },
+    {
+      "context_key": "adl_behavior_support_plan_status",
+      "label": "ADL Behavior Support Plan Status",
+      "description": "Whether a behavior support plan is active and relevant to ADL support.",
+      "data_type": "string",
+      "tags": ["#adl", "#behavior-support", "#plan-status"]
+    },
+    {
+      "context_key": "adl_preferred_prompting_style",
+      "label": "ADL Preferred Prompting Style",
+      "description": "The cueing or prompting style that best supports ADL participation.",
+      "data_type": "string",
+      "tags": ["#adl", "#prompting", "#preferences"]
+    },
+    {
+      "context_key": "adl_privacy_preferences",
+      "label": "ADL Privacy Preferences",
+      "description": "Documented privacy preferences that should be respected during ADL support.",
+      "data_type": "string",
+      "tags": ["#adl", "#privacy", "#preferences"]
+    },
+    {
+      "context_key": "adl_gender_or_staffing_preference",
+      "label": "ADL Gender or Staffing Preference",
+      "description": "Any staffing preference or accommodation that should be respected during ADL support.",
+      "data_type": "string",
+      "tags": ["#adl", "#privacy", "#staffing"]
+    },
+    {
+      "context_key": "adl_communication_support_needed",
+      "label": "ADL Communication Support Needed",
+      "description": "Communication accommodations needed during ADL support.",
+      "data_type": "string",
+      "tags": ["#adl", "#communication", "#support"]
+    },
+    {
+      "context_key": "adl_adaptive_equipment_preferences",
+      "label": "ADL Adaptive Equipment Preferences",
+      "description": "Preferred adaptive supports or equipment used during ADL support.",
+      "data_type": "string",
+      "tags": ["#adl", "#equipment", "#preferences"]
+    },
+    {
+      "context_key": "adl_supervisor_notification_threshold",
+      "label": "ADL Supervisor Notification Threshold",
+      "description": "What ADL-related changes or concerns require supervisor notification.",
+      "data_type": "string",
+      "tags": ["#adl", "#escalation", "#supervisor"]
+    },
+    {
+      "context_key": "adl_nurse_notification_threshold",
+      "label": "ADL Nurse Notification Threshold",
+      "description": "What ADL-related clinical concerns require nurse notification.",
+      "data_type": "string",
+      "tags": ["#adl", "#escalation", "#nurse"]
+    },
+    {
+      "context_key": "adl_incident_reporting_threshold",
+      "label": "ADL Incident Reporting Threshold",
+      "description": "What ADL-related events should trigger incident documentation or reporting.",
+      "data_type": "string",
+      "tags": ["#adl", "#escalation", "#incident"]
+    },
+    {
+      "context_key": "adl_change_in_baseline_reporting_rule",
+      "label": "ADL Change in Baseline Reporting Rule",
+      "description": "How changes from ADL baseline should be documented or escalated.",
+      "data_type": "string",
+      "tags": ["#adl", "#escalation", "#baseline"]
+    },
+    {
+      "context_key": "bathing_baseline",
+      "label": "Bathing Baseline",
+      "description": "The person's usual bathing routine, participation level, and support presentation.",
+      "data_type": "string",
+      "tags": ["#adl", "#bathing", "#baseline"]
+    },
+    {
+      "context_key": "bathing_assistance_level",
+      "label": "Bathing Assistance Level",
+      "description": "The expected assistance level during bathing support.",
+      "data_type": "string",
+      "tags": ["#adl", "#bathing", "#assistance"]
+    },
+    {
+      "context_key": "bathing_prompt_level",
+      "label": "Bathing Prompt Level",
+      "description": "The usual prompt intensity needed for bathing participation.",
+      "data_type": "string",
+      "tags": ["#adl", "#bathing", "#prompting"]
+    },
+    {
+      "context_key": "bathing_setup_support",
+      "label": "Bathing Setup Support",
+      "description": "Support needed to set up the bathing environment, supplies, or sequencing.",
+      "data_type": "string",
+      "tags": ["#adl", "#bathing", "#setup"]
+    },
+    {
+      "context_key": "shower_or_tub_preference",
+      "label": "Shower or Tub Preference",
+      "description": "The person's preferred bathing method or bathing environment.",
+      "data_type": "string",
+      "tags": ["#adl", "#bathing", "#preferences"]
+    },
+    {
+      "context_key": "water_temperature_precautions",
+      "label": "Water Temperature Precautions",
+      "description": "Water temperature limits or checks required for safe bathing support.",
+      "data_type": "string",
+      "tags": ["#adl", "#bathing", "#safety"]
+    },
+    {
+      "context_key": "shower_bench_or_bath_chair_required",
+      "label": "Shower Bench or Bath Chair Required",
+      "description": "Whether a shower bench, bath chair, or similar seated support is required.",
+      "data_type": "boolean",
+      "tags": ["#adl", "#bathing", "#equipment", "#protocol"]
+    },
+    {
+      "context_key": "non_slip_footwear_required",
+      "label": "Non-Slip Footwear Required",
+      "description": "Whether non-slip footwear or similar bath safety support is required.",
+      "data_type": "boolean",
+      "tags": ["#adl", "#bathing", "#safety", "#protocol"]
+    },
+    {
+      "context_key": "bathing_safety_protocols",
+      "label": "Bathing Safety Protocols",
+      "description": "Specific bathing-related safety procedures or precautions that apply.",
+      "data_type": "string",
+      "tags": ["#adl", "#bathing", "#safety", "#protocol"]
+    },
+    {
+      "context_key": "dressing_baseline",
+      "label": "Dressing Baseline",
+      "description": "The person's usual dressing routine, independence level, and support needs.",
+      "data_type": "string",
+      "tags": ["#adl", "#dressing", "#baseline"]
+    },
+    {
+      "context_key": "dressing_assistance_level",
+      "label": "Dressing Assistance Level",
+      "description": "The expected assistance level during dressing support.",
+      "data_type": "string",
+      "tags": ["#adl", "#dressing", "#assistance"]
+    },
+    {
+      "context_key": "dressing_prompt_level",
+      "label": "Dressing Prompt Level",
+      "description": "The usual prompt intensity needed for dressing participation.",
+      "data_type": "string",
+      "tags": ["#adl", "#dressing", "#prompting"]
+    },
+    {
+      "context_key": "clothing_selection_support",
+      "label": "Clothing Selection Support",
+      "description": "Support needed to choose appropriate clothing for the day, weather, or activity.",
+      "data_type": "string",
+      "tags": ["#adl", "#dressing", "#selection"]
+    },
+    {
+      "context_key": "dressing_sequence_support",
+      "label": "Dressing Sequence Support",
+      "description": "Support needed to sequence dressing steps correctly.",
+      "data_type": "string",
+      "tags": ["#adl", "#dressing", "#sequencing"]
+    },
+    {
+      "context_key": "fastener_support",
+      "label": "Fastener Support",
+      "description": "Support needed for buttons, zippers, snaps, ties, or similar fasteners.",
+      "data_type": "string",
+      "tags": ["#adl", "#dressing", "#fine-motor"]
+    },
+    {
+      "context_key": "weather_appropriate_clothing_support",
+      "label": "Weather Appropriate Clothing Support",
+      "description": "Support needed to choose clothing appropriate for weather, temperature, or outing context.",
+      "data_type": "string",
+      "tags": ["#adl", "#dressing", "#safety"]
+    },
+    {
+      "context_key": "standing_balance_support",
+      "label": "Standing Balance Support",
+      "description": "Support needed for safe standing balance during dressing or related ADLs.",
+      "data_type": "string",
+      "tags": ["#adl", "#mobility", "#balance"]
+    },
+    {
+      "context_key": "grooming_baseline",
+      "label": "Grooming Baseline",
+      "description": "The person's usual grooming routine, presentation, and support needs.",
+      "data_type": "string",
+      "tags": ["#adl", "#grooming", "#baseline"]
+    },
+    {
+      "context_key": "grooming_assistance_level",
+      "label": "Grooming Assistance Level",
+      "description": "The expected assistance level during grooming support.",
+      "data_type": "string",
+      "tags": ["#adl", "#grooming", "#assistance"]
+    },
+    {
+      "context_key": "grooming_prompt_level",
+      "label": "Grooming Prompt Level",
+      "description": "The usual prompt intensity needed for grooming participation.",
+      "data_type": "string",
+      "tags": ["#adl", "#grooming", "#prompting"]
+    },
+    {
+      "context_key": "oral_care_support",
+      "label": "Oral Care Support",
+      "description": "Support needed for brushing teeth, denture care, rinsing, or other oral hygiene tasks.",
+      "data_type": "string",
+      "tags": ["#adl", "#grooming", "#oral-care"]
+    },
+    {
+      "context_key": "hair_care_support",
+      "label": "Hair Care Support",
+      "description": "Support needed for brushing, combing, styling, or washing hair as part of grooming.",
+      "data_type": "string",
+      "tags": ["#adl", "#grooming", "#hair-care"]
+    },
+    {
+      "context_key": "shaving_support",
+      "label": "Shaving Support",
+      "description": "Support needed for shaving or other facial grooming tasks.",
+      "data_type": "string",
+      "tags": ["#adl", "#grooming", "#shaving"]
+    },
+    {
+      "context_key": "nail_care_precautions",
+      "label": "Nail Care Precautions",
+      "description": "Precautions or limits related to nail care, clipping, or skin safety during grooming.",
+      "data_type": "string",
+      "tags": ["#adl", "#grooming", "#precautions"]
+    },
+    {
+      "context_key": "grooming_sensory_preferences",
+      "label": "Grooming Sensory Preferences",
+      "description": "Sensory preferences or aversions that affect grooming support.",
+      "data_type": "string",
+      "tags": ["#adl", "#grooming", "#sensory", "#preferences"]
+    },
+    {
+      "context_key": "hygiene_baseline",
+      "label": "Hygiene Baseline",
+      "description": "The person's usual hygiene routine, participation level, and expected support needs.",
+      "data_type": "string",
+      "tags": ["#adl", "#hygiene", "#baseline"]
+    },
+    {
+      "context_key": "hygiene_assistance_level",
+      "label": "Hygiene Assistance Level",
+      "description": "The expected assistance level during routine hygiene support.",
+      "data_type": "string",
+      "tags": ["#adl", "#hygiene", "#assistance"]
+    },
+    {
+      "context_key": "hygiene_prompt_level",
+      "label": "Hygiene Prompt Level",
+      "description": "The usual prompt intensity needed for hygiene participation.",
+      "data_type": "string",
+      "tags": ["#adl", "#hygiene", "#prompting"]
+    },
+    {
+      "context_key": "handwashing_support",
+      "label": "Handwashing Support",
+      "description": "Support needed for handwashing, soap use, rinsing, and drying.",
+      "data_type": "string",
+      "tags": ["#adl", "#hygiene", "#handwashing"]
+    },
+    {
+      "context_key": "face_washing_support",
+      "label": "Face Washing Support",
+      "description": "Support needed for face washing and related hygiene care.",
+      "data_type": "string",
+      "tags": ["#adl", "#hygiene", "#face-washing"]
+    },
+    {
+      "context_key": "oral_hygiene_support",
+      "label": "Oral Hygiene Support",
+      "description": "Support needed for oral hygiene as part of daily hygiene routines.",
+      "data_type": "string",
+      "tags": ["#adl", "#hygiene", "#oral-hygiene"]
+    },
+    {
+      "context_key": "deodorant_or_personal_care_support",
+      "label": "Deodorant or Personal Care Support",
+      "description": "Support needed for deodorant use or other personal hygiene products.",
+      "data_type": "string",
+      "tags": ["#adl", "#hygiene", "#personal-care"]
+    },
+    {
+      "context_key": "hygiene_supplies_setup",
+      "label": "Hygiene Supplies Setup",
+      "description": "Support needed to gather, stage, or organize hygiene supplies.",
+      "data_type": "string",
+      "tags": ["#adl", "#hygiene", "#setup"]
+    },
+    {
+      "context_key": "transfers_baseline",
+      "label": "Transfers Baseline",
+      "description": "The person's usual transfer ability, transfer routine, and expected support needs.",
+      "data_type": "string",
+      "tags": ["#adl", "#transfers", "#baseline"]
+    },
+    {
+      "context_key": "transfer_assistance_level",
+      "label": "Transfer Assistance Level",
+      "description": "The expected assistance level during transfer support.",
+      "data_type": "string",
+      "tags": ["#adl", "#transfers", "#assistance"]
+    },
+    {
+      "context_key": "weight_bearing_status",
+      "label": "Weight Bearing Status",
+      "description": "Any documented weight-bearing limitation or instruction relevant to transfers.",
+      "data_type": "string",
+      "tags": ["#adl", "#transfers", "#clinical"]
+    },
+    {
+      "context_key": "transfer_surface_setup",
+      "label": "Transfer Surface Setup",
+      "description": "How transfer surfaces or environments should be positioned or prepared for safe transfers.",
+      "data_type": "string",
+      "tags": ["#adl", "#transfers", "#setup"]
+    },
+    {
+      "context_key": "transfer_safety_protocols",
+      "label": "Transfer Safety Protocols",
+      "description": "Specific transfer-related safety procedures or precautions that apply.",
+      "data_type": "string",
+      "tags": ["#adl", "#transfers", "#safety", "#protocol"]
+    },
+    {
+      "context_key": "pain_with_transfers_history",
+      "label": "Pain With Transfers History",
+      "description": "Known history of discomfort, pain, or guarding during transfers.",
+      "data_type": "string",
+      "tags": ["#adl", "#transfers", "#pain"]
+    },
+    {
+      "context_key": "injury_risk_during_transfers",
+      "label": "Injury Risk During Transfers",
+      "description": "Any documented risk of injury associated with transfers or transfer setup.",
+      "data_type": "string",
+      "tags": ["#adl", "#transfers", "#risk"]
     }
   ]
 }

@@ -1,5 +1,4 @@
-const fs = require("fs");
-const path = require("path");
+const { AI_LOGIC_REGISTRY } = require("./aiLogicResolver");
 
 const REQUIRED_LAYERS = [
   "layer1_categoryMetadata",
@@ -14,32 +13,26 @@ function ensure(condition, message) {
 }
 
 function loadAiLogic(logicFilePath) {
-  const resolvedPath = path.resolve(logicFilePath);
-  ensure(fs.existsSync(resolvedPath), `AI logic file not found: ${resolvedPath}`);
+  const entry = AI_LOGIC_REGISTRY[logicFilePath];
+  ensure(entry, `AI logic file not found: ${logicFilePath}`);
 
-  const raw = fs.readFileSync(resolvedPath, "utf8");
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(`Failed to parse AI logic JSON at ${resolvedPath}: ${error.message}`);
-  }
-
-  REQUIRED_LAYERS.forEach((layer) => ensure(parsed[layer], `Missing required layer "${layer}" in ${resolvedPath}`));
+  const parsed = entry.raw;
+  REQUIRED_LAYERS.forEach((layer) => ensure(parsed[layer], `Missing required layer "${layer}" in ${entry.source}`));
 
   const rules = parsed.layer2_questionRules || {};
   const sequence = Array.isArray(rules.sequence) ? rules.sequence : [];
   const questions = Array.isArray(rules.questions) ? rules.questions : [];
-  ensure(sequence.length > 0, `Missing question sequence in ${resolvedPath}`);
-  ensure(questions.length > 0, `Missing question definitions in ${resolvedPath}`);
+  ensure(sequence.length > 0, `Missing question sequence in ${entry.source}`);
+  ensure(questions.length > 0, `Missing question definitions in ${entry.source}`);
 
   const questionsById = Object.fromEntries(questions.map((question) => [question.id, question]));
   sequence.forEach((questionId) =>
-    ensure(questionsById[questionId], `Question sequence references unknown id "${questionId}" in ${resolvedPath}`)
+    ensure(questionsById[questionId], `Question sequence references unknown id "${questionId}" in ${entry.source}`)
   );
 
   return {
-    path: resolvedPath,
+    path: entry.key,
+    source: entry.source,
     raw: parsed,
     meta: parsed.layer1_categoryMetadata,
     rules: {

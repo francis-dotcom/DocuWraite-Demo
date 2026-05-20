@@ -1,8 +1,43 @@
 {
   "registryName": "Workflow Context Requirements",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "format": "workflow-context-requirements",
   "workflows": {
+    "#bathing": {
+      "label": "Bathing",
+      "required_keys": [
+        "bathing_baseline",
+        "bathing_assistance_level",
+        "bathing_prompt_level",
+        "transfer_support_level",
+        "supervision_requirements",
+        "fall_risk_status",
+        "skin_integrity_risk",
+        "bathing_safety_protocols"
+      ],
+      "optional_keys": [
+        "bathing_setup_support",
+        "shower_or_tub_preference",
+        "water_temperature_precautions",
+        "shower_bench_or_bath_chair_required",
+        "non_slip_footwear_required",
+        "adl_behavior_support_notes",
+        "adl_behavior_support_plan_status",
+        "mobility_precautions",
+        "gait_belt_required",
+        "two_person_transfer_required",
+        "adl_preferred_prompting_style",
+        "adl_privacy_preferences",
+        "adl_gender_or_staffing_preference",
+        "adl_adaptive_equipment_preferences",
+        "skin_check_required",
+        "adl_supervisor_notification_threshold",
+        "adl_nurse_notification_threshold",
+        "adl_incident_reporting_threshold",
+        "adl_change_in_baseline_reporting_rule",
+        "skin_issue_escalation_rule"
+      ]
+    },
     "#toileting": {
       "label": "Toileting",
       "required_keys": [
@@ -65,6 +100,114 @@
         "change_in_baseline_reporting_rule",
         "skin_issue_escalation_rule",
         "uti_sign_escalation_rule"
+      ]
+    },
+    "#dressing": {
+      "label": "Dressing",
+      "required_keys": [
+        "dressing_baseline",
+        "dressing_assistance_level",
+        "dressing_prompt_level",
+        "clothing_selection_support",
+        "supervision_requirements",
+        "fall_risk_status",
+        "adl_behavior_support_notes"
+      ],
+      "optional_keys": [
+        "dressing_sequence_support",
+        "fastener_support",
+        "weather_appropriate_clothing_support",
+        "standing_balance_support",
+        "transfer_support_level",
+        "adl_preferred_prompting_style",
+        "adl_privacy_preferences",
+        "adl_gender_or_staffing_preference",
+        "adl_adaptive_equipment_preferences",
+        "mobility_precautions",
+        "adl_behavior_support_plan_status",
+        "adl_supervisor_notification_threshold",
+        "adl_change_in_baseline_reporting_rule"
+      ]
+    },
+    "#grooming": {
+      "label": "Grooming",
+      "required_keys": [
+        "grooming_baseline",
+        "grooming_assistance_level",
+        "grooming_prompt_level",
+        "supervision_requirements",
+        "adl_behavior_support_notes"
+      ],
+      "optional_keys": [
+        "oral_care_support",
+        "hair_care_support",
+        "shaving_support",
+        "nail_care_precautions",
+        "skin_integrity_risk",
+        "infection_control_precautions",
+        "adl_preferred_prompting_style",
+        "adl_communication_support_needed",
+        "grooming_sensory_preferences",
+        "adl_behavior_support_plan_status",
+        "adl_supervisor_notification_threshold",
+        "adl_change_in_baseline_reporting_rule"
+      ]
+    },
+    "#hygiene": {
+      "label": "Hygiene",
+      "required_keys": [
+        "hygiene_baseline",
+        "hygiene_assistance_level",
+        "hygiene_prompt_level",
+        "supervision_requirements",
+        "infection_control_precautions"
+      ],
+      "optional_keys": [
+        "handwashing_support",
+        "face_washing_support",
+        "oral_hygiene_support",
+        "deodorant_or_personal_care_support",
+        "hygiene_supplies_setup",
+        "adl_behavior_support_notes",
+        "adl_behavior_support_plan_status",
+        "adl_preferred_prompting_style",
+        "adl_communication_support_needed",
+        "skin_integrity_risk",
+        "universal_precautions_required",
+        "adl_privacy_preferences",
+        "adl_gender_or_staffing_preference",
+        "adl_supervisor_notification_threshold",
+        "adl_change_in_baseline_reporting_rule"
+      ]
+    },
+    "#transfers": {
+      "label": "Transfers",
+      "required_keys": [
+        "transfers_baseline",
+        "transfer_support_level",
+        "transfer_assistance_level",
+        "supervision_requirements",
+        "fall_risk_status",
+        "mobility_precautions"
+      ],
+      "optional_keys": [
+        "gait_belt_required",
+        "two_person_transfer_required",
+        "assistive_device_required",
+        "wheelchair_use",
+        "weight_bearing_status",
+        "positioning_support",
+        "standing_balance_support",
+        "transfer_surface_setup",
+        "transfer_safety_protocols",
+        "pain_with_transfers_history",
+        "injury_risk_during_transfers",
+        "adl_behavior_support_notes",
+        "adl_behavior_support_plan_status",
+        "adl_supervisor_notification_threshold",
+        "adl_nurse_notification_threshold",
+        "adl_incident_reporting_threshold",
+        "adl_change_in_baseline_reporting_rule"
       ]
     }
   }

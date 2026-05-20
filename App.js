@@ -104,7 +104,12 @@ const documentationCoordinationRuntimeMap = require("./decisionAlgo/documentatio
 const moduleCatalog = require("./decisionAlgo/moduleCatalog.json");
 const ruleMappingTable = require("./decisionAlgo/ruleMappingTable.json");
 const noteOutputTemplate = require("./decisionAlgo/noteOutputTemplate.json");
+const bPhaganBathingContext = require("./AILogic/clientContexts/BPhagan.bathingContext.json");
+const bPhaganDressingContext = require("./AILogic/clientContexts/BPhagan.dressingContext.json");
+const bPhaganGroomingContext = require("./AILogic/clientContexts/BPhagan.groomingContext.json");
+const bPhaganHygieneContext = require("./AILogic/clientContexts/BPhagan.hygieneContext.json");
 const bPhaganToiletingContext = require("./AILogic/clientContexts/BPhagan.toiletingContext.json");
+const bPhaganTransfersContext = require("./AILogic/clientContexts/BPhagan.transfersContext.json");
 const { resolveAiLogicPath, aiLogicExists } = require("./AILogic/engine/aiLogicResolver");
 const { loadAiLogic } = require("./AILogic/engine/aiLogicLoader");
 const { evaluateAiSafety } = require("./AILogic/engine/aiSafetyEngine");
@@ -142,9 +147,34 @@ const WORKFLOW_RUNTIME_MAPS = {
 const aiLogicCache = new Map();
 const CLIENT_WORKFLOW_CONTEXT_MAP = [
   {
+    workflowTag: "#bathing",
+    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
+    context: bPhaganBathingContext,
+  },
+  {
+    workflowTag: "#dressing",
+    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
+    context: bPhaganDressingContext,
+  },
+  {
+    workflowTag: "#grooming",
+    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
+    context: bPhaganGroomingContext,
+  },
+  {
+    workflowTag: "#hygiene",
+    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
+    context: bPhaganHygieneContext,
+  },
+  {
     workflowTag: "#toileting",
     clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
     context: bPhaganToiletingContext,
+  },
+  {
+    workflowTag: "#transfers",
+    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
+    context: bPhaganTransfersContext,
   },
 ];
 
@@ -189,6 +219,49 @@ const ADL_GUIDED_RISK_OPTIONS = [
 
 function uniqueValues(values = []) {
   return [...new Set((values || []).filter(Boolean))];
+}
+
+function getPromptTemplateText(template) {
+  if (typeof template === "string") {
+    return template.trim();
+  }
+  return String(template?.prompt_text || template?.promptText || template?.text || "").trim();
+}
+
+function rankPromptTemplates(templates = [], draftText = "", categoryKey = "") {
+  const normalizedDraft = normalizeInferenceText(draftText);
+  const draftTokens = normalizedDraft.split(" ").filter((token) => token.length > 1);
+  const categoryTokensByKey = {
+    adl: ["toileting", "toilet", "bath", "bathing", "shower", "dress", "dressing", "groom", "grooming", "hygiene", "transfer", "mobility", "prompt", "assist", "response", "safety"],
+    behavioral: ["behavior", "redirection", "response", "support"],
+    communication: ["communication", "hearing", "prompt", "cueing", "response"],
+    medication: ["medication", "oxygen", "timing", "prompt", "response"],
+    meal: ["meal", "fluids", "aspiration", "response"],
+    safety: ["safety", "monitoring", "fall", "observation", "response"],
+    community: ["community", "outing", "mobility", "response"],
+    sleep: ["sleep", "night", "bedtime", "toileting", "monitoring"],
+  };
+  const categoryTokens = categoryTokensByKey[categoryKey] || [];
+
+  const scored = templates
+    .map((template, index) => {
+      const text = getPromptTemplateText(template);
+      const normalizedText = normalizeInferenceText(text);
+      if (!text) {
+        return null;
+      }
+
+      const tokenMatches = draftTokens.filter((token) => normalizedText.includes(token)).length;
+      const categoryMatches = categoryTokens.filter((token) => normalizedText.includes(token)).length;
+      const startsWithDocument = normalizedText.startsWith("document ") ? 2 : 0;
+      const score = tokenMatches * 4 + categoryMatches + startsWithDocument - index * 0.01;
+
+      return { text, score };
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score);
+
+  return uniqueValues(scored.map((item) => item.text)).slice(0, 5);
 }
 
 function buildModuleCatalogById() {
@@ -1267,9 +1340,11 @@ function getWorkflowTagForFieldContext(fieldContext = {}) {
     return explicit.startsWith("#") ? explicit : `#${explicit}`;
   }
 
-  const aiLogicTask = inferAiLogicSelection(fieldContext)?.task || "";
-  if (String(aiLogicTask || "").trim().toLowerCase() === "toileting") {
-    return "#toileting";
+  const aiLogicTask = String(inferAiLogicSelection(fieldContext)?.task || "")
+    .trim()
+    .toLowerCase();
+  if (aiLogicTask) {
+    return `#${aiLogicTask}`;
   }
 
   return "";
@@ -1342,19 +1417,40 @@ function inferAiLogicSelection(fieldContext = {}) {
   );
 
   if (["adl", "morning-adl"].includes(workflowId)) {
-    const toiletingSignals = [
-      "toileting",
-      "toilet",
-      "brief change",
-      "perineal care",
-      "incontinence",
-      "continence",
-    ];
-    if (toiletingSignals.some((signal) => haystack.includes(normalizeInferenceText(signal)))) {
-      return {
-        category: "ADL",
+    const taskSignals = [
+      {
         task: "Toileting",
-      };
+        signals: ["toileting", "toilet", "brief change", "perineal care", "incontinence", "continence"],
+      },
+      {
+        task: "Bathing",
+        signals: ["bathing", "bath", "shower", "tub bath", "bath setup"],
+      },
+      {
+        task: "Dressing",
+        signals: ["dressing", "dress", "clothing", "fastener", "shirt", "pants"],
+      },
+      {
+        task: "Grooming",
+        signals: ["grooming", "groom", "hair care", "shaving", "nail care"],
+      },
+      {
+        task: "Hygiene",
+        signals: ["hygiene", "wash up", "clean up", "handwashing", "oral hygiene", "deodorant"],
+      },
+      {
+        task: "Transfers",
+        signals: ["transfers", "transfer", "bed to chair", "chair to toilet", "standing transfer"],
+      },
+    ];
+
+    for (const candidate of taskSignals) {
+      if (candidate.signals.some((signal) => haystack.includes(normalizeInferenceText(signal)))) {
+        return {
+          category: "ADL",
+          task: candidate.task,
+        };
+      }
     }
   }
 
@@ -8415,6 +8511,7 @@ function DecisionEngineScreen({
   const [blockPromptSuggestions, setBlockPromptSuggestions] = useState([]);
   const [blockPromptLoading, setBlockPromptLoading] = useState(false);
   const [blockPromptError, setBlockPromptError] = useState("");
+  const [blockPromptInputFocused, setBlockPromptInputFocused] = useState(false);
   const [rowPromptPopoverVisible, setRowPromptPopoverVisible] = useState(false);
   const [rowPromptSuggestions, setRowPromptSuggestions] = useState([]);
   const [rowPromptLoading, setRowPromptLoading] = useState(false);
@@ -8461,6 +8558,10 @@ function DecisionEngineScreen({
   );
   const newBlockDescription = blockDraftsByWorkflow[newBlockWorkflowId] || "";
   const newRowDescription = rowDraftsByWorkflow[newRowWorkflowId] || "";
+  const liveBlockPromptSuggestions = useMemo(
+    () => rankPromptTemplates(blockPromptSuggestions, newBlockDescription, blockPromptCategory),
+    [blockPromptCategory, blockPromptSuggestions, newBlockDescription]
+  );
 
   useEffect(() => {
     if (initialTargetKey && assignmentTargets.some((target) => target.key === initialTargetKey)) {
@@ -8644,7 +8745,7 @@ function DecisionEngineScreen({
           scheduleBlockPromptIdleClose();
         }
       });
-  }, [newBlockWorkflowId]);
+  }, [newBlockWorkflowId, workflowOptions]);
 
   const loadRowPromptSuggestions = useCallback((workflowId = newRowWorkflowId) => {
     const selectedWorkflow = workflowOptions.find((option) => option.workflowId === workflowId);
@@ -8762,6 +8863,40 @@ function DecisionEngineScreen({
     loadBlockPromptSuggestions(newBlockWorkflowId);
     scheduleBlockPromptIdleClose();
   };
+
+  useEffect(() => {
+    if (!blockPromptInputFocused && !String(newBlockDescription).trim()) {
+      return;
+    }
+    if (blockPromptLoading || blockPromptSuggestions.length || blockPromptError) {
+      return;
+    }
+    loadBlockPromptSuggestions(newBlockWorkflowId);
+  }, [
+    blockPromptError,
+    blockPromptInputFocused,
+    blockPromptLoading,
+    blockPromptSuggestions.length,
+    loadBlockPromptSuggestions,
+    newBlockDescription,
+    newBlockWorkflowId,
+  ]);
+
+  useEffect(() => {
+    const shouldShow =
+      (blockPromptInputFocused || String(newBlockDescription).trim()) &&
+      (blockPromptLoading || Boolean(blockPromptError) || liveBlockPromptSuggestions.length > 0);
+    if (shouldShow) {
+      setBlockPromptPopoverVisible(true);
+    }
+  }, [
+    blockPromptError,
+    blockPromptInputFocused,
+    blockPromptLoading,
+    blockPromptPopoverVisible,
+    liveBlockPromptSuggestions.length,
+    newBlockDescription,
+  ]);
 
   const toggleRowPromptHelp = () => {
     if (rowPromptPopoverVisible) {
@@ -9476,12 +9611,13 @@ function DecisionEngineScreen({
     }
 
     markBlockPromptEngaged();
+    setBlockPromptPopoverVisible(false);
+    setBlockPromptInputFocused(false);
 
     setBlockDraftsByWorkflow((prev) => {
-      const current = String(prev[newBlockWorkflowId] || "").trim();
       return {
         ...prev,
-        [newBlockWorkflowId]: current ? `${current} ${promptText}` : promptText,
+        [newBlockWorkflowId]: String(promptText).trim(),
       };
     });
     setBlockBuilderHint("");
@@ -9854,11 +9990,59 @@ function DecisionEngineScreen({
                 if (String(text).trim()) {
                   setBlockBuilderHint("");
                 }
+                if (blockPromptInputFocused || String(text).trim()) {
+                  markBlockPromptEngaged();
+                }
+              }}
+              onFocus={() => {
+                setBlockPromptInputFocused(true);
+                markBlockPromptEngaged();
+              }}
+              onBlur={() => {
+                setBlockPromptInputFocused(false);
+                blockPromptEngagedRef.current = false;
+                scheduleBlockPromptIdleClose();
               }}
               placeholder="Describe what DSP should document in this time block."
               placeholderTextColor="#888888"
               style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap]}
             />
+            {blockPromptPopoverVisible ? (
+              <View style={styles.decisionPromptSuggestionCard}>
+                <View style={styles.decisionPromptSuggestionHeader}>
+                  <Text style={styles.decisionPromptSuggestionTitle}>Suggestions</Text>
+                  {blockPromptLoading ? (
+                    <Text style={styles.decisionPromptSuggestionMeta}>Loading...</Text>
+                  ) : blockPromptCategory ? (
+                    <Text style={styles.decisionPromptSuggestionMeta}>{blockPromptCategory.toUpperCase()}</Text>
+                  ) : null}
+                </View>
+                {blockPromptError ? (
+                  <Text style={styles.decisionPromptSuggestionError}>{blockPromptError}</Text>
+                ) : null}
+                {liveBlockPromptSuggestions.length ? (
+                  <View style={styles.decisionPromptSuggestionList}>
+                    {liveBlockPromptSuggestions.map((suggestion) => (
+                      <Pressable
+                        key={suggestion}
+                        accessibilityRole="button"
+                        onPressIn={() => {
+                          markBlockPromptEngaged();
+                        }}
+                        onPress={() => applyBlockPromptSuggestion(suggestion)}
+                        style={styles.decisionPromptSuggestionItem}
+                      >
+                        <Text style={styles.decisionPromptSuggestionText}>{suggestion}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : !blockPromptLoading && !blockPromptError ? (
+                  <Text style={styles.decisionPromptSuggestionEmpty}>
+                    Keep typing or switch categories to refine suggestions.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
           </View>
         </View>
         {blockBuilderHint ? <Text style={styles.decisionInlineHint}>{blockBuilderHint}</Text> : null}
@@ -16880,6 +17064,65 @@ const styles = StyleSheet.create({
     position: "relative",
     marginBottom: 12,
     overflow: "visible",
+  },
+  decisionPromptSuggestionCard: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#d8cfff",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    padding: 10,
+    shadowColor: "#000000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+  decisionPromptSuggestionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  decisionPromptSuggestionTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.35,
+    textTransform: "uppercase",
+    color: colors.topPurple,
+  },
+  decisionPromptSuggestionMeta: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.muted,
+  },
+  decisionPromptSuggestionList: {
+    gap: 8,
+  },
+  decisionPromptSuggestionItem: {
+    borderWidth: 1,
+    borderColor: "#e9ddff",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    backgroundColor: "#faf7ff",
+  },
+  decisionPromptSuggestionText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  decisionPromptSuggestionEmpty: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.muted,
+  },
+  decisionPromptSuggestionError: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.red,
+    marginBottom: 8,
   },
   decisionRowInputInPromptWrap: {
     marginBottom: 0,

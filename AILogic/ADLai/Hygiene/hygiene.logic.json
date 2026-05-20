@@ -1,0 +1,174 @@
+{
+  "workflowId": "adl-hygiene",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "ADL",
+    "task": "Hygiene",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing hygiene note using structured answers, care-plan context, and safety escalation rules.",
+    "documentationGoals": [
+      "Capture routine hygiene support provided",
+      "Capture assistance, prompting, and participation level",
+      "Capture hygiene-related infection control or skin concerns",
+      "Generate a concise but defensible hygiene narrative"
+    ],
+    "requiredCarePlanContext": [
+      "hygiene_baseline",
+      "hygiene_assistance_level",
+      "hygiene_prompt_level",
+      "supervision_requirements",
+      "infection_control_precautions"
+    ],
+    "regulatoryRiskLevel": "medium",
+    "clinicalSensitivity": ["infection control", "skin integrity", "behavioral refusal"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "hygiene_task_type",
+      "outcome",
+      "assistance_level",
+      "engagement",
+      "observed_response",
+      "risks_and_protocols",
+      "task_observations",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "hygiene_task_type",
+        "label": "What hygiene support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Handwashing", "Face washing", "Oral hygiene", "Deodorant or personal care", "Supplies setup", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "hygiene_task_type_other" }]
+      },
+      {
+        "id": "hygiene_task_type_other",
+        "label": "Describe the hygiene task.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "hygiene_task_type", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Not completed", "Not needed"]
+      },
+      {
+        "id": "assistance_level",
+        "label": "What assistance level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Independent", "Verbal prompt", "Standby assist", "Partial assist", "Full assist", "Hand over hand", "Dependent"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during hygiene support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Hesitant", "Distracted", "Withdrawn", "Refused initially", "Re-engaged", "Cooperative", "Resistant"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Tolerated well", "Tolerated with support", "Required repeated prompting", "Accepted redirection", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "risks_and_protocols",
+        "label": "Which risks or protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Universal precautions", "Infection control precautions", "Skin integrity concern", "Behavior support plan active", "Privacy support", "None"]
+      },
+      {
+        "id": "task_observations",
+        "label": "Were any hygiene-related observations noted?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["No unusual finding", "Skin irritation", "Poor tolerance", "Needed extra cueing", "Refused product or step", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "task_observations_other" }]
+      },
+      {
+        "id": "task_observations_other",
+        "label": "Describe the hygiene-related observation.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "task_observations", "value": "Other" }
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Change in baseline", "Supervisor notification needed", "Nurse notification needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra hygiene note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "hygiene_skin_trigger",
+        "whenAnySelected": ["Skin irritation"],
+        "sourceQuestionId": "task_observations",
+        "flag": "skin_concern",
+        "severity": "medium",
+        "requiredEscalations": ["Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must mention the hygiene-related skin concern, staff response, and needed follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": {
+      "structuredAnswers": true,
+      "carePlanRow": true,
+      "shiftContext": true,
+      "runtimeAlerts": true,
+      "supervisorInstructions": true
+    },
+    "compositionOrder": ["task and support rendered", "assistance and cueing", "engagement and observed response", "risks and protocols followed", "task observations", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "stable": { "style": "calm, routine, non-escalatory", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the hygiene support rendered, assist level, cueing, and observed response.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "skin_concern": {
+        "mustMention": ["hygiene-related skin concern", "staff response", "follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "assistance_level", "observed_response"],
+      "optionalSections": ["task_observations", "follow_up"]
+    }
+  }
+}
