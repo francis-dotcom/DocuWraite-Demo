@@ -515,7 +515,6 @@ function buildDefaultNotesLibraryRecords() {
 }
 
 const modules = [
-  "Behavior Plan",
   "Care Plan",
   "Supervisor Setup",
   "Case Note",
@@ -4985,9 +4984,63 @@ function SubmittedNotesLibraryScreen({
   selectedRecordId = "",
   onSelectRecord,
   onOpenPdf,
+  onDeleteRecord,
 }) {
+  const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+
+  const handleDeletePress = (id) => {
+    setDeleteTargetId(id);
+    setDeletePassword("");
+    setDeleteError("");
+  };
+
+  const handleDeleteConfirm = () => {
+    if (deletePassword === "1234") {
+      onDeleteRecord?.(deleteTargetId);
+      setDeleteTargetId(null);
+      setDeletePassword("");
+      setDeleteError("");
+    } else {
+      setDeleteError("Incorrect password. Try again.");
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteTargetId(null);
+    setDeletePassword("");
+    setDeleteError("");
+  };
+
   return (
     <View style={styles.notesLibraryShell}>
+      <Modal transparent visible={!!deleteTargetId} animationType="fade" onRequestClose={handleDeleteCancel}>
+        <View style={styles.deleteModalOverlay}>
+          <View style={styles.deleteModalBox}>
+            <Text style={styles.deleteModalTitle}>Delete Note</Text>
+            <Text style={styles.deleteModalBody}>Enter password to confirm deletion.</Text>
+            <TextInput
+              style={styles.deleteModalInput}
+              value={deletePassword}
+              onChangeText={(t) => { setDeletePassword(t); setDeleteError(""); }}
+              placeholder="Password"
+              secureTextEntry
+              autoFocus
+            />
+            {!!deleteError && <Text style={styles.deleteModalError}>{deleteError}</Text>}
+            <View style={styles.deleteModalActions}>
+              <Pressable style={styles.deleteModalCancel} onPress={handleDeleteCancel}>
+                <Text style={styles.deleteModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.deleteModalConfirm} onPress={handleDeleteConfirm}>
+                <Text style={styles.deleteModalConfirmText}>Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Card title="Notes Library">
         <View style={styles.notesLibraryHeaderRow}>
           <Text style={styles.notesLibraryLead}>
@@ -5034,6 +5087,12 @@ function SubmittedNotesLibraryScreen({
                       onPress={() => onOpenPdf?.(record)}
                     >
                       <Text style={styles.notesLibraryInlineActionText}>Download</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.notesLibraryInlineAction, styles.notesLibraryInlineActionDelete]}
+                      onPress={() => handleDeletePress(record.id)}
+                    >
+                      <Text style={[styles.notesLibraryInlineActionText, styles.notesLibraryInlineActionDeleteText]}>Delete</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -17393,6 +17452,12 @@ export default function App() {
                       setSelectedSubmittedNoteId(record?.id || "");
                     }
                   }}
+                  onDeleteRecord={(id) => {
+                    setSubmittedNotesLibrary((current) => current.filter((r) => String(r.id) !== String(id)));
+                    if (String(selectedSubmittedNoteId) === String(id)) {
+                      setSelectedSubmittedNoteId("");
+                    }
+                  }}
                 />
               ) : documentationSession ? (
                 <DocumentationEntryScreen
@@ -17844,6 +17909,84 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: colors.headerText,
+  },
+  notesLibraryInlineActionDelete: {
+    borderColor: "#e53e3e",
+    backgroundColor: "#fff5f5",
+  },
+  notesLibraryInlineActionDeleteText: {
+    color: "#e53e3e",
+  },
+  deleteModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  deleteModalBox: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 24,
+    width: 320,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  deleteModalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.headerText,
+    marginBottom: 6,
+  },
+  deleteModalBody: {
+    fontSize: 14,
+    color: colors.muted,
+    marginBottom: 16,
+  },
+  deleteModalInput: {
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: colors.headerText,
+    marginBottom: 8,
+  },
+  deleteModalError: {
+    fontSize: 12,
+    color: "#e53e3e",
+    marginBottom: 12,
+  },
+  deleteModalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 8,
+  },
+  deleteModalCancel: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+  },
+  deleteModalCancelText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.muted,
+  },
+  deleteModalConfirm: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#e53e3e",
+  },
+  deleteModalConfirmText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#ffffff",
   },
   notesLibraryEmpty: {
     fontSize: 14,
@@ -20120,7 +20263,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5efff",
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 999,
+    borderRadius: 0,
     marginRight: 10,
   },
   carePlanPillActive: {
@@ -20139,7 +20282,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 6,
+    borderRadius: 0,
     overflow: "hidden",
   },
   carePlanSectionHead: {
@@ -20161,13 +20304,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   carePlanSectionTitle: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "600",
     color: colors.headerText,
   },
   carePlanSectionSubtitle: {
     marginTop: 4,
-    fontSize: 13,
+    fontSize: 12,
     color: colors.muted,
   },
   carePlanSectionBody: {
