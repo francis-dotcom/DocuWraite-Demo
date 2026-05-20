@@ -1,0 +1,227 @@
+{
+  "registryName": "Meal Support Care Plan Context Registry",
+  "version": "1.0.0",
+  "format": "care-plan-context-registry",
+  "entries": [
+    {
+      "context_key": "meal_support_baseline",
+      "label": "Meal Support Baseline",
+      "description": "The person's usual mealtime presentation, eating pattern, and overall support needs during meals.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#baseline",
+        "#nutrition"
+      ]
+    },
+    {
+      "context_key": "meal_assistance_level",
+      "label": "Meal Assistance Level",
+      "description": "The expected hands-on or supervisory assistance level during meals or snack support.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#assistance",
+        "#nutrition"
+      ]
+    },
+    {
+      "context_key": "meal_prompt_level",
+      "label": "Meal Prompt Level",
+      "description": "The usual prompt intensity needed for safe eating, pacing, or meal participation.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#prompting",
+        "#nutrition"
+      ]
+    },
+    {
+      "context_key": "diet_order_or_meal_plan",
+      "label": "Diet Order or Meal Plan",
+      "description": "The prescribed diet order, meal plan, or nutrition restrictions that staff should follow.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#diet",
+        "#nutrition"
+      ]
+    },
+    {
+      "context_key": "aspiration_precautions",
+      "label": "Aspiration Precautions",
+      "description": "Specific aspiration or choking precautions that apply during meals or drinks.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#aspiration",
+        "#safety"
+      ]
+    },
+    {
+      "context_key": "supervision_during_meals",
+      "label": "Supervision During Meals",
+      "description": "The required supervision level or staff oversight expected during mealtime support.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#supervision",
+        "#safety"
+      ]
+    },
+    {
+      "context_key": "meal_pacing_requirements",
+      "label": "Meal Pacing Requirements",
+      "description": "Any required meal pacing instructions such as bite size, pauses, or staff cueing cadence.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#pacing",
+        "#safety"
+      ]
+    },
+    {
+      "context_key": "safe_swallow_protocol",
+      "label": "Safe Swallow Protocol",
+      "description": "Ordered safe-swallow steps or feeding procedures that staff should follow during meals.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#swallow",
+        "#protocol"
+      ]
+    },
+    {
+      "context_key": "fluid_intake_support",
+      "label": "Fluid Intake Support",
+      "description": "Support required for offering, pacing, cueing, or monitoring fluids with meals.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#hydration",
+        "#support"
+      ]
+    },
+    {
+      "context_key": "intake_monitoring_requirements",
+      "label": "Intake Monitoring Requirements",
+      "description": "Any requirement to document portions, calories, supplements, or percentage of meal consumed.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#intake",
+        "#monitoring"
+      ]
+    },
+    {
+      "context_key": "adaptive_utensils_or_equipment",
+      "label": "Adaptive Utensils or Equipment",
+      "description": "Adaptive utensils, cups, plates, seating, or meal equipment needed for safe eating.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#equipment",
+        "#adaptive"
+      ]
+    },
+    {
+      "context_key": "positioning_during_meals",
+      "label": "Positioning During Meals",
+      "description": "Required body positioning or seating setup before, during, or after meals.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#positioning",
+        "#safety"
+      ]
+    },
+    {
+      "context_key": "food_texture_requirements",
+      "label": "Food Texture Requirements",
+      "description": "Any texture modification requirements for food served during meal support.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#diet",
+        "#texture"
+      ]
+    },
+    {
+      "context_key": "liquid_consistency_requirements",
+      "label": "Liquid Consistency Requirements",
+      "description": "Any ordered liquid consistency such as thin, nectar, honey, or thickened liquids.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#diet",
+        "#liquids"
+      ]
+    },
+    {
+      "context_key": "supplement_or_special_nutrition_support",
+      "label": "Supplement or Special Nutrition Support",
+      "description": "Any prescribed supplements, special formulas, or nutrition supports that should be given or tracked.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#nutrition",
+        "#supplements"
+      ]
+    },
+    {
+      "context_key": "gerd_or_reflux_precautions",
+      "label": "GERD or Reflux Precautions",
+      "description": "Any GERD, reflux, or post-meal positioning precautions tied to digestion and mealtime safety.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#gerd",
+        "#precautions"
+      ]
+    },
+    {
+      "context_key": "choking_risk_status",
+      "label": "Choking Risk Status",
+      "description": "The documented choking or aspiration risk level relevant to meal support.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#aspiration",
+        "#risk"
+      ]
+    },
+    {
+      "context_key": "blood_glucose_meal_monitoring",
+      "label": "Blood Glucose Meal Monitoring",
+      "description": "Meal-related blood glucose checks, snack corrections, or diabetic monitoring steps tied to meals.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#glucose",
+        "#monitoring"
+      ]
+    },
+    {
+      "context_key": "meal_refusal_pattern",
+      "label": "Meal Refusal Pattern",
+      "description": "Known refusal patterns, triggers, or support approaches related to meals or intake.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#refusal",
+        "#behavior-support"
+      ]
+    },
+    {
+      "context_key": "meal_related_notification_threshold",
+      "label": "Meal Related Notification Threshold",
+      "description": "What intake, choking, glucose, vomiting, or refusal findings should trigger staff notification or escalation.",
+      "data_type": "string",
+      "tags": [
+        "#meal-support",
+        "#escalation",
+        "#notification"
+      ]
+    }
+  ]
+}

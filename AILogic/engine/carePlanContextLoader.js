@@ -1,7 +1,9 @@
 const path = require("path");
 
-const carePlanContextRegistry = require("../carePlanContextRegistry.json");
-const workflowContextRequirements = require("../context/adlworkflow.json");
+const adlCarePlanContextRegistry = require("../carePlanContext/adl.json");
+const mealSupportCarePlanContextRegistry = require("../carePlanContext/mealSupport.json");
+const adlWorkflowContextRequirements = require("../context/adlworkflow.json");
+const mealWorkflowContextRequirements = require("../context/mealworkflow.json");
 
 function ensure(condition, message) {
   if (!condition) {
@@ -18,33 +20,44 @@ function normalizeWorkflowTag(workflowTag = "") {
 }
 
 function loadCarePlanContextRegistry() {
+  const registryFiles = [adlCarePlanContextRegistry, mealSupportCarePlanContextRegistry];
+  const entries = registryFiles.flatMap((file) =>
+    Array.isArray(file?.entries) ? file.entries : []
+  );
+
   ensure(
-    Array.isArray(carePlanContextRegistry.entries),
+    Array.isArray(entries) && entries.length > 0,
     "Care Plan Context Registry is missing an entries array."
   );
 
-  const entriesByKey = Object.fromEntries(
-    carePlanContextRegistry.entries.map((entry) => [entry.context_key, entry])
-  );
+  const entriesByKey = Object.fromEntries(entries.map((entry) => [entry.context_key, entry]));
 
   return {
-    path: path.resolve(__dirname, "..", "carePlanContextRegistry.json"),
-    raw: carePlanContextRegistry,
-    entries: carePlanContextRegistry.entries,
+    path: path.resolve(__dirname, "..", "carePlanContext"),
+    raw: registryFiles,
+    entries,
     entriesByKey,
   };
 }
 
 function loadWorkflowContextRequirements() {
+  const workflowFiles = [adlWorkflowContextRequirements, mealWorkflowContextRequirements];
+  const workflows = Object.assign(
+    {},
+    ...workflowFiles.map((file) =>
+      file && file.workflows && typeof file.workflows === "object" ? file.workflows : {}
+    )
+  );
+
   ensure(
-    workflowContextRequirements.workflows && typeof workflowContextRequirements.workflows === "object",
+    workflows && typeof workflows === "object" && Object.keys(workflows).length > 0,
     "Workflow Context Requirements is missing a workflows object."
   );
 
   return {
-    path: path.resolve(__dirname, "..", "context", "adlworkflow.json"),
-    raw: workflowContextRequirements,
-    workflows: workflowContextRequirements.workflows,
+    path: path.resolve(__dirname, "..", "context"),
+    raw: workflowFiles,
+    workflows,
   };
 }
 

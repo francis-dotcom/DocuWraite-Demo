@@ -1,0 +1,34 @@
+{
+  "registryName": "Meal Workflow Context Requirements",
+  "version": "1.0.0",
+  "format": "workflow-context-requirements",
+  "workflows": {
+    "#meal-support": {
+      "label": "Meal Support",
+      "required_keys": [
+        "meal_support_baseline",
+        "meal_assistance_level",
+        "diet_order_or_meal_plan",
+        "aspiration_precautions",
+        "supervision_during_meals"
+      ],
+      "optional_keys": [
+        "meal_prompt_level",
+        "meal_pacing_requirements",
+        "safe_swallow_protocol",
+        "fluid_intake_support",
+        "intake_monitoring_requirements",
+        "adaptive_utensils_or_equipment",
+        "positioning_during_meals",
+        "food_texture_requirements",
+        "liquid_consistency_requirements",
+        "supplement_or_special_nutrition_support",
+        "gerd_or_reflux_precautions",
+        "choking_risk_status",
+        "blood_glucose_meal_monitoring",
+        "meal_refusal_pattern",
+        "meal_related_notification_threshold"
+      ]
+    }
+  }
+}
