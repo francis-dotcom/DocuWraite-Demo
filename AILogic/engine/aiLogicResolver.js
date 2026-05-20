@@ -1,5 +1,6 @@
 const bathingLogic = require("../ADLai/Bathing/bathing.logic.json");
 const dressingLogic = require("../ADLai/Dressing/dressing.logic.json");
+const finalCaseNoteLogic = require("../FinalCaseNote/final-case-note.logic.json");
 const groomingLogic = require("../ADLai/Grooming/grooming.logic.json");
 const hygieneLogic = require("../ADLai/Hygiene/hygiene.logic.json");
 const toiletingLogic = require("../ADLai/Toileting/toileting.logic.json");
@@ -8,10 +9,13 @@ const transfersLogic = require("../ADLai/Transfers/transfers.logic.json");
 const WORKFLOW_TASK_FILE_MAP = {
   "adl:bathing": "adl:bathing",
   "adl:dressing": "adl:dressing",
+  "final case note:summary": "final-case-note:summary",
   "adl:grooming": "adl:grooming",
   "adl:hygiene": "adl:hygiene",
   "adl:toileting": "adl:toileting",
   "adl:transfers": "adl:transfers",
+  "case note final:summary": "final-case-note:summary",
+  "case-note-final:summary": "final-case-note:summary",
 };
 
 const AI_LOGIC_REGISTRY = {
@@ -24,6 +28,11 @@ const AI_LOGIC_REGISTRY = {
     key: "adl:dressing",
     source: "AILogic/ADLai/Dressing/dressing.logic.json",
     raw: dressingLogic,
+  },
+  "final-case-note:summary": {
+    key: "final-case-note:summary",
+    source: "AILogic/FinalCaseNote/final-case-note.logic.json",
+    raw: finalCaseNoteLogic,
   },
   "adl:grooming": {
     key: "adl:grooming",
@@ -60,6 +69,10 @@ function buildLookupKey(category = "", task = "") {
 }
 
 function resolveAiLogicPath({ category = "", task = "", workflowId = "", fieldContext = {} } = {}) {
+  if (normalizeKeyPart(workflowId) === "case note final") {
+    return "final-case-note:summary";
+  }
+
   const lookupKey = buildLookupKey(category, task);
   if (WORKFLOW_TASK_FILE_MAP[lookupKey]) {
     return WORKFLOW_TASK_FILE_MAP[lookupKey];

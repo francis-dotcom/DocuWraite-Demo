@@ -1,0 +1,268 @@
+{
+  "workflowId": "final-case-note",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Final Case Note",
+    "task": "Summary",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate an end-of-shift final case note by rolling row and block documentation into one structured summary.",
+    "documentationGoals": [
+      "Capture the desired final-note style",
+      "Capture what the final summary should emphasize",
+      "Capture shift-wide concerns, outcome, and follow-up",
+      "Generate one defensible final case note paragraph from completed shift documentation"
+    ],
+    "requiredCarePlanContext": [],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["shift-wide safety concern", "change in baseline", "carry-forward follow-up"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "final_note_style",
+      "final_emphasis",
+      "final_shift_concern",
+      "final_shift_outcome",
+      "final_follow_up",
+      "final_guidance"
+    ],
+    "questions": [
+      {
+        "id": "final_note_style",
+        "label": "What style should the final case note use?",
+        "type": "single_select",
+        "required": true,
+        "options": [
+          "Technical",
+          "Clinical summary",
+          "Supervisor handoff",
+          "Concise narrative",
+          "Family-safe summary",
+          "Other"
+        ],
+        "followUpRules": [
+          {
+            "when": "Other",
+            "ask": "final_note_style_other"
+          }
+        ]
+      },
+      {
+        "id": "final_note_style_other",
+        "label": "Describe the final note style.",
+        "type": "free_text",
+        "requiredWhen": {
+          "questionId": "final_note_style",
+          "equals": "Other"
+        }
+      },
+      {
+        "id": "final_emphasis",
+        "label": "What should the final case note emphasize?",
+        "type": "multi_select",
+        "required": true,
+        "options": [
+          "Overall shift summary",
+          "Behavior and interventions",
+          "ADL and personal care",
+          "Meal support and medication",
+          "Community and transitions",
+          "Health and safety supports",
+          "Other"
+        ],
+        "followUpRules": [
+          {
+            "whenIncludes": "Other",
+            "ask": "final_emphasis_other"
+          }
+        ]
+      },
+      {
+        "id": "final_emphasis_other",
+        "label": "Describe the extra emphasis to include.",
+        "type": "free_text",
+        "requiredWhenIncludes": {
+          "questionId": "final_emphasis",
+          "value": "Other"
+        }
+      },
+      {
+        "id": "final_shift_concern",
+        "label": "Were there any shift-wide concerns to highlight?",
+        "type": "single_select",
+        "required": true,
+        "options": [
+          "None",
+          "Change in baseline",
+          "Repeated refusal",
+          "Safety concern",
+          "Medication concern",
+          "Poor intake",
+          "Behavioral escalation",
+          "Follow-up required",
+          "Other"
+        ],
+        "followUpRules": [
+          {
+            "when": "Other",
+            "ask": "final_shift_concern_other"
+          }
+        ]
+      },
+      {
+        "id": "final_shift_concern_other",
+        "label": "Describe the shift-wide concern.",
+        "type": "free_text",
+        "requiredWhen": {
+          "questionId": "final_shift_concern",
+          "equals": "Other"
+        }
+      },
+      {
+        "id": "final_shift_outcome",
+        "label": "What was the overall shift outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": [
+          "Stable shift",
+          "Supported with minor issues",
+          "Supported with notable concerns",
+          "Partial completion of planned supports",
+          "Follow-up needed",
+          "Other"
+        ],
+        "followUpRules": [
+          {
+            "when": "Other",
+            "ask": "final_shift_outcome_other"
+          }
+        ]
+      },
+      {
+        "id": "final_shift_outcome_other",
+        "label": "Describe the overall shift outcome.",
+        "type": "free_text",
+        "requiredWhen": {
+          "questionId": "final_shift_outcome",
+          "equals": "Other"
+        }
+      },
+      {
+        "id": "final_follow_up",
+        "label": "What follow-up should be carried forward?",
+        "type": "single_select",
+        "required": true,
+        "options": [
+          "None",
+          "Supervisor review",
+          "Nurse follow-up",
+          "Care team update",
+          "Family update",
+          "Monitor next shift",
+          "Other"
+        ],
+        "followUpRules": [
+          {
+            "when": "Other",
+            "ask": "final_follow_up_other"
+          }
+        ]
+      },
+      {
+        "id": "final_follow_up_other",
+        "label": "Describe the follow-up to carry forward.",
+        "type": "free_text",
+        "requiredWhen": {
+          "questionId": "final_follow_up",
+          "equals": "Other"
+        }
+      },
+      {
+        "id": "final_guidance",
+        "label": "Add final note guidance if needed.",
+        "type": "single_select",
+        "required": false,
+        "options": [
+          "Keep concise",
+          "Highlight positive participation",
+          "Highlight refusals and redirection",
+          "Highlight health and safety supports",
+          "Highlight transitions and follow-up",
+          "No extra guidance",
+          "Other"
+        ],
+        "followUpRules": [
+          {
+            "when": "Other",
+            "ask": "final_guidance_other"
+          }
+        ]
+      },
+      {
+        "id": "final_guidance_other",
+        "label": "Describe the final note guidance.",
+        "type": "free_text",
+        "requiredWhen": {
+          "questionId": "final_guidance",
+          "equals": "Other"
+        }
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "final_case_note_safety_trigger",
+        "whenAnySelected": ["Safety concern", "Follow-up required"],
+        "sourceQuestionId": "final_shift_concern",
+        "flag": "shift_level_follow_up",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor review"],
+        "requiredNoteDirective": "The final note must clearly state the shift-level concern and make the carry-forward follow-up explicit."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": {
+      "structuredAnswers": true,
+      "carePlanRow": false,
+      "shiftContext": true,
+      "runtimeAlerts": true,
+      "supervisorInstructions": true
+    },
+    "compositionOrder": [
+      "selected final-note style",
+      "overall shift lead",
+      "row and block summary details",
+      "shift-wide concerns",
+      "carry-forward follow-up"
+    ],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, supervisory", "audience": "supervisor", "verbosity": "detailed" },
+      "stable": { "style": "calm, routine, non-escalatory", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers and completed row or block notes as facts.",
+      "Do not invent incidents, symptoms, interventions, or outcomes not present in the provided shift documentation.",
+      "Write one supervisor-facing final case note paragraph unless the selected style clearly warrants a different cadence.",
+      "Keep the final note internally consistent with the row-level and block-level documentation.",
+      "If a shift-level concern or carry-forward need is selected, keep it explicit in the final note."
+    ],
+    "safetyFlagDirectives": {
+      "shift_level_follow_up": {
+        "mustMention": ["shift-level concern", "carry-forward follow-up", "supervisory visibility"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["summary_style", "shift_summary", "follow_up"],
+      "optionalSections": ["shift_wide_concern", "guidance"]
+    }
+  }
+}

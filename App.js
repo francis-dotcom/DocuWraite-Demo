@@ -438,10 +438,6 @@ const handoverVitalFields = [
 const modules = [
   "Behavior Plan",
   "Care Plan",
-  "Communication Input Flow",
-  "Community Input Flow",
-  "DSP Input Flow",
-  "Documentation and Coordination Input Flow",
   "Supervisor Setup",
   "Case Note",
   "Document Storage",
@@ -1426,6 +1422,13 @@ function inferAiLogicSelection(fieldContext = {}) {
       .join(" ")
   );
 
+  if (workflowId === "case-note-final") {
+    return {
+      category: "Final Case Note",
+      task: "Summary",
+    };
+  }
+
   if (["adl", "morning-adl", "assigned-nodes", ""].includes(workflowId)) {
     const taskSignals = [
       {
@@ -1612,12 +1615,12 @@ function getAssignedWorkflowStepsForField(fieldContext = {}) {
   if (fieldContext.assignedWorkflowSteps?.length) {
     return fieldContext.assignedWorkflowSteps;
   }
-  if (fieldContext.workflowId === "case-note-final") {
-    return buildCaseNoteFinalWorkflowSteps();
-  }
   const aiLogicBundle = buildAiLogicWorkflowBundle(fieldContext);
   if (aiLogicBundle?.steps?.length) {
     return aiLogicBundle.steps;
+  }
+  if (fieldContext.workflowId === "case-note-final") {
+    return buildCaseNoteFinalWorkflowSteps();
   }
   if (fieldContext.workflowId) {
     const configDrivenSteps = buildConfigDrivenRowWorkflowSteps(fieldContext.workflowId);
@@ -1995,96 +1998,13 @@ function createAssignedWorkflowSteps(assignedNodes = []) {
 
 function buildCaseNoteFinalWorkflowSteps() {
   return [
-    {
-      stepKey: "final-emphasis",
-      kind: "suggestions",
-      question: "What should the final case note emphasize?",
-      suggestions: [
-        "Overall shift summary",
-        "Behavior and interventions",
-        "ADL and personal care",
-        "Meal support and medication",
-        "Community and transitions",
-        "Health and safety supports",
-        "Other...",
-      ],
-      allowCustom: true,
-      multiSelect: true,
-      rationale: "Set the summary focus for the final case note.",
-    },
-    {
-      stepKey: "final-shift-concern",
-      kind: "suggestions",
-      question: "Were there any shift-wide concerns to highlight?",
-      suggestions: [
-        "None",
-        "Change in baseline",
-        "Repeated refusal",
-        "Safety concern",
-        "Medication concern",
-        "Poor intake",
-        "Behavioral escalation",
-        "Follow-up required",
-        "Other...",
-      ],
-      allowCustom: true,
-      rationale: "Capture any concern that should carry into the final note.",
-    },
-    {
-      stepKey: "final-shift-outcome",
-      kind: "suggestions",
-      question: "What was the overall shift outcome?",
-      suggestions: [
-        "Stable shift",
-        "Supported with minor issues",
-        "Supported with notable concerns",
-        "Partial completion of planned supports",
-        "Follow-up needed",
-        "Other...",
-      ],
-      allowCustom: true,
-      rationale: "Give DocuWraite the high-level outcome for the shift.",
-    },
-    {
-      stepKey: "final-follow-up",
-      kind: "suggestions",
-      question: "What follow-up should be carried forward?",
-      suggestions: [
-        "None",
-        "Supervisor review",
-        "Nurse follow-up",
-        "Care team update",
-        "Family update",
-        "Monitor next shift",
-        "Other...",
-      ],
-      allowCustom: true,
-      rationale: "Clarify who needs to know or what should be monitored next.",
-    },
-    {
-      stepKey: "final-guidance",
-      kind: "suggestions",
-      question: "Add final note guidance if needed.",
-      suggestions: [
-        "Keep concise",
-        "Highlight positive participation",
-        "Highlight refusals and redirection",
-        "Highlight health and safety supports",
-        "Highlight transitions and follow-up",
-        "No extra guidance",
-        "Other...",
-      ],
-      allowCustom: true,
-      rationale: "Optional wording direction for the final summary.",
-      optionalNarration: true,
-      narrationField: "finalGuidanceNarration",
-      manualContinue: true,
-    },
-    {
-      stepKey: "assigned-nodes-draft",
-      kind: "draft",
-      question: "Review and generate note",
-    },
+    ...(buildAiLogicWorkflowBundle({ workflowId: "case-note-final" })?.steps || [
+      {
+        stepKey: "assigned-nodes-draft",
+        kind: "draft",
+        question: "Review and generate note",
+      },
+    ]),
     {
       stepKey: "final-note-affirm",
       kind: "affirm",
@@ -3143,20 +3063,53 @@ function DocuWraiteDraftContextQuestionInline({
 
 function generateAssignedWorkflowNote(answers = {}, workflowState = {}, fieldContext = {}) {
   if (fieldContext.workflowId === "case-note-final") {
+    const getFinalAnswer = (primaryKey, legacyKey = "") =>
+      getWorkflowAnswer(answers, primaryKey) ?? (legacyKey ? getWorkflowAnswer(answers, legacyKey) : undefined);
     const sourceEntries = fieldContext.sourceEntries || [];
     const rowSummaries = sourceEntries
       .map((entry) => String(entry.comment || "").trim())
       .filter(Boolean);
+    const noteStyle = [
+      formatAssignedWorkflowAnswer(getFinalAnswer("final_note_style", "final-note-style")),
+      String(getFinalAnswer("final_note_style_other", "finalNoteStyleOther") || "").trim(),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
     const emphasisSelections = []
-      .concat(getWorkflowAnswer(answers, "final-emphasis") || [])
+      .concat(getFinalAnswer("final_emphasis", "final-emphasis") || [])
       .map((item) => String(item || "").trim())
       .filter(Boolean);
-    const emphasis = emphasisSelections.join(", ");
-    const concern = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "final-shift-concern"));
-    const outcome = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "final-shift-outcome"));
-    const followUp = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "final-follow-up"));
+    const emphasis = [
+      emphasisSelections.join(", "),
+      String(getFinalAnswer("final_emphasis_other") || "").trim(),
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const concern = [
+      formatAssignedWorkflowAnswer(getFinalAnswer("final_shift_concern", "final-shift-concern")),
+      String(getFinalAnswer("final_shift_concern_other") || "").trim(),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const outcome = [
+      formatAssignedWorkflowAnswer(getFinalAnswer("final_shift_outcome", "final-shift-outcome")),
+      String(getFinalAnswer("final_shift_outcome_other") || "").trim(),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const followUp = [
+      formatAssignedWorkflowAnswer(getFinalAnswer("final_follow_up", "final-follow-up")),
+      String(getFinalAnswer("final_follow_up_other") || "").trim(),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
     const guidance = [
-      formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "final-guidance")),
+      formatAssignedWorkflowAnswer(getFinalAnswer("final_guidance", "final-guidance")),
+      String(getFinalAnswer("final_guidance_other") || "").trim(),
       String(answers.finalGuidanceNarration || "").trim(),
     ]
       .filter(Boolean)
@@ -3164,6 +3117,7 @@ function generateAssignedWorkflowNote(answers = {}, workflowState = {}, fieldCon
     const normalizedOutcome = String(outcome || "").trim().toLowerCase();
     const normalizedConcern = String(concern || "").trim().toLowerCase();
     const normalizedFollowUp = String(followUp || "").trim().toLowerCase();
+    const normalizedNoteStyle = String(noteStyle || "").trim().toLowerCase();
     const normalizedEmphasisSelections = emphasisSelections.map((item) => item.toLowerCase());
 
     const leadByOutcome = {
@@ -3222,11 +3176,30 @@ function generateAssignedWorkflowNote(answers = {}, workflowState = {}, fieldCon
         "The next shift should continue monitoring the items summarized here.",
     };
 
+    const styleLeadByType = {
+      technical:
+        "Technical summary style selected. Keep the note structured, precise, and defensible, with clear support actions, observed outcomes, and carry-forward items.",
+      "clinical summary":
+        "Clinical summary style selected. Keep the note clinically aware, highlight changes from baseline, safety findings, and follow-up needs without overstating conclusions.",
+      "supervisor handoff":
+        "Supervisor handoff style selected. Keep the note operational, easy to scan, and explicit about what needs review or follow-up on the next shift.",
+      "concise narrative":
+        "Concise narrative style selected. Keep the note short, readable, and focused on the most relevant shift events.",
+      "family-safe summary":
+        "Family-safe summary style selected. Keep the note plain-language, respectful, and free of unnecessary internal shorthand while preserving accuracy.",
+    };
+
     const leadSentence =
       leadByOutcome[normalizedOutcome] ||
       "Throughout the shift, staff provided scheduled supports and documented the client's response across row-level activities.";
 
     const parts = [leadSentence];
+
+    if (styleLeadByType[normalizedNoteStyle]) {
+      parts.unshift(styleLeadByType[normalizedNoteStyle]);
+    } else if (noteStyle && normalizedNoteStyle !== "other") {
+      parts.unshift(`Final note style selected: ${noteStyle}.`);
+    }
 
     const emphasisLeadParts = normalizedEmphasisSelections
       .filter((item) => item !== "overall shift summary")
@@ -7444,10 +7417,26 @@ function DocumentationEntryScreen({
           caseNoteAttestationComplete: isFinalCaseNoteWorkflow,
           caseNoteAttestation: isFinalCaseNoteWorkflow
             ? {
-                emphasis: docuWraiteWorkflow?.answers?.["final-emphasis"] || "",
-                concern: docuWraiteWorkflow?.answers?.["final-shift-concern"] || "",
-                outcome: docuWraiteWorkflow?.answers?.["final-shift-outcome"] || "",
-                followUp: docuWraiteWorkflow?.answers?.["final-follow-up"] || "",
+                style:
+                  docuWraiteWorkflow?.answers?.["final_note_style"] ||
+                  docuWraiteWorkflow?.answers?.["final-note-style"] ||
+                  "",
+                emphasis:
+                  docuWraiteWorkflow?.answers?.["final_emphasis"] ||
+                  docuWraiteWorkflow?.answers?.["final-emphasis"] ||
+                  "",
+                concern:
+                  docuWraiteWorkflow?.answers?.["final_shift_concern"] ||
+                  docuWraiteWorkflow?.answers?.["final-shift-concern"] ||
+                  "",
+                outcome:
+                  docuWraiteWorkflow?.answers?.["final_shift_outcome"] ||
+                  docuWraiteWorkflow?.answers?.["final-shift-outcome"] ||
+                  "",
+                followUp:
+                  docuWraiteWorkflow?.answers?.["final_follow_up"] ||
+                  docuWraiteWorkflow?.answers?.["final-follow-up"] ||
+                  "",
               }
             : null,
         });
