@@ -435,6 +435,85 @@ const handoverVitalFields = [
   { key: "oxygenSaturation", label: "O2 Saturation", placeholder: "98%" },
 ];
 
+const NOTES_LIBRARY_STORAGE_KEY = "docuwraite-notes-library-v1";
+
+function buildDefaultNotesLibraryRecords() {
+  return [
+    {
+      id: "submitted-note-mary-bet-2026-05-18-brian",
+      clientId: "mary-bet",
+      clientName: "Mary Bet",
+      caregiverName: "Brian (DEMOTRAIN-NC)",
+      serviceDate: "05/18/2026",
+      submittedAt: "05/18/2026 8:14 PM",
+      title: "Case Note (Supervisor Setup)",
+      sessionType: "case-note",
+      signStatus: "Submitted for QA Review",
+      finalSummary:
+        "Mary Bet received ADL and medication support across the shift. Staff documented toileting assistance, oxygen checks, and routine safety follow-up with no unresolved alerts at shift end.",
+      handoverNote:
+        "Next shift should continue scheduled oxygen checks, maintain toileting cueing at the established prompt level, and monitor for any change in urine odor or skin status.",
+      timeBlocks: [
+        {
+          id: "seed-block-1",
+          label: "7am–8am",
+          workflowId: "adl",
+          score: "Supervision only",
+          comment:
+            "Toileting support was provided with supervision only and verbal cueing. Mary Bet completed the task with mild hesitation and no escalation.",
+        },
+      ],
+      rows: [
+        {
+          id: "seed-row-1",
+          description: "Document toileting support and observed response for Mary Bet.",
+          workflowId: "adl",
+          score: "Supervision only",
+          comment:
+            "Staff supervised toileting support, reinforced privacy, and documented tolerance of care without incident.",
+        },
+      ],
+      sessionSnapshot: null,
+    },
+    {
+      id: "submitted-note-mark-brent-2026-05-17-sandra",
+      clientId: "mark-brent",
+      clientName: "Mark Brent",
+      caregiverName: "Sandra (DEMOTRAIN-NC)",
+      serviceDate: "05/17/2026",
+      submittedAt: "05/17/2026 9:02 PM",
+      title: "Case Note (Supervisor Setup)",
+      sessionType: "case-note",
+      signStatus: "Submitted for QA Review",
+      finalSummary:
+        "Mark Brent participated in community outing preparation and evening hygiene prompts. Staff documented redirection support and transition readiness for the following shift.",
+      handoverNote:
+        "Monitor transition pacing, keep behavior supports available during evening routines, and review tomorrow's outing readiness before departure.",
+      timeBlocks: [
+        {
+          id: "seed-block-2",
+          label: "6pm–7pm",
+          workflowId: "behavior-support",
+          score: "Completed",
+          comment:
+            "Community transition support was provided with redirection and environmental prompts. Mark Brent remained redirectable and completed the transition.",
+        },
+      ],
+      rows: [
+        {
+          id: "seed-row-2",
+          description: "Document evening behavior support and transition response for Mark Brent.",
+          workflowId: "behavior-support",
+          score: "Completed",
+          comment:
+            "Staff used routine cueing and redirection to maintain progress through the transition without additional follow-up.",
+        },
+      ],
+      sessionSnapshot: null,
+    },
+  ];
+}
+
 const modules = [
   "Behavior Plan",
   "Care Plan",
@@ -4834,6 +4913,115 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
   return true;
 }
 
+function buildSubmittedNoteLibraryRecord({ session, clientId, clientName, caregiverName, submittedAt }) {
+  const timestamp = submittedAt || new Date().toLocaleString();
+  return {
+    id: `submitted-note-${clientId}-${Date.now()}`,
+    clientId,
+    clientName,
+    caregiverName,
+    serviceDate: session?.serviceDate || "",
+    submittedAt: timestamp,
+    title: session?.title || "Submitted Note",
+    sessionType: session?.sessionType || "documentation",
+    signStatus: session?.review?.signStatus || "Submitted for QA Review",
+    finalSummary: String(session?.shiftSummary || "").trim(),
+    handoverNote: String(session?.handover?.generatedNote || "").trim(),
+    timeBlocks: (session?.timeBlocks || []).map((block) => ({
+      id: block.id,
+      label: block.label,
+      workflowId: block.workflowId || block.baseWorkflowId || "",
+      score: block.score || "",
+      comment: block.comment || "",
+    })),
+    rows: (session?.rows || []).map((row) => ({
+      id: row.id,
+      description: row.description || "",
+      workflowId: row.workflowId || row.baseWorkflowId || "",
+      score: row.score || "",
+      comment: row.comment || "",
+    })),
+    sessionSnapshot: JSON.parse(JSON.stringify(session || null)),
+  };
+}
+
+function openSubmittedNotePdfInBrowser({ record }) {
+  if (Platform.OS !== "web" || typeof window === "undefined" || !record) {
+    return false;
+  }
+
+  const printWindow = window.open("", "_blank", "width=960,height=1200");
+  if (!printWindow) {
+    return false;
+  }
+
+  const blockMarkup = (record.timeBlocks || [])
+    .map(
+      (block) => `<div class="panel">
+        <h2>${escapeHtml(block.label || "Time Block")}</h2>
+        <p><strong>Score:</strong> ${escapeHtml(block.score || "Not scored")}</p>
+        <p>${escapeHtml(block.comment || "No block note entered.").replace(/\n/g, "<br />")}</p>
+      </div>`
+    )
+    .join("");
+  const rowMarkup = (record.rows || [])
+    .map(
+      (row) => `<div class="panel">
+        <h2>${escapeHtml(row.description || "Row Note")}</h2>
+        <p><strong>Score:</strong> ${escapeHtml(row.score || "Not scored")}</p>
+        <p>${escapeHtml(row.comment || "No row note entered.").replace(/\n/g, "<br />")}</p>
+      </div>`
+    )
+    .join("");
+
+  const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Submitted Note PDF View</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 32px; color: #231942; }
+      h1 { margin: 0 0 8px; color: #5b3db6; }
+      h2 { margin: 0 0 8px; color: #40367f; font-size: 18px; }
+      p { font-size: 14px; line-height: 1.6; margin: 4px 0; }
+      .meta { margin-bottom: 20px; }
+      .meta p { margin: 2px 0; }
+      .panel { border: 1px solid ${docuWraiteColors.border}; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: ${docuWraiteColors.surface}; }
+    </style>
+  </head>
+  <body>
+    <h1>Submitted Documentation</h1>
+    <div class="meta">
+      <p><strong>Individual:</strong> ${escapeHtml(record.clientName || "")}</p>
+      <p><strong>Caregiver:</strong> ${escapeHtml(record.caregiverName || "")}</p>
+      <p><strong>Service Date:</strong> ${escapeHtml(record.serviceDate || "")}</p>
+      <p><strong>Submitted:</strong> ${escapeHtml(record.submittedAt || "")}</p>
+      <p><strong>Status:</strong> ${escapeHtml(record.signStatus || "")}</p>
+    </div>
+    <div class="panel">
+      <h2>Final Summary</h2>
+      <p>${escapeHtml(record.finalSummary || "No final summary saved.").replace(/\n/g, "<br />")}</p>
+    </div>
+    ${
+      record.handoverNote
+        ? `<div class="panel">
+      <h2>Handover Note</h2>
+      <p>${escapeHtml(record.handoverNote).replace(/\n/g, "<br />")}</p>
+    </div>`
+        : ""
+    }
+    ${blockMarkup}
+    ${rowMarkup}
+  </body>
+</html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  return true;
+}
+
 const DOCUWRAITE_PAUSE_MS = 2500;
 
 const docuWraiteWorkflowKeywords = {
@@ -7176,7 +7364,11 @@ function DocumentationEntryScreen({
       patchSession({
         validationWarnings: [],
         dspValidationQuizPassed: true,
-        statusMessage: "Validation complete. No DSP awareness quiz items were available, so validation was marked complete.",
+        handover: {
+          ...(session.handover || {}),
+          required: true,
+        },
+        statusMessage: "Validation complete. Generate and complete the handover note next.",
         review: {
           ...session.review,
           validationTimestamp: "05/14/2026 1:06 AM",
@@ -7233,22 +7425,20 @@ function DocumentationEntryScreen({
     validationQuizAdvanceTimer.current = setTimeout(() => {
       validationQuizAdvanceTimer.current = null;
       if (validationQuizState.currentIndex >= validationQuizState.questions.length - 1) {
-        const submitAfterPass = validationQuizState.trigger === "submit";
         patchSession({
           validationWarnings: [],
           dspValidationQuizPassed: true,
-          statusMessage: submitAfterPass
-            ? "DSP awareness quiz passed. Submitting documentation."
-            : "Validation complete. DSP awareness quiz passed.",
+          handover: {
+            ...(session.handover || {}),
+            required: true,
+          },
+          statusMessage: "Validation complete. Generate and complete the handover note next.",
           review: {
             ...session.review,
             validationTimestamp: "05/14/2026 1:06 AM",
           },
         });
         closeValidationQuiz();
-        if (submitAfterPass) {
-          setSubmitHandoverPromptVisible(true);
-        }
         return;
       }
 
@@ -7418,6 +7608,17 @@ function DocumentationEntryScreen({
   };
 
   const openHandoverWorkflow = () => {
+    if (isCaseNoteSession && !session.dspValidationQuizPassed) {
+      patchSession({
+        handover: {
+          ...(session.handover || {}),
+          required: true,
+        },
+        statusMessage: "Complete Validate first. Handover opens after validation passes.",
+      });
+      return;
+    }
+
     showDocuWraiteAssist({
       fieldId: "handover",
       id: "workflow-handover-note",
@@ -8038,6 +8239,28 @@ function DocumentationEntryScreen({
   };
 
   const openHandoverNote = () => {
+    if (isCaseNoteSession && !session.dspValidationQuizPassed) {
+      patchSession({
+        handover: {
+          ...(session.handover || {}),
+          required: true,
+        },
+        statusMessage: "Complete Validate first, then finish the handover note before submission.",
+      });
+      return;
+    }
+
+    if (!String(session.handover?.generatedNote || "").trim()) {
+      patchSession({
+        handover: {
+          ...(session.handover || {}),
+          required: true,
+        },
+        statusMessage: "Generate the handover note first, then open and review it before submission.",
+      });
+      return;
+    }
+
     const generatedAt = "05/14/2026 1:06 AM";
     const nextSession = {
       ...session,
@@ -8057,17 +8280,15 @@ function DocumentationEntryScreen({
     patchSession({
       handover: nextSession.handover,
       statusMessage: opened
-        ? "Handover note opened in a new browser tab."
-        : "Handover note saved. Browser tab opening is available on web.",
+        ? "Handover note opened in a new browser tab. Documentation is ready to submit."
+        : "Handover note saved. Browser tab opening is available on web. Documentation is ready to submit.",
     });
   };
 
-  const finalizeDocumentationSubmission = ({ requireHandover = false } = {}) => {
+  const finalizeDocumentationSubmission = () => {
     patchSession({
       validationWarnings: [],
-      statusMessage: requireHandover
-        ? "Documentation submitted. Complete the detailed handover note next."
-        : "Documentation submitted for compliance review.",
+      statusMessage: "Documentation submitted for compliance review.",
       review: {
         ...session.review,
         signStatus: "Submitted for QA Review",
@@ -8075,8 +8296,8 @@ function DocumentationEntryScreen({
       },
       handover: {
         ...(session.handover || {}),
-        required: requireHandover,
-        submitted: requireHandover ? session.handover?.submitted || false : false,
+        required: true,
+        submitted: session.handover?.submitted || false,
       },
     });
     runDocuWraiteReview("submit");
@@ -8096,16 +8317,35 @@ function DocumentationEntryScreen({
     }
 
     if (isCaseNoteSession && warnings.length === 0 && !session.dspValidationQuizPassed) {
-      openValidationQuiz("submit");
       patchSession({
         validationWarnings: warnings,
-        statusMessage: "Complete the DSP awareness quiz before submitting documentation.",
+        handover: {
+          ...(session.handover || {}),
+          required: true,
+        },
+        statusMessage: "Validate first. After validation, complete handover before submitting documentation.",
       });
       return;
     }
 
     if (isCaseNoteSession && warnings.length === 0) {
-      setSubmitHandoverPromptVisible(true);
+      const hasGeneratedHandover = Boolean(String(session.handover?.generatedNote || "").trim());
+      const hasCompletedHandover = Boolean(session.handover?.submitted);
+      if (!hasGeneratedHandover || !hasCompletedHandover) {
+        patchSession({
+          validationWarnings: warnings,
+          handover: {
+            ...(session.handover || {}),
+            required: true,
+          },
+          statusMessage: hasGeneratedHandover
+            ? "Open and review the handover note before submitting documentation."
+            : "Generate the handover note after validation, then complete handover before submitting documentation.",
+        });
+        return;
+      }
+
+      finalizeDocumentationSubmission();
       return;
     }
 
@@ -8492,8 +8732,20 @@ function DocumentationEntryScreen({
                 {session.handover?.submitted ? (
                   <Text style={styles.docHandoverStatus}>Handover note generated and marked submitted.</Text>
                 ) : (
-                  <Text style={styles.docHandoverStatus}>Complete this after shift submission.</Text>
+                  <Text style={styles.docHandoverStatus}>Complete handover before submitting documentation.</Text>
                 )}
+              </View>
+              <View style={styles.docHiddenWorkflowHost}>
+                <DocumentationCommentField
+                  fieldId="handover"
+                  fieldContext={buildHandoverFieldContext()}
+                  value={session.handover?.generatedNote || ""}
+                  onChange={(generatedNote) => patchHandover({ generatedNote })}
+                  expanded={false}
+                  onToggleExpanded={() => {}}
+                  {...getCommentAssistProps("handover", buildHandoverFieldContext(), session.handover?.generatedNote || "")}
+                  onAssistActivity={handleCommentAssistActivity}
+                />
               </View>
             </View>
           </View>
@@ -21748,6 +22000,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#4d58d0",
+  },
+  docHiddenWorkflowHost: {
+    display: "none",
   },
   docHandoverInput: {
     minHeight: 96,
