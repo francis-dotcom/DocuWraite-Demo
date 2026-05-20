@@ -550,23 +550,6 @@ const documentationHowToGuides = [
     ],
   },
   {
-    title: "Decision Algo Glossary",
-    summary: "Plain-English definitions for the main Decision Engine libraries and helpers.",
-    steps: [
-      "**Baseplan:** Core documentation questions for standard workflow sections like ADLs, meals, outings, behavior, medications, and night support.",
-      "**Branching:** Follow-up and escalation questions for refusal, fatigue, risk and safety, protocol failure, and incidents.",
-      "**Careplan:** Client-specific questions driven by the care plan, including risks, goals, supports, and interventions.",
-      "**Runtime:** Live shift questions for overdue work, due tasks, handoff items, and other active conditions.",
-      "**Readiness:** Completion and quality checks that decide whether documentation is clear, safe, and ready to draft or finalize.",
-      "**PlaybookR:** The rulebook for how the engine should assemble, inject, branch, dedupe, order, and block questions.",
-      "**AIDraft / IntelliDraft:** AI drafting rules for row notes, block summaries, final notes, handoff notes, and orders documentation.",
-      "**Note Type Registry:** Mapping logic that decides which sections belong to block time, row note, final note, handover note, or orders.",
-      "**Smart Selection:** Rule-based auto-selection presets like Essential, Default, Supervisor focus, and Complete.",
-      "**Parse MD to Nodes:** The parser that converts markdown question libraries into structured runtime data.",
-      "**Nodes JSON:** The compiled machine-readable output of the question libraries, not the authored source of truth.",
-    ],
-  },
-  {
     title: "How to finalize documentation",
     summary: "Case-note closeout now follows one enforced sequence.",
     steps: [
@@ -5003,75 +4986,64 @@ function SubmittedNotesLibraryScreen({
   onSelectRecord,
   onOpenPdf,
 }) {
-  const selectedRecord =
-    records.find((record) => String(record.id) === String(selectedRecordId)) || records[0] || null;
-  const groupedRecords = buildSubmittedNoteGroups(records);
-
   return (
     <View style={styles.notesLibraryShell}>
       <Card title="Notes Library">
         <View style={styles.notesLibraryHeaderRow}>
           <Text style={styles.notesLibraryLead}>
-            Submitted notes grouped by caregiver and service date. Open any entry in system view or PDF view.
+            Submitted notes with approval status, system open, and PDF download.
           </Text>
           <Text style={styles.notesLibraryCount}>{`${records.length} submitted notes`}</Text>
         </View>
       </Card>
 
-      <View style={styles.notesLibraryGrid}>
-        <View style={styles.notesLibraryListColumn}>
-          {groupedRecords.length ? (
-            groupedRecords.map((group) => (
-              <Card
-                key={group.key}
-                title={`${group.caregiverName}`}
-                containerStyle={styles.notesLibraryGroupCard}
-                bodyStyle={styles.notesLibraryGroupBody}
-              >
-                <Text style={styles.notesLibraryGroupMeta}>{group.serviceDate}</Text>
-                <View style={styles.notesLibraryItemStack}>
-                  {group.records.map((record) => {
-                    const isActive = selectedRecord && String(selectedRecord.id) === String(record.id);
-                    return (
-                      <Pressable
-                        key={record.id}
-                        style={[styles.notesLibraryItemCard, isActive && styles.notesLibraryItemCardActive]}
-                        onPress={() => onSelectRecord?.(record.id)}
-                      >
-                        <View style={styles.notesLibraryItemHeader}>
-                          <View style={styles.notesLibraryItemCopy}>
-                            <Text style={styles.notesLibraryItemTitle}>{record.clientName}</Text>
-                            <Text style={styles.notesLibraryItemMeta}>{record.submittedAt}</Text>
-                          </View>
-                          <Text style={styles.notesLibraryItemStatus}>{record.signStatus}</Text>
-                        </View>
-                        <Text style={styles.notesLibraryItemPreview} numberOfLines={3}>
-                          {record.finalSummary || "No final summary saved."}
-                        </Text>
-                        <View style={styles.notesLibraryItemActions}>
-                          <Pressable
-                            style={styles.notesLibraryActionButton}
-                            onPress={() => onOpenPdf?.(record)}
-                          >
-                            <Text style={styles.notesLibraryActionButtonText}>PDF View</Text>
-                          </Pressable>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
+      <Card title="Submitted Notes">
+        {records.length ? (
+          <View style={styles.notesLibraryTable}>
+            <View style={styles.notesLibraryTableHeader}>
+              <Text style={[styles.notesLibraryTableHeaderCell, styles.notesLibraryColClient]}>Client</Text>
+              <Text style={[styles.notesLibraryTableHeaderCell, styles.notesLibraryColCaregiver]}>CG</Text>
+              <Text style={[styles.notesLibraryTableHeaderCell, styles.notesLibraryColDate]}>Date</Text>
+              <Text style={[styles.notesLibraryTableHeaderCell, styles.notesLibraryColStatus]}>Approval Status</Text>
+              <Text style={[styles.notesLibraryTableHeaderCell, styles.notesLibraryColActions]}>Actions</Text>
+            </View>
+            {records.map((record, index) => {
+              const isActive = String(selectedRecordId) === String(record.id);
+              return (
+                <View
+                  key={record.id}
+                  style={[
+                    styles.notesLibraryTableRow,
+                    index === records.length - 1 ? styles.notesLibraryTableRowLast : null,
+                    isActive ? styles.notesLibraryTableRowActive : null,
+                  ]}
+                >
+                  <Text style={[styles.notesLibraryTableCell, styles.notesLibraryColClient]}>{record.clientName}</Text>
+                  <Text style={[styles.notesLibraryTableCell, styles.notesLibraryColCaregiver]}>{record.caregiverName}</Text>
+                  <Text style={[styles.notesLibraryTableCell, styles.notesLibraryColDate]}>{record.submittedAt}</Text>
+                  <Text style={[styles.notesLibraryTableCell, styles.notesLibraryColStatus]}>{record.signStatus}</Text>
+                  <View style={[styles.notesLibraryTableCell, styles.notesLibraryColActions, styles.notesLibraryActionRow]}>
+                    <Pressable
+                      style={styles.notesLibraryInlineAction}
+                      onPress={() => onSelectRecord?.(record.id)}
+                    >
+                      <Text style={styles.notesLibraryInlineActionText}>Open</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.notesLibraryInlineAction}
+                      onPress={() => onOpenPdf?.(record)}
+                    >
+                      <Text style={styles.notesLibraryInlineActionText}>Download</Text>
+                    </Pressable>
+                  </View>
                 </View>
-              </Card>
-            ))
-          ) : (
-            <Card title="Notes Library">
-              <Text style={styles.notesLibraryEmpty}>No submitted notes are available yet.</Text>
-            </Card>
-          )}
-        </View>
-
-        <View style={styles.notesLibraryDetailColumn}>
-        </View>
-      </View>
+              );
+            })}
+          </View>
+        ) : (
+          <Text style={styles.notesLibraryEmpty}>No submitted notes are available yet.</Text>
+        )}
+      </Card>
     </View>
   );
 }
@@ -17799,156 +17771,79 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     color: colors.headerText,
   },
-  notesLibraryGrid: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    columnGap: 16,
-  },
-  notesLibraryListColumn: {
-    flex: 0.95,
-    rowGap: 16,
-    minWidth: 0,
-  },
-  notesLibraryDetailColumn: {
-    flex: 1.25,
-    minWidth: 0,
-  },
-  notesLibraryGroupCard: {
-    overflow: "hidden",
-  },
-  notesLibraryGroupBody: {
-    rowGap: 12,
-  },
-  notesLibraryGroupMeta: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.placeholder,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  notesLibraryItemStack: {
-    rowGap: 10,
-  },
-  notesLibraryItemCard: {
-    borderWidth: 1,
-    borderColor: colors.lightBorder,
-    borderRadius: 10,
-    backgroundColor: "#faf8ff",
-    padding: 12,
-    rowGap: 10,
-  },
-  notesLibraryItemCardActive: {
-    borderColor: docuWraiteColors.primary,
-    backgroundColor: "#f1edff",
-  },
-  notesLibraryItemHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    columnGap: 10,
-  },
-  notesLibraryItemCopy: {
-    flex: 1,
-    rowGap: 2,
-  },
-  notesLibraryItemTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  notesLibraryItemMeta: {
-    fontSize: 12,
-    color: colors.placeholder,
-  },
-  notesLibraryItemStatus: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: docuWraiteColors.primary,
-    textAlign: "right",
-  },
-  notesLibraryItemPreview: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: colors.muted,
-  },
-  notesLibraryItemActions: {
-    flexDirection: "row",
-    columnGap: 8,
-  },
-  notesLibraryActionButton: {
+  notesLibraryTable: {
     borderWidth: 1,
     borderColor: colors.lightBorder,
     borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    backgroundColor: "#ffffff",
-  },
-  notesLibraryActionButtonPrimary: {
-    backgroundColor: docuWraiteColors.primary,
-    borderColor: docuWraiteColors.primary,
-  },
-  notesLibraryActionButtonText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.headerText,
-  },
-  notesLibraryActionButtonPrimaryText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#ffffff",
-  },
-  notesLibraryDetailCard: {
     overflow: "hidden",
   },
-  notesLibraryDetailBody: {
-    rowGap: 14,
+  notesLibraryTableHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0ebff",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lightBorder,
   },
-  notesLibraryDetailMeta: {
-    rowGap: 4,
-    paddingBottom: 4,
-  },
-  notesLibraryDetailName: {
-    fontSize: 20,
+  notesLibraryTableHeaderCell: {
+    fontSize: 12,
     fontWeight: "800",
-    color: colors.text,
+    color: colors.headerText,
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  notesLibraryDetailMetaText: {
+  notesLibraryTableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee8ff",
+  },
+  notesLibraryTableRowLast: {
+    borderBottomWidth: 0,
+  },
+  notesLibraryTableRowActive: {
+    backgroundColor: "#f8f5ff",
+  },
+  notesLibraryTableCell: {
     fontSize: 13,
-    color: colors.muted,
+    color: colors.text,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
-  notesLibrarySectionCard: {
+  notesLibraryColClient: {
+    flex: 1.2,
+  },
+  notesLibraryColCaregiver: {
+    flex: 1.2,
+  },
+  notesLibraryColDate: {
+    flex: 0.8,
+  },
+  notesLibraryColStatus: {
+    flex: 1,
+  },
+  notesLibraryColActions: {
+    flex: 0.9,
+  },
+  notesLibraryActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+  },
+  notesLibraryInlineAction: {
     borderWidth: 1,
     borderColor: colors.lightBorder,
-    borderRadius: 10,
-    backgroundColor: "#fcfbff",
-    padding: 14,
-    rowGap: 10,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#ffffff",
   },
-  notesLibrarySectionTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: colors.headerText,
-  },
-  notesLibrarySectionBody: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.text,
-  },
-  notesLibraryDetailEntry: {
-    rowGap: 4,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#ece6ff",
-  },
-  notesLibraryDetailEntryTitle: {
-    fontSize: 13,
+  notesLibraryInlineActionText: {
+    fontSize: 12,
     fontWeight: "700",
     color: colors.headerText,
-  },
-  notesLibraryDetailEntryBody: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: colors.text,
   },
   notesLibraryEmpty: {
     fontSize: 14,

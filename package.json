@@ -13,7 +13,6 @@
     "server": "node server/index.js",
     "sync:morning-shift": "node server/scripts/morningShiftSync.js",
     "sync:therap": "node server/scripts/therapSync.js",
-    "parse:decision-nodes": "node decisionAlgo/parse-md-to-nodes.js",
     "bootstrap:care-plans": "node --input-type=module -e \"import { getMaryBetProfile, getMarkBrentProfile, getEliasBrianProfile } from './clientProfiles.js'; import fs from 'fs'; const data = { 'mary-bet': { riskCards: getMaryBetProfile().riskCards, actionPlans: getMaryBetProfile().actionPlans, shiftIntelligenceOptions: getMaryBetProfile().shiftIntelligenceOptions }, 'mark-brent': { riskCards: getMarkBrentProfile().riskCards, actionPlans: getMarkBrentProfile().actionPlans, shiftIntelligenceOptions: getMarkBrentProfile().shiftIntelligenceOptions }, 'elias-brian': { riskCards: getEliasBrianProfile().riskCards, actionPlans: getEliasBrianProfile().actionPlans, shiftIntelligenceOptions: getEliasBrianProfile().shiftIntelligenceOptions } }; fs.writeFileSync('./server/carePlanBootstrap.json', JSON.stringify(data, null, 2)); console.log('carePlanBootstrap.json updated');\""
   },
   "dependencies": {
