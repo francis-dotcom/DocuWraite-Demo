@@ -527,17 +527,17 @@ const modules = [
   "Individual Plan Agenda",
 ];
 
-const pdfs = ["Emergency Data Form", "Face Sheet", "Medical Information", "Glossary"];
+const pdfs = ["Dev Guide", "Face Sheet", "Medical Information", "Glossary"];
 
 const documentationHowToGuides = [
   {
     title: "How to start a note",
-    summary: "Open the correct documentation block before writing.",
+    summary: "Use Supervisor Setup first, then document against the assigned workflow.",
     steps: [
-      "Confirm the correct individual, module, and time block.",
-      "If the same time appears more than once, use the workflow label inside that time cell (for example Behavior or ADL) to pick the correct support entry.",
-      "Open the documentation row that matches the service you are charting.",
-      "Review active alerts, appointments, and health tasks before entering details.",
+      "Open Supervisor Setup and build the shift structure first with Schedule Builder and Row Builder.",
+      "Use clear workflow descriptions so DocuWraite can infer the right AI path, such as toileting, bathing, transfers, behavior support, or medication support.",
+      "When the DSP opens the bubble on a block, row, final note, or handover note, answer the guided workflow questions instead of free-typing first.",
+      "Document against the correct block or row entry for that service, especially when the same hour appears more than once.",
     ],
   },
   {
@@ -568,11 +568,24 @@ const documentationHowToGuides = [
   },
   {
     title: "How to finalize documentation",
-    summary: "Close the note without leaving readiness gaps behind.",
+    summary: "Case-note closeout now follows one enforced sequence.",
     steps: [
-      "Check that refusals, delays, and incomplete items are documented clearly.",
-      "Route unresolved follow-up to handoff or supervisor review when needed.",
-      "Use the reference PDFs to verify demographic or medical details before saving.",
+      "Step 1: complete the Final Case Note workflow and generate the final summary.",
+      "Step 2: tap Validate and complete the DSP awareness quiz for all saved row notes, block notes, and the summary.",
+      "Step 3: generate the Handover Note, review it, and open the handover view so the handover step is marked complete.",
+      "Step 4: only after validation and handover are complete can Submit Documentation finish the case note.",
+      "After final submission, the case-note inputs clear and the submitted note is saved into Go To -> Notes Library.",
+    ],
+  },
+  {
+    title: "How to use Notes Library",
+    summary: "Submitted documentation is now reviewed from the archive, not from the cleared live form.",
+    steps: [
+      "Open Go To -> Notes Library to see submitted case notes.",
+      "Notes are grouped by caregiver and service date so supervisors can review what each CG submitted on that date.",
+      "Use System View to review the final summary, handover note, block notes, and row notes inside the app.",
+      "Use PDF View to open a printable browser version of the submitted note.",
+      "A newly submitted case note is added to Notes Library automatically after final submission.",
     ],
   },
   {
@@ -583,63 +596,6 @@ const documentationHowToGuides = [
       "Schedule Builder can use the same time range more than once when the workflow is different, such as 8am-9am Behavior and 8am-9am ADL.",
       "Choose the workflow category for each block or row so DocuWraite opens the correct modal questions later.",
       "Review the descriptions and prompts so the DSP sees the right documentation context during the shift.",
-    ],
-  },
-  {
-    title: "How branch, depth, and sections work",
-    summary: "Topic folders, question levels, and storyline lanes in the Decision Engine.",
-    steps: [
-      "Section is the topic folder in the question list (for example morning ADL, Row Note Draft, Protocol Failure Branching). It groups related questions; it is not the same as Branch or Depth.",
-      "Depth is how many levels down the tree you see. Depth 1 is the main question (node id letter a), depth 2 is the next level under it (b), depth 3 is under that (c), and so on — like main question, then children, then sub-children.",
-      "The Depth control caps how far down the chain is included. Depth 3 shows the main question plus two levels of follow-ups; a lower depth shows only the opening layers.",
-      "Branch is which class or lane you are on at those levels. In most libraries, branch 1 and branch 2 are parallel paths in the same section (for example a trigger path versus a content path). Baseplan can use branches 1 through 5 for different lanes inside a section.",
-      "In Selective branch mode, Branch means one of five escalation classes only: Refusal, Fatigue, Risk and safety, Protocol failure, Incident or emergency. Those five are the full set for that branching guide; there is no sixth class unless the guide is extended.",
-      "Full branch mode shows every question in the library for the selected note type. Selective branch mode narrows the main library by branch and depth and adds matching follow-up questions from the branching guide for the class you picked.",
-      "Use Library and Note type for what you are documenting. Use Mode, Branch, and Depth when you want a focused slice instead of the whole library.",
-    ],
-  },
-  {
-    title: "Which libraries and depths each note type has",
-    summary: "Not every library has every note type — pick the note type that matches what you are charting.",
-    steps: [
-      "The five note types are Block time, Row note, Final note, Handover note, and Orders. Note type controls which sections appear when you filter the Decision Engine list — it is not just a label.",
-      "Block time is the fullest set: Baseplan sections A–J (morning ADL, outing, behavior, medication-support, and similar), plus Careplan, Runtime, Readiness, Playbook R, IntelliDraft block drafts, and branching follow-ups. Baseplan block-time questions can run up to depth 5; most other libraries use depths 1–3.",
-      "Row note uses Baseplan section L (row-note-support), IntelliDraft row-note drafts, shared AI safety section E, and branching. It does not show the big Careplan or Runtime block-time libraries.",
-      "Final note uses Baseplan section K (case-note-final), IntelliDraft final-case-note drafts, section E, and branching — typically depths 1–5 in Baseplan K and 1–3 elsewhere.",
-      "Handover note uses Baseplan section M (handover-note-support), Runtime handoff section, IntelliDraft handoff drafts, section E, and branching.",
-      "Orders uses Runtime medications and due health tasks, IntelliDraft orders and medication drafts, section E, and branching. Baseplan medication-support (section I) is Block time only, not Orders — do not expect orders questions under Baseplan.",
-      "Branching (Refusal through Incident) is available for all five note types in Selective branch mode. The Depth dropdown caps how many levels you see; it does not auto-add every child question — you still check each question you want, then Final Assign. The purple bubble on Scores/Comments asks only what you assigned to that block or row.",
-    ],
-  },
-  {
-    title: "Which note type to pick",
-    summary: "Match note type to what you are assigning — block, row, or whole shift.",
-    steps: [
-      "Block time — timeline / time-block work (morning ADL, outing, behavior, feeding). Use Target: Time block. This is the default and the largest question set (Baseplan A–J, Careplan, Runtime, and more). If two block-time entries share the same hour range, the DSP page groups them under one time cell and labels each workflow separately.",
-      "Row note — one DSP case-note row. Use Target: Case-note row and Note type Row note (the app sets this when you pick a row).",
-      "Final note — end-of-shift final case note paragraph. Use once per shift (Baseplan K, IntelliDraft final). Target is usually a time block; assign only one final pack per case note.",
-      "Handover note — next-shift handoff. Baseplan M, Runtime handoff, IntelliDraft handoff.",
-      "Orders — MAR and medication documentation. Runtime + IntelliDraft orders — not Baseplan medication-support (that stays under Block time).",
-      "Rule of thumb: pick Target first; Note type follows the row vs block. Use Smart select after Note type and Branch/Depth are set.",
-    ],
-  },
-  {
-    title: "How to assign questions (Workflow → Category → Depth)",
-    summary: "Legacy assignment tooling for advanced admin use only.",
-    steps: [
-      "The current DSP note flow does not depend on manual assignment for supported categories.",
-      "Use Schedule Builder and Row Builder to define block time, case-note rows, and workflow categories.",
-      "Keep this section only if you still need advanced admin-only assignment experiments later.",
-      "See decisionAlgo/documentationArchitecture.md for the full model.",
-    ],
-  },
-  {
-    title: "How to use Smart select (supervisor quick pick)",
-    summary: "Legacy helper for advanced admin assignment only.",
-    steps: [
-      "Smart select is no longer required for the supervisor setup flow used by DSP note bubbles.",
-      "The supported categories now open their question flow automatically from the row or block workflow.",
-      "Keep Smart select only if you still need the advanced admin assignment library later.",
     ],
   },
 ];
@@ -5022,6 +4978,104 @@ function openSubmittedNotePdfInBrowser({ record }) {
   return true;
 }
 
+function buildSubmittedNoteGroups(records = []) {
+  const groups = new Map();
+  records.forEach((record) => {
+    const caregiverName = String(record?.caregiverName || "Unknown Caregiver").trim() || "Unknown Caregiver";
+    const serviceDate = String(record?.serviceDate || "Unknown Date").trim() || "Unknown Date";
+    const key = `${caregiverName}__${serviceDate}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        caregiverName,
+        serviceDate,
+        records: [],
+      });
+    }
+    groups.get(key).records.push(record);
+  });
+  return Array.from(groups.values());
+}
+
+function SubmittedNotesLibraryScreen({
+  records = [],
+  selectedRecordId = "",
+  onSelectRecord,
+  onOpenPdf,
+}) {
+  const selectedRecord =
+    records.find((record) => String(record.id) === String(selectedRecordId)) || records[0] || null;
+  const groupedRecords = buildSubmittedNoteGroups(records);
+
+  return (
+    <View style={styles.notesLibraryShell}>
+      <Card title="Notes Library">
+        <View style={styles.notesLibraryHeaderRow}>
+          <Text style={styles.notesLibraryLead}>
+            Submitted notes grouped by caregiver and service date. Open any entry in system view or PDF view.
+          </Text>
+          <Text style={styles.notesLibraryCount}>{`${records.length} submitted notes`}</Text>
+        </View>
+      </Card>
+
+      <View style={styles.notesLibraryGrid}>
+        <View style={styles.notesLibraryListColumn}>
+          {groupedRecords.length ? (
+            groupedRecords.map((group) => (
+              <Card
+                key={group.key}
+                title={`${group.caregiverName}`}
+                containerStyle={styles.notesLibraryGroupCard}
+                bodyStyle={styles.notesLibraryGroupBody}
+              >
+                <Text style={styles.notesLibraryGroupMeta}>{group.serviceDate}</Text>
+                <View style={styles.notesLibraryItemStack}>
+                  {group.records.map((record) => {
+                    const isActive = selectedRecord && String(selectedRecord.id) === String(record.id);
+                    return (
+                      <Pressable
+                        key={record.id}
+                        style={[styles.notesLibraryItemCard, isActive && styles.notesLibraryItemCardActive]}
+                        onPress={() => onSelectRecord?.(record.id)}
+                      >
+                        <View style={styles.notesLibraryItemHeader}>
+                          <View style={styles.notesLibraryItemCopy}>
+                            <Text style={styles.notesLibraryItemTitle}>{record.clientName}</Text>
+                            <Text style={styles.notesLibraryItemMeta}>{record.submittedAt}</Text>
+                          </View>
+                          <Text style={styles.notesLibraryItemStatus}>{record.signStatus}</Text>
+                        </View>
+                        <Text style={styles.notesLibraryItemPreview} numberOfLines={3}>
+                          {record.finalSummary || "No final summary saved."}
+                        </Text>
+                        <View style={styles.notesLibraryItemActions}>
+                          <Pressable
+                            style={styles.notesLibraryActionButton}
+                            onPress={() => onOpenPdf?.(record)}
+                          >
+                            <Text style={styles.notesLibraryActionButtonText}>PDF View</Text>
+                          </Pressable>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </Card>
+            ))
+          ) : (
+            <Card title="Notes Library">
+              <Text style={styles.notesLibraryEmpty}>No submitted notes are available yet.</Text>
+            </Card>
+          )}
+        </View>
+
+        <View style={styles.notesLibraryDetailColumn}>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 const DOCUWRAITE_PAUSE_MS = 2500;
 
 const docuWraiteWorkflowKeywords = {
@@ -8286,6 +8340,46 @@ function DocumentationEntryScreen({
   };
 
   const finalizeDocumentationSubmission = () => {
+    if (isCaseNoteSession) {
+      const submittedRecord = buildSubmittedNoteLibraryRecord({
+        session: {
+          ...session,
+          review: {
+            ...session.review,
+            signStatus: "Submitted for QA Review",
+            validationTimestamp: "05/14/2026 1:06 AM",
+          },
+        },
+        clientId: clientProfile?.id || activeClientName,
+        clientName: activePatientName,
+        caregiverName: loggedInUser,
+        submittedAt: "05/14/2026 1:06 AM",
+      });
+      setSubmittedNotesLibrary((current) => [
+        submittedRecord,
+        ...(current || []).filter((record) => String(record.id) !== String(submittedRecord.id)),
+      ]);
+      setSelectedSubmittedNoteId(submittedRecord.id);
+
+      const nextSession = createDocumentationSession({
+        title: session.title,
+        program: session.program,
+        sessionType: session.sessionType,
+        clientProfile,
+        timeBlocksOverride: session.timeBlocks,
+        rowsOverride: session.rows,
+      });
+
+      onUpdate(
+        markDraftSaved({
+          ...nextSession,
+          serviceDate: session.serviceDate,
+          statusMessage: "Documentation submitted. Case note inputs were cleared for a new entry.",
+        })
+      );
+      return;
+    }
+
     patchSession({
       validationWarnings: [],
       statusMessage: "Documentation submitted for compliance review.",
@@ -16201,6 +16295,10 @@ export default function App() {
     documentationHowToGuides[0]?.title ?? null
   );
   const [documentationSession, setDocumentationSession] = useState(null);
+  const [submittedNotesLibrary, setSubmittedNotesLibrary] = useState(() => buildDefaultNotesLibraryRecords());
+  const [selectedSubmittedNoteId, setSelectedSubmittedNoteId] = useState(
+    () => buildDefaultNotesLibraryRecords()[0]?.id || ""
+  );
   const [activeClientId, setActiveClientId] = useState("mary-bet");
   const [individualQuery, setIndividualQuery] = useState(
     formatClientNameLastFirstInitials("Mary Bet")
@@ -16237,6 +16335,7 @@ export default function App() {
   const showSleepSupportInputFlow = selectedModule === "Sleep Support Input Flow";
   const showDecisionEngine = selectedModule === "Supervisor Setup";
   const showDocumentationGuide = selectedModule === "Documentation Guide";
+  const showNotesLibrary = selectedModule === "Notes Library";
   const defaultCaseNoteTemplate = createDocumentationSession({
     title: "Case Note (Supervisor Setup)",
     program: "Case Note",
@@ -16311,6 +16410,34 @@ export default function App() {
     "Case Status",
     "About Me",
   ];
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const stored = window.localStorage.getItem(NOTES_LIBRARY_STORAGE_KEY);
+      if (!stored) {
+        return;
+      }
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length) {
+        setSubmittedNotesLibrary(parsed);
+        setSelectedSubmittedNoteId((current) => current || parsed[0]?.id || "");
+      }
+    } catch (_error) {}
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(NOTES_LIBRARY_STORAGE_KEY, JSON.stringify(submittedNotesLibrary || []));
+    } catch (_error) {}
+  }, [submittedNotesLibrary]);
 
   useEffect(() => {
     if (!showIndividualSuggestions) {
@@ -16661,6 +16788,12 @@ export default function App() {
       return;
     }
 
+    if (item === "Notes Library") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
     if (item === "Community Input Flow") {
       setDocumentationSession(null);
       setPendingDecisionAssignmentTarget(null);
@@ -16754,6 +16887,12 @@ export default function App() {
     if (guideTitle) {
       setExpandedDocumentationGuide(guideTitle);
     }
+  };
+
+  const handleOpenNotesLibrary = () => {
+    setSelectedModule("Notes Library");
+    setDocumentationSession(null);
+    setPendingDecisionAssignmentTarget(null);
   };
 
   const handleIspProgramPress = (row) => {
@@ -17068,7 +17207,14 @@ export default function App() {
               <Card
                 title="Go To"
                 rightAccessory={<Icon name="chevronDown" size={18} color={colors.headerText} />}
-              />
+              >
+                <View style={styles.pdfList}>
+                  <Pressable style={styles.pdfRow} onPress={handleOpenNotesLibrary}>
+                    <Text style={styles.pdfItem}>Notes Library</Text>
+                    <Icon name="chevronRight" size={15} color={colors.link} style={styles.pdfLinkIcon} />
+                  </Pressable>
+                </View>
+              </Card>
 
               <Card
                 title="Reference PDFs"
@@ -17081,7 +17227,7 @@ export default function App() {
                       style={styles.pdfRow}
                       onPress={() =>
                         handleOpenDocumentationGuide(
-                          item === "Glossary" ? "Decision Algo Glossary" : null
+                          item === "Glossary" ? "Decision Algo Glossary" : item === "Dev Guide" ? "How to start a note" : null
                         )
                       }
                     >
@@ -17263,6 +17409,18 @@ export default function App() {
                 <DocumentationGuideScreen
                   expandedDocumentationGuide={expandedDocumentationGuide}
                   onToggleGuide={setExpandedDocumentationGuide}
+                />
+              ) : showNotesLibrary ? (
+                <SubmittedNotesLibraryScreen
+                  records={submittedNotesLibrary}
+                  selectedRecordId={selectedSubmittedNoteId}
+                  onSelectRecord={setSelectedSubmittedNoteId}
+                  onOpenPdf={(record) => {
+                    const opened = openSubmittedNotePdfInBrowser({ record });
+                    if (!opened && Platform.OS !== "web") {
+                      setSelectedSubmittedNoteId(record?.id || "");
+                    }
+                  }}
                 />
               ) : documentationSession ? (
                 <DocumentationEntryScreen
@@ -17622,6 +17780,180 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 14,
     backgroundColor: "#f7f4ff",
+  },
+  notesLibraryShell: {
+    rowGap: 16,
+  },
+  notesLibraryHeaderRow: {
+    rowGap: 6,
+  },
+  notesLibraryLead: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.muted,
+  },
+  notesLibraryCount: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    color: colors.headerText,
+  },
+  notesLibraryGrid: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    columnGap: 16,
+  },
+  notesLibraryListColumn: {
+    flex: 0.95,
+    rowGap: 16,
+    minWidth: 0,
+  },
+  notesLibraryDetailColumn: {
+    flex: 1.25,
+    minWidth: 0,
+  },
+  notesLibraryGroupCard: {
+    overflow: "hidden",
+  },
+  notesLibraryGroupBody: {
+    rowGap: 12,
+  },
+  notesLibraryGroupMeta: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.placeholder,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  notesLibraryItemStack: {
+    rowGap: 10,
+  },
+  notesLibraryItemCard: {
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+    borderRadius: 10,
+    backgroundColor: "#faf8ff",
+    padding: 12,
+    rowGap: 10,
+  },
+  notesLibraryItemCardActive: {
+    borderColor: docuWraiteColors.primary,
+    backgroundColor: "#f1edff",
+  },
+  notesLibraryItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    columnGap: 10,
+  },
+  notesLibraryItemCopy: {
+    flex: 1,
+    rowGap: 2,
+  },
+  notesLibraryItemTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  notesLibraryItemMeta: {
+    fontSize: 12,
+    color: colors.placeholder,
+  },
+  notesLibraryItemStatus: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: docuWraiteColors.primary,
+    textAlign: "right",
+  },
+  notesLibraryItemPreview: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted,
+  },
+  notesLibraryItemActions: {
+    flexDirection: "row",
+    columnGap: 8,
+  },
+  notesLibraryActionButton: {
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: "#ffffff",
+  },
+  notesLibraryActionButtonPrimary: {
+    backgroundColor: docuWraiteColors.primary,
+    borderColor: docuWraiteColors.primary,
+  },
+  notesLibraryActionButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  notesLibraryActionButtonPrimaryText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  notesLibraryDetailCard: {
+    overflow: "hidden",
+  },
+  notesLibraryDetailBody: {
+    rowGap: 14,
+  },
+  notesLibraryDetailMeta: {
+    rowGap: 4,
+    paddingBottom: 4,
+  },
+  notesLibraryDetailName: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  notesLibraryDetailMetaText: {
+    fontSize: 13,
+    color: colors.muted,
+  },
+  notesLibrarySectionCard: {
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+    borderRadius: 10,
+    backgroundColor: "#fcfbff",
+    padding: 14,
+    rowGap: 10,
+  },
+  notesLibrarySectionTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.headerText,
+  },
+  notesLibrarySectionBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.text,
+  },
+  notesLibraryDetailEntry: {
+    rowGap: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#ece6ff",
+  },
+  notesLibraryDetailEntryTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  notesLibraryDetailEntryBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text,
+  },
+  notesLibraryEmpty: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.placeholder,
   },
   cardHeaderText: {
     color: colors.headerText,

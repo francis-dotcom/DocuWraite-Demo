@@ -41,7 +41,6 @@ export const INTELLIDRAFT_NOTE_TYPES = [
   },
 ];
 
-/** Shown under every note-type filter (cross-cutting AI language & safety). */
 export const INTELLIDRAFT_SHARED_SECTION = {
   section: "E. AI Language and Safety Controls",
   noteType: "*",
