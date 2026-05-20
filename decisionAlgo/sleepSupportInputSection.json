@@ -1,0 +1,99 @@
+{
+  "sectionId": "sleep-support-input-section",
+  "title": "Sleep Support Input Section",
+  "description": "Sleep-support intake fields for a case-row note modal. The DSP selects the sleep routine or overnight task, support provided, safety context, and any follow-up needs for the documented block.",
+  "buildOrderMessage": "Bedtime Routine and Overnight Monitoring are the first strong sleep-support paths to validate. Keep this section focused on routine support, rest tolerance, safety, and overnight follow-up.",
+  "questionSteps": [
+    "What sleep support task was provided?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person present during sleep support?",
+    "Were any sleep support risks or protocols active?",
+    "Were any alerts present?",
+    "Add a sleep support note."
+  ],
+  "tasks": [
+    { "value": "bedtime_routine", "label": "Bedtime routine" },
+    { "value": "overnight_monitoring", "label": "Overnight monitoring" },
+    { "value": "repositioning_support", "label": "Repositioning support" },
+    { "value": "wake_up_support", "label": "Wake-up support" },
+    { "value": "overnight_toileting", "label": "Overnight toileting" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "standby_assist", "label": "Standby assist" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "partial_assist", "label": "Partial assist" },
+    { "value": "full_assist", "label": "Full assist" }
+  ],
+  "taskDetails": {
+    "bedtime_routine": {
+      "subtasks": [
+        { "value": "settling_support", "label": "Settling support" },
+        { "value": "night_hygiene", "label": "Night hygiene" },
+        { "value": "bedroom_setup", "label": "Bedroom set-up" }
+      ],
+      "risks": ["fall_risk", "wandering_risk", "environmental_hazard_present"],
+      "protocols": ["sleep_plan_active", "line_of_sight_required", "documentation_required"],
+      "alerts": ["interrupted_sleep_pattern", "pain_reported", "change_in_baseline", "supervisor_notification_needed"]
+    },
+    "overnight_monitoring": {
+      "subtasks": [
+        { "value": "line_of_sight_checks", "label": "Line-of-sight checks" },
+        { "value": "rest_observation", "label": "Rest observation" },
+        { "value": "respiratory_check", "label": "Respiratory check" }
+      ],
+      "risks": ["fall_risk", "wandering_risk", "change_in_baseline_risk"],
+      "protocols": ["sleep_plan_active", "line_of_sight_required", "documentation_required"],
+      "alerts": ["interrupted_sleep_pattern", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    },
+    "repositioning_support": {
+      "subtasks": [
+        { "value": "bed_repositioning", "label": "Bed repositioning" },
+        { "value": "pressure_relief", "label": "Pressure-relief support" },
+        { "value": "comfort_adjustment", "label": "Comfort adjustment" }
+      ],
+      "risks": ["skin_breakdown_risk", "fall_risk", "injury_risk"],
+      "protocols": ["q2_positioning_required", "documentation_required"],
+      "alerts": ["pain_reported", "change_in_baseline", "nurse_notification_needed"]
+    },
+    "wake_up_support": {
+      "subtasks": [
+        { "value": "morning_prompting", "label": "Morning prompting" },
+        { "value": "transition_out_of_bed", "label": "Transition out of bed" },
+        { "value": "wake_up_routine", "label": "Wake-up routine" }
+      ],
+      "risks": ["fall_risk", "change_in_baseline_risk"],
+      "protocols": ["sleep_plan_active", "documentation_required"],
+      "alerts": ["interrupted_sleep_pattern", "change_in_baseline", "supervisor_notification_needed"]
+    },
+    "overnight_toileting": {
+      "subtasks": [
+        { "value": "toilet_prompt", "label": "Toilet prompt" },
+        { "value": "toilet_transfer", "label": "Toilet transfer" },
+        { "value": "brief_change", "label": "Brief change" }
+      ],
+      "risks": ["fall_risk", "skin_breakdown_risk", "environmental_hazard_present"],
+      "protocols": ["gait_belt_required", "line_of_sight_required", "documentation_required"],
+      "alerts": ["incontinence_episode", "pain_reported", "supervisor_notification_needed"]
+    }
+  }
+}

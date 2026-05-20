@@ -1,0 +1,158 @@
+{
+  "sectionId": "adl-input-section",
+  "title": "ADL Input Section",
+  "description": "Task-focused ADL intake fields for a case-row note modal. The case row already provides the broader note context, so the DSP only selects the ADL details for this block.",
+  "buildOrderMessage": "Bathing and Transfers are the first fully wired ADL paths. Keep the ADL section task-focused and let the runtime compose rules, modules, and note output behind the scenes.",
+  "questionSteps": [
+    "What ADL task was supported?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person engage during the ADL task?",
+    "Were any ADL risks or protocols active?",
+    "Were any alerts present?",
+    "Add an ADL note."
+  ],
+  "tasks": [
+    { "value": "bathing", "label": "Bathing" },
+    { "value": "toileting", "label": "Toileting" },
+    { "value": "dressing", "label": "Dressing" },
+    { "value": "grooming", "label": "Grooming" },
+    { "value": "hygiene", "label": "Hygiene" },
+    { "value": "transfers", "label": "Transfers" },
+    { "value": "oral_care", "label": "Oral care" },
+    { "value": "feeding_assistance", "label": "Feeding assistance" },
+    { "value": "ambulation", "label": "Ambulation" },
+    { "value": "continence_care", "label": "Incontinence care" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "refused_initially", "label": "Refused initially" },
+    { "value": "re_engaged", "label": "Re-engaged" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "standby_assist", "label": "Standby assist" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "visual_prompt", "label": "Visual prompt" },
+    { "value": "gestural_prompt", "label": "Gestural prompt" },
+    { "value": "modeling_required", "label": "Modeling required" },
+    { "value": "redirection_required", "label": "Redirection required" },
+    { "value": "partial_assist", "label": "Partial assist" },
+    { "value": "full_assist", "label": "Full assist" },
+    { "value": "hand_over_hand", "label": "Hand over hand" },
+    { "value": "two_person_assist", "label": "Two-person assist" },
+    { "value": "dependent", "label": "Dependent" }
+  ],
+  "assistanceOverrides": {
+    "bathing": [
+      { "value": "independent", "label": "Independent" },
+      { "value": "verbal_prompt", "label": "Verbal prompt" },
+      { "value": "partial_assist", "label": "Partial assist" },
+      { "value": "full_assist", "label": "Full assist" }
+    ],
+    "transfers": [
+      { "value": "independent", "label": "Independent" },
+      { "value": "standby_assist", "label": "Standby assist" },
+      { "value": "supervision_only", "label": "Supervision only" },
+      { "value": "verbal_prompt", "label": "Verbal prompt" },
+      { "value": "partial_assist", "label": "Partial assist" },
+      { "value": "full_assist", "label": "Full assist" },
+      { "value": "two_person_assist", "label": "Two-person assist" },
+      { "value": "dependent", "label": "Dependent" }
+    ]
+  },
+  "taskDetails": {
+    "bathing": {
+      "subtasks": [
+        { "value": "shower", "label": "Shower" },
+        { "value": "tub_bath", "label": "Tub bath" },
+        { "value": "bath_setup", "label": "Bath setup" }
+      ],
+      "risks": [
+        "fall_risk",
+        "skin_breakdown_risk",
+        "aggression_risk",
+        "self_injury_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "gait_belt_required",
+        "two_person_transfer_required",
+        "universal_precautions",
+        "behavior_support_plan_active",
+        "documentation_required"
+      ],
+      "alerts": [
+        "pain_reported",
+        "change_in_baseline",
+        "incident_follow_up_needed",
+        "nurse_notification_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "transfers": {
+      "subtasks": [
+        { "value": "bed_to_chair", "label": "Bed to chair" },
+        { "value": "chair_to_toilet", "label": "Chair to toilet" },
+        { "value": "standing_transfer", "label": "Standing transfer" }
+      ],
+      "risks": [
+        "fall_risk",
+        "aggression_risk",
+        "self_injury_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "gait_belt_required",
+        "two_person_transfer_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "pain_reported",
+        "change_in_baseline",
+        "incident_follow_up_needed",
+        "nurse_notification_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "toileting": {
+      "subtasks": [
+        { "value": "toilet_transfer", "label": "Toilet transfer" },
+        { "value": "brief_change", "label": "Brief change" },
+        { "value": "perineal_care", "label": "Perineal care" }
+      ],
+      "risks": [
+        "fall_risk",
+        "skin_breakdown_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "gait_belt_required",
+        "two_person_transfer_required",
+        "universal_precautions",
+        "documentation_required"
+      ],
+      "alerts": [
+        "pain_reported",
+        "change_in_baseline",
+        "incident_follow_up_needed",
+        "supervisor_notification_needed"
+      ]
+    }
+  }
+}

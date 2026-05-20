@@ -1,0 +1,101 @@
+{
+  "sectionId": "meal-support-input-section",
+  "title": "Meal Support Input Section",
+  "description": "Meal-support intake fields for a case-row note modal. The DSP selects the meal or hydration task, support level, nutrition or aspiration precautions, and any follow-up needs for the documented block.",
+  "buildOrderMessage": "Meal Set-up and Intake Monitoring are the first strong meal-support paths to validate. Keep this section focused on support rendered, safety context, tolerance, and intake follow-up.",
+  "questionSteps": [
+    "What meal support task was provided?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person engage during meal support?",
+    "Were any meal support risks or protocols active?",
+    "Were any alerts present?",
+    "Add a meal support note."
+  ],
+  "tasks": [
+    { "value": "meal_setup", "label": "Meal set-up" },
+    { "value": "meal_support", "label": "Meal support" },
+    { "value": "snack_support", "label": "Snack support" },
+    { "value": "beverage_support", "label": "Beverage support" },
+    { "value": "intake_monitoring", "label": "Intake monitoring" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "refused_initially", "label": "Refused initially" },
+    { "value": "re_engaged", "label": "Re-engaged" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "setup_assistance", "label": "Set-up assistance" },
+    { "value": "partial_assist", "label": "Partial assist" },
+    { "value": "full_assist", "label": "Full assist" }
+  ],
+  "taskDetails": {
+    "meal_setup": {
+      "subtasks": [
+        { "value": "tray_setup", "label": "Tray set-up" },
+        { "value": "utensil_setup", "label": "Utensil set-up" },
+        { "value": "positioning_for_meal", "label": "Positioning for meal" }
+      ],
+      "risks": ["choking_risk", "aspiration_risk", "burn_risk", "environmental_hazard_present"],
+      "protocols": ["dietary_restrictions_active", "thickened_liquids_required", "aspiration_precautions_active", "documentation_required"],
+      "alerts": ["poor_intake_observed", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    },
+    "meal_support": {
+      "subtasks": [
+        { "value": "breakfast_support", "label": "Breakfast support" },
+        { "value": "lunch_support", "label": "Lunch support" },
+        { "value": "dinner_support", "label": "Dinner support" }
+      ],
+      "risks": ["choking_risk", "aspiration_risk", "dietary_noncompliance_risk"],
+      "protocols": ["dietary_restrictions_active", "thickened_liquids_required", "aspiration_precautions_active", "supervision_required", "documentation_required"],
+      "alerts": ["poor_intake_observed", "choking_concern", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    },
+    "snack_support": {
+      "subtasks": [
+        { "value": "snack_choice_support", "label": "Snack choice support" },
+        { "value": "portion_support", "label": "Portion support" },
+        { "value": "safe_snack_setup", "label": "Safe snack set-up" }
+      ],
+      "risks": ["choking_risk", "aspiration_risk", "dietary_noncompliance_risk"],
+      "protocols": ["dietary_restrictions_active", "thickened_liquids_required", "documentation_required"],
+      "alerts": ["poor_intake_observed", "change_in_baseline", "supervisor_notification_needed"]
+    },
+    "beverage_support": {
+      "subtasks": [
+        { "value": "hydration_prompt", "label": "Hydration prompt" },
+        { "value": "liquid_setup", "label": "Liquid set-up" },
+        { "value": "intake_tracking", "label": "Intake tracking" }
+      ],
+      "risks": ["choking_risk", "aspiration_risk", "change_in_baseline_risk"],
+      "protocols": ["thickened_liquids_required", "aspiration_precautions_active", "documentation_required"],
+      "alerts": ["poor_intake_observed", "change_in_baseline", "nurse_notification_needed"]
+    },
+    "intake_monitoring": {
+      "subtasks": [
+        { "value": "meal_percentage_tracking", "label": "Meal percentage tracking" },
+        { "value": "fluid_intake_tracking", "label": "Fluid intake tracking" },
+        { "value": "meal_tolerance_observation", "label": "Meal tolerance observation" }
+      ],
+      "risks": ["choking_risk", "aspiration_risk", "change_in_baseline_risk"],
+      "protocols": ["aspiration_precautions_active", "documentation_required", "supervision_required"],
+      "alerts": ["poor_intake_observed", "choking_concern", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    }
+  }
+}

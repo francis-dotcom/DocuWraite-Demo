@@ -1,56 +1,22 @@
 /**
- * Rule-based "smart select" for Decision Engine — helps supervisors pick a
- * reasonable subset without checking every visible node.
+ * Smart select facade — contextual assignment assistant (supervisor-owned lock).
+ * @see decisionAlgo/platform/smartSelectAssistant.js
  */
 
-export const SMART_SELECT_PRESETS = [
-  {
-    id: "essential",
-    label: "Essential",
-    summary: "Depth 1 only — opening question in each section (fast review).",
-    maxDepth: 1,
-    perSectionCap: 1,
-    keywordBoost: false,
-  },
-  {
-    id: "standard",
-    label: "Default",
-    summary: "Recommended default — depths 1–2 (opening question plus first follow-up in each section).",
-    maxDepth: 2,
-    perSectionCap: null,
-    keywordBoost: false,
-  },
-  {
-    id: "supervisor-focus",
-    label: "Supervisor focus",
-    summary: "Essential plus risk, escalation, refusal, protocol, and supervisor-related prompts.",
-    maxDepth: 2,
-    perSectionCap: null,
-    keywordBoost: true,
-  },
-  {
-    id: "complete",
-    label: "Complete",
-    summary:
-      "Full annotation pack — every question in the current filter (best with Full branch, Block time, Baseplan or Careplan, depth 3–5).",
-    maxDepth: 99,
-    perSectionCap: null,
-    keywordBoost: false,
-    fullVisible: true,
-  },
-  {
-    id: "all-visible",
-    label: "All visible",
-    summary: "Everything in the current library filter (same as section Select all combined).",
-    maxDepth: 99,
-    perSectionCap: null,
-    keywordBoost: false,
-    fullVisible: true,
-  },
-];
+import { formatAssignmentTargetScopeLabel } from "./platform/filteringArchitecture.js";
+import {
+  SMART_SELECT_PRESETS,
+  recommendSmartSelectKeys,
+  getSmartSelectPresetLabel,
+} from "./platform/smartSelectAssistant.js";
 
-const SUPERVISOR_KEYWORD_RE =
-  /\b(supervisor|escalat|risk|refusal|incident|emergency|protocol|safety|compliance|injury|fall|aspiration|medication|hold|missed)\b/i;
+export {
+  collectNodeKeysOnOtherTimeBlocks,
+  filterNodesForAssignmentTarget,
+  filterNodesForTimeBlockSelection,
+} from "./platform/filteringArchitecture.js";
+
+export { SMART_SELECT_PRESETS, getSmartSelectPresetLabel };
 
 export function getDecisionNodeDepthFromId(nodeId = "") {
   const match = String(nodeId).match(/^([a-z]+)/i);
@@ -60,131 +26,63 @@ export function getDecisionNodeDepthFromId(nodeId = "") {
   return match[1].toLowerCase().charCodeAt(0) - 96;
 }
 
-function nodeText(node = {}) {
-  return `${node.question || ""} ${node.title || ""} ${node.section || ""}`.trim();
-}
-
-function nodeMatchesSupervisorFocus(node = {}) {
-  return SUPERVISOR_KEYWORD_RE.test(nodeText(node));
+function formatTargetScopeLabel(targetContext = null) {
+  const label = formatAssignmentTargetScopeLabel(targetContext);
+  if (!label) {
+    return "";
+  }
+  if (targetContext?.targetType === "case-note-row") {
+    return " for this case-note row";
+  }
+  return ` for ${label}`;
 }
 
 /**
- * @param {object[]} visibleNodes - nodes currently shown in Decision Engine
- * @param {string} presetId - SMART_SELECT_PRESETS id
- * @param {object} options
- * @param {(node: object) => boolean} options.isSelectable - not conditional / not blocked
- * @param {number} [options.capDepth] - optional extra cap from toolbar Depth control
- * @returns {{ keys: string[], preset: object, message: string }}
+ * @param {object[]} visibleNodes
+ * @param {string} presetId
+ * @param {object} options - targetContext, clientProfile, crossSystemOverlays, buildKey, capDepth, isSelectable
  */
 export function buildSmartSelection(visibleNodes = [], presetId = "standard", options = {}) {
-  const preset = SMART_SELECT_PRESETS.find((row) => row.id === presetId) || SMART_SELECT_PRESETS[1];
-  const isSelectable = options.isSelectable || (() => true);
-  const capDepth = Number.isFinite(options.capDepth) ? options.capDepth : preset.maxDepth;
-  const effectiveMaxDepth = Math.min(preset.maxDepth, capDepth);
+  const { keys, preset, overlays } = recommendSmartSelectKeys(visibleNodes, presetId, options);
+  const targetContext = options.targetContext || null;
+  const scopeLabel = formatTargetScopeLabel(targetContext);
 
-  const selectable = visibleNodes.filter((node) => isSelectable(node));
-  const bySection = new Map();
+  const emptyMessage = scopeLabel
+    ? `No questions match this target${scopeLabel} in the current filter. Use Baseplan + Block time and widen Depth.`
+    : "Pick a Target block first, or use full library filter (advanced).";
 
-  selectable.forEach((node) => {
-    const section = node.section || "Uncategorized";
-    if (!bySection.has(section)) {
-      bySection.set(section, []);
-    }
-    bySection.get(section).push(node);
-  });
-
-  const selectedKeys = [];
-  const seen = new Set();
+  const crossNote =
+    overlays?.length && preset.id === "supervisor-focus"
+      ? " Risk overlays from care plan applied."
+      : "";
 
   if (preset.fullVisible) {
-    selectable.forEach((node) => {
-      const key = options.buildKey?.(node) || `${node.library}::${node.section}::${node.id}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        selectedKeys.push(key);
-      }
-    });
-
-    const emptyMessage =
-      "No questions visible. For a full shift pack use Full branch, Note type Block time, library Baseplan or Careplan, and Depth 3–5.";
-
     if (preset.id === "complete") {
       return {
-        keys: selectedKeys,
+        keys,
         preset,
         message:
-          selectedKeys.length > 0
-            ? `Complete pack: checked ${selectedKeys.length} question(s) in this filter. Review the list, then lock and Final Assign. For whole-shift setup use Full branch + Block time + Baseplan or Careplan.`
-            : `Complete pack: ${emptyMessage}`,
+          keys.length > 0
+            ? `Complete (target): checked ${keys.length} question(s)${scopeLabel}. Lock this block, then repeat for other timeline blocks.${crossNote}`
+            : `Complete (target): ${emptyMessage}`,
       };
     }
-
     return {
-      keys: selectedKeys,
+      keys,
       preset,
       message:
-        selectedKeys.length > 0
-          ? `Smart select (${preset.label}): checked ${selectedKeys.length} question(s). Review, adjust, then lock and Final Assign.`
+        keys.length > 0
+          ? `Smart select (${preset.label}): checked ${keys.length} question(s)${scopeLabel || ""}. Review, adjust, then lock and Final Assign.${crossNote}`
           : `Smart select (${preset.label}): ${emptyMessage}`,
     };
   }
 
-  const addNode = (node) => {
-    const key = options.buildKey?.(node) || `${node.library}::${node.section}::${node.id}`;
-    if (seen.has(key)) {
-      return;
-    }
-    seen.add(key);
-    selectedKeys.push(key);
-  };
-
-  for (const [, sectionNodes] of bySection) {
-    const sorted = [...sectionNodes].sort((left, right) => {
-      const depthDelta =
-        getDecisionNodeDepthFromId(left.id) - getDecisionNodeDepthFromId(right.id);
-      if (depthDelta !== 0) {
-        return depthDelta;
-      }
-      return String(left.id || "").localeCompare(String(right.id || ""));
-    });
-
-    let sectionCount = 0;
-
-    for (const node of sorted) {
-      const depth = getDecisionNodeDepthFromId(node.id);
-      if (depth > effectiveMaxDepth) {
-        continue;
-      }
-
-      if (preset.id === "supervisor-focus") {
-        const essentialPick = depth === 1 && sectionCount === 0;
-        const keywordPick = preset.keywordBoost && nodeMatchesSupervisorFocus(node);
-        if (!essentialPick && !keywordPick) {
-          continue;
-        }
-      }
-
-      if (preset.perSectionCap != null && sectionCount >= preset.perSectionCap) {
-        continue;
-      }
-
-      addNode(node);
-      sectionCount += 1;
-
-      if (preset.perSectionCap != null && sectionCount >= preset.perSectionCap) {
-        break;
-      }
-    }
-  }
-
   const message =
-    selectedKeys.length > 0
-      ? `Smart select (${preset.label}): checked ${selectedKeys.length} question(s). Review, adjust, then lock and Final Assign.`
-      : `Smart select (${preset.label}): no questions matched. Widen Depth, switch to Full branch, or pick another library / note type.`;
+    keys.length > 0
+      ? `Smart select (${preset.label}): checked ${keys.length} question(s)${scopeLabel || ""}. Review, adjust, then lock and Final Assign.${crossNote}`
+      : scopeLabel
+        ? `Smart select (${preset.label}): no questions matched${scopeLabel}. Widen Depth, use Baseplan + Block time, or pick another library.`
+        : `Smart select (${preset.label}): no questions matched. Pick a Target block, widen Depth, or switch library.`;
 
-  return { keys: selectedKeys, preset, message };
-}
-
-export function getSmartSelectPresetLabel(presetId = "") {
-  return SMART_SELECT_PRESETS.find((row) => row.id === presetId)?.label || presetId;
+  return { keys, preset, message };
 }

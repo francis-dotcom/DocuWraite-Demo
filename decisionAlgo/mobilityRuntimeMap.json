@@ -1,0 +1,27 @@
+{
+  "workflowId": "mobility",
+  "label": "Mobility Runtime Map",
+  "runtimeStates": {
+    "tasks": ["transfers", "ambulation_support", "wheelchair_support", "positioning_support", "gait_monitoring"],
+    "outcomes": ["completed", "partially_completed", "refused", "not_completed", "interrupted", "not_needed", "alternative_completed"],
+    "assistance": ["independent", "standby_assist", "supervision_only", "verbal_prompt", "partial_assist", "full_assist", "two_person_assist"],
+    "engagement": ["engaged", "hesitant", "distracted", "withdrawn", "cooperative", "resistant"],
+    "riskOverlays": ["fall_risk", "injury_risk", "fatigue_risk", "skin_breakdown_risk", "environmental_hazard_present"],
+    "protocolOverlays": ["gait_belt_required", "two_person_transfer_required", "walker_required", "wheelchair_safety_checks_required", "q2_positioning_required", "line_of_sight_required", "documentation_required"],
+    "alerts": ["near_fall_observed", "pain_reported", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+  },
+  "reusableModules": ["mobility_support_module", "transfer_safety", "fall_prevention", "mobility_monitoring_support", "follow_up_review", "supervisor_notification"],
+  "taskModules": {
+    "transfers": ["mobility_support_module", "transfer_safety"],
+    "ambulation_support": ["mobility_support_module", "mobility_monitoring_support"],
+    "wheelchair_support": ["mobility_support_module"],
+    "positioning_support": ["mobility_support_module", "follow_up_review"],
+    "gait_monitoring": ["mobility_monitoring_support"]
+  },
+  "moduleRules": [
+    { "when": "transfers + gait_belt_required", "activate": ["transfer_safety", "fall_prevention"] },
+    { "when": "transfers + two_person_transfer_required", "activate": ["transfer_safety", "follow_up_review"] },
+    { "when": "gait_monitoring + fall_risk", "activate": ["mobility_monitoring_support", "fall_prevention"] },
+    { "when": "near_fall_observed", "activate": ["follow_up_review", "supervisor_notification"] }
+  ]
+}

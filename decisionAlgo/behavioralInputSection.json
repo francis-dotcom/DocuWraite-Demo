@@ -1,0 +1,80 @@
+{
+  "sectionId": "behavioral-input-section",
+  "title": "Behavioral Input Section",
+  "description": "Task-focused behavioral intake fields for a case-row note modal. The case row already provides the note context, so the DSP only selects the behavioral facts, interventions, response, and follow-up needs for this block.",
+  "buildOrderMessage": "Behavior Support is the first fully wired behavioral path. Keep the behavioral section focused on what was observed, what intervention was used, how the person responded, and whether any follow-up was needed.",
+  "questionSteps": [
+    "What behavior or support need was observed?",
+    "What intervention was used?",
+    "How did the person respond?",
+    "How did the person engage during the behavioral support?",
+    "Were any behavioral risks or plans active?",
+    "Were any alerts or follow-up needs present?",
+    "Add a behavioral note."
+  ],
+  "behaviorOptions": [
+    { "value": "needed_redirection", "label": "Needed redirection" },
+    { "value": "boundary_seeking_behavior", "label": "Boundary-seeking behavior" },
+    { "value": "agitation", "label": "Agitation" },
+    { "value": "anxiety", "label": "Anxiety" },
+    { "value": "refusal_behavior", "label": "Refusal behavior" },
+    { "value": "withdrawn_behavior", "label": "Withdrawn behavior" },
+    { "value": "verbal_escalation", "label": "Verbal escalation" },
+    { "value": "no_target_behavior_observed", "label": "No target behavior observed" }
+  ],
+  "interventionOptions": [
+    { "value": "verbal_redirection", "label": "Verbal redirection" },
+    { "value": "cueing_and_reassurance", "label": "Cueing and reassurance" },
+    { "value": "environmental_change", "label": "Environmental change" },
+    { "value": "coping_skill_prompt", "label": "Coping skill prompt" },
+    { "value": "de_escalation_support", "label": "De-escalation support" },
+    { "value": "supervisor_notification", "label": "Supervisor notification" },
+    { "value": "behavior_plan_followed", "label": "Behavior plan followed" }
+  ],
+  "responseOptions": [
+    { "value": "calmed_with_support", "label": "Calmed with support" },
+    { "value": "accepted_redirection", "label": "Accepted redirection" },
+    { "value": "needed_repeated_prompts", "label": "Needed repeated prompts" },
+    { "value": "behavior_continued", "label": "Behavior continued" },
+    { "value": "partial_improvement", "label": "Partial improvement" },
+    { "value": "no_behavior_observed", "label": "No behavior observed" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "refused_initially", "label": "Refused initially" },
+    { "value": "re_engaged", "label": "Re-engaged" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "riskOptions": [
+    "elopement_risk",
+    "aggression_risk",
+    "self_injury_risk",
+    "environmental_trigger_present",
+    "behavioral_escalation_risk"
+  ],
+  "planOptions": [
+    "behavior_support_plan_active",
+    "line_of_sight_required",
+    "redirection_protocol_active",
+    "de_escalation_protocol_active",
+    "documentation_required"
+  ],
+  "alertOptions": [
+    "change_in_baseline",
+    "incident_follow_up_needed",
+    "guardian_notification_needed",
+    "nurse_notification_needed",
+    "supervisor_notification_needed"
+  ],
+  "previewRules": {
+    "behavior-support": {
+      "primaryBehavior": "needed_redirection",
+      "primaryIntervention": "verbal_redirection",
+      "primaryResponse": "accepted_redirection"
+    }
+  }
+}

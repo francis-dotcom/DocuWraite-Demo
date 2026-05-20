@@ -1,0 +1,479 @@
+{
+  "workflowId": "adl",
+  "workflowLabel": "Activities of Daily Living",
+  "architecture": {
+    "model": "reusable-modules",
+    "description": "Reusable modules are small behavioral and state engines that plug into any workflow or category.",
+    "principle": "Use Lego blocks, not giant trees.",
+    "runtimeFormula": [
+      "Workflow",
+      "Category",
+      "Outcome Module",
+      "Assistance Module",
+      "Activation Rules",
+      "Active Modules",
+      "Module Execution"
+    ],
+    "executionFlow": [
+      "Workflow",
+      "Category",
+      "Outcome State",
+      "Assistance State",
+      "Activation Rules",
+      "Active Modules",
+      "Module Execution"
+    ],
+    "activationRulesRef": [
+      "adl-activation-rules",
+      "module-execution-rules"
+    ],
+    "activationRationale": [
+      "Rules run only after both outcome and assistance are known.",
+      "completed + independent should stay minimal and avoid unnecessary safety or escalation prompts.",
+      "completed + full_assist should activate safety and physical follow-up because more support context is needed.",
+      "refused should activate refusal handling.",
+      "incident_occurred should activate escalation and incident handling."
+    ],
+    "antiPatterns": [
+      "giant duplicated trees",
+      "giant JSON monsters",
+      "hardcoded flows everywhere"
+    ]
+  },
+  "activationExamples": [
+    {
+      "workflow": "adl",
+      "category": "toileting",
+      "outcome": "completed",
+      "assistance": "full_assist",
+      "thenActivate": [
+        "assistance",
+        "safety"
+      ]
+    },
+    {
+      "workflow": "adl",
+      "category": "toileting",
+      "outcome": "refused",
+      "assistance": "verbal_prompt",
+      "thenActivate": [
+        "refusal"
+      ]
+    },
+    {
+      "workflow": "adl",
+      "category": "toileting",
+      "outcome": "incident_occurred",
+      "assistance": "full_assist",
+      "thenActivate": [
+        "escalation",
+        "incident",
+        "safety"
+      ]
+    }
+  ],
+  "reusableModules": [
+    {
+      "moduleId": "outcome",
+      "label": "Outcome Module",
+      "purpose": "Determines what happened.",
+      "registryRef": "adl-outcome-registry",
+      "states": [
+        "completed",
+        "partially_completed",
+        "refused",
+        "not_completed",
+        "not_needed",
+        "incident_occurred"
+      ]
+    },
+    {
+      "moduleId": "assistance",
+      "label": "Assistance Module",
+      "purpose": "Determines how much support was required.",
+      "registryRef": "assistance-registry",
+      "states": [
+        "independent",
+        "partial_assist",
+        "full_assist",
+        "verbal_prompt"
+      ]
+    },
+    {
+      "moduleId": "refusal",
+      "label": "Refusal Module",
+      "purpose": "Handles refusal behavior consistently.",
+      "states": [
+        "refusal_reason",
+        "redirection_attempted",
+        "alternative_offered",
+        "supervisor_notified",
+        "escalation_required"
+      ]
+    },
+    {
+      "moduleId": "safety",
+      "label": "Safety Module",
+      "purpose": "Monitors immediate safety concerns.",
+      "states": [
+        "no_safety_concern",
+        "fall_concern",
+        "choking_concern",
+        "environmental_hazard",
+        "injury_observed"
+      ]
+    },
+    {
+      "moduleId": "risk_overlay",
+      "label": "Risk Overlay Module",
+      "purpose": "Injects risk-aware branching.",
+      "states": [
+        "fall_risk",
+        "aspiration_risk",
+        "seizure_risk",
+        "elopement_risk",
+        "skin_integrity_risk"
+      ],
+      "scope": "global"
+    },
+    {
+      "moduleId": "escalation",
+      "label": "Escalation Module",
+      "purpose": "Determines if follow-up is needed.",
+      "states": [
+        "no_escalation",
+        "monitor_only",
+        "supervisor_notification",
+        "incident_report_required",
+        "emergency_protocol"
+      ],
+      "scope": "global"
+    },
+    {
+      "moduleId": "behavioral_observation",
+      "label": "Behavioral Observation Module",
+      "purpose": "Captures emotional and behavioral context.",
+      "states": [
+        "calm",
+        "cooperative",
+        "anxious",
+        "agitated",
+        "aggressive",
+        "withdrawn",
+        "emotional_distress"
+      ]
+    },
+    {
+      "moduleId": "prompting",
+      "label": "Prompting Module",
+      "purpose": "Tracks cueing and prompting support.",
+      "states": [
+        "no_prompt",
+        "verbal_prompt",
+        "visual_prompt",
+        "gestural_prompt",
+        "repeated_prompting"
+      ]
+    },
+    {
+      "moduleId": "participation",
+      "label": "Participation Module",
+      "purpose": "Tracks engagement and compliance quality.",
+      "states": [
+        "fully_engaged",
+        "minimally_engaged",
+        "inconsistent_engagement",
+        "refused_participation"
+      ]
+    },
+    {
+      "moduleId": "physical_observation",
+      "label": "Physical Observation Module",
+      "purpose": "Captures physical and clinical observations.",
+      "states": [
+        "pain_observed",
+        "fatigue_observed",
+        "skin_issue",
+        "swelling",
+        "abnormal_gait",
+        "discomfort"
+      ]
+    },
+    {
+      "moduleId": "protocol",
+      "label": "Protocol Module",
+      "purpose": "Injects mandatory workflows.",
+      "states": [
+        "seizure_protocol",
+        "aspiration_protocol",
+        "diabetic_protocol",
+        "oxygen_protocol"
+      ],
+      "scope": "overlay"
+    },
+    {
+      "moduleId": "incident",
+      "label": "Incident Module",
+      "purpose": "Activates incident-specific runtime.",
+      "states": [
+        "near_fall",
+        "choking_event",
+        "aggressive_incident",
+        "injury_event",
+        "medication_error"
+      ],
+      "triggers": [
+        "escalation",
+        "incident workflow",
+        "supervisor review"
+      ]
+    }
+  ],
+  "categoryGroups": [
+    {
+      "groupId": "core_adl",
+      "label": "Core ADL",
+      "categories": [
+        "toileting",
+        "transfers",
+        "grooming",
+        "dressing",
+        "bathing",
+        "hygiene"
+      ]
+    },
+    {
+      "groupId": "mobility_positioning",
+      "label": "Mobility & Positioning",
+      "categories": [
+        "ambulation",
+        "wheelchair_support",
+        "bed_mobility",
+        "repositioning",
+        "stairs_navigation",
+        "mobility_monitoring"
+      ]
+    },
+    {
+      "groupId": "feeding_nutrition",
+      "label": "Feeding & Nutrition Support",
+      "categories": [
+        "feeding_assistance",
+        "meal_setup",
+        "hydration_support",
+        "adaptive_feeding",
+        "swallowing_support"
+      ]
+    },
+    {
+      "groupId": "personal_health_support",
+      "label": "Personal Health Support",
+      "categories": [
+        "oral_care",
+        "denture_care",
+        "hearing_aid_support",
+        "glasses_support",
+        "prosthetic_support",
+        "skin_care",
+        "continence_care",
+        "incontinence_support"
+      ]
+    },
+    {
+      "groupId": "independence_skill_building",
+      "label": "Independence & Skill Building",
+      "categories": [
+        "task_sequencing",
+        "prompting_and_cueing",
+        "hand_over_hand_support",
+        "adaptive_equipment_usage",
+        "independence_training"
+      ]
+    },
+    {
+      "groupId": "routine_environmental_support",
+      "label": "Routine & Environmental Support",
+      "categories": [
+        "wake_up_routine",
+        "sleep_preparation",
+        "laundry_and_clothing",
+        "personal_belongings",
+        "room_organization"
+      ]
+    }
+  ],
+  "categoryDefaults": {
+    "modules": [
+      "outcome",
+      "assistance",
+      "risk_overlay",
+      "escalation"
+    ],
+    "optionalModules": [
+      "refusal",
+      "safety",
+      "behavioral_observation",
+      "prompting",
+      "participation",
+      "physical_observation",
+      "protocol",
+      "incident"
+    ]
+  },
+  "categories": [
+    {
+      "categoryId": "toileting",
+      "label": "Toileting",
+      "modules": [
+        "outcome",
+        "assistance",
+        "refusal",
+        "safety",
+        "risk_overlay",
+        "escalation",
+        "behavioral_observation",
+        "physical_observation"
+      ]
+    },
+    {
+      "categoryId": "transfers",
+      "label": "Transfers",
+      "modules": [
+        "outcome",
+        "assistance",
+        "safety",
+        "risk_overlay",
+        "escalation",
+        "physical_observation",
+        "incident"
+      ]
+    },
+    {
+      "categoryId": "grooming",
+      "label": "Grooming",
+      "modules": [
+        "outcome",
+        "assistance",
+        "prompting",
+        "participation",
+        "risk_overlay",
+        "escalation"
+      ]
+    },
+    {
+      "categoryId": "dressing",
+      "label": "Dressing",
+      "modules": [
+        "outcome",
+        "assistance",
+        "refusal",
+        "prompting",
+        "risk_overlay",
+        "escalation",
+        "behavioral_observation",
+        "physical_observation"
+      ]
+    },
+    {
+      "categoryId": "bathing",
+      "label": "Bathing",
+      "modules": [
+        "outcome",
+        "assistance",
+        "refusal",
+        "safety",
+        "risk_overlay",
+        "escalation",
+        "behavioral_observation",
+        "physical_observation"
+      ]
+    },
+    {
+      "categoryId": "hygiene",
+      "label": "Hygiene",
+      "modules": [
+        "outcome",
+        "assistance",
+        "prompting",
+        "risk_overlay",
+        "escalation",
+        "physical_observation"
+      ]
+    },
+    {
+      "categoryId": "oral_care",
+      "label": "Oral Care",
+      "modules": [
+        "outcome",
+        "assistance",
+        "refusal",
+        "risk_overlay",
+        "escalation",
+        "physical_observation",
+        "protocol"
+      ]
+    },
+    {
+      "categoryId": "feeding_assistance",
+      "label": "Feeding Assistance",
+      "modules": [
+        "outcome",
+        "assistance",
+        "refusal",
+        "safety",
+        "risk_overlay",
+        "escalation",
+        "participation",
+        "protocol",
+        "incident"
+      ]
+    },
+    {
+      "categoryId": "hydration_support",
+      "label": "Hydration Support",
+      "modules": [
+        "outcome",
+        "prompting",
+        "participation",
+        "risk_overlay",
+        "escalation",
+        "physical_observation"
+      ]
+    },
+    {
+      "categoryId": "ambulation",
+      "label": "Ambulation",
+      "modules": [
+        "outcome",
+        "assistance",
+        "safety",
+        "risk_overlay",
+        "escalation",
+        "physical_observation",
+        "incident"
+      ]
+    },
+    {
+      "categoryId": "continence_care",
+      "label": "Continence Care",
+      "modules": [
+        "outcome",
+        "assistance",
+        "refusal",
+        "risk_overlay",
+        "escalation",
+        "physical_observation"
+      ]
+    },
+    {
+      "categoryId": "prompting_and_cueing",
+      "label": "Prompting & Cueing",
+      "modules": [
+        "prompting",
+        "participation",
+        "behavioral_observation",
+        "escalation"
+      ]
+    }
+  ]
+}

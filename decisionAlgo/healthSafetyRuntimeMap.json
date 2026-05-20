@@ -1,0 +1,109 @@
+{
+  "workflowId": "health-and-safety",
+  "label": "Health and Safety Runtime Map",
+  "runtimeStates": {
+    "tasks": [
+      "wellness_check",
+      "fall_prevention",
+      "mobility_monitoring",
+      "incident_response",
+      "hydration_support",
+      "environmental_safety_check"
+    ],
+    "outcomes": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_completed",
+      "interrupted",
+      "not_needed",
+      "alternative_completed"
+    ],
+    "assistance": [
+      "independent",
+      "standby_assist",
+      "supervision_only",
+      "verbal_prompt",
+      "partial_assist",
+      "full_assist"
+    ],
+    "engagement": [
+      "engaged",
+      "hesitant",
+      "distracted",
+      "withdrawn",
+      "cooperative",
+      "resistant"
+    ],
+    "riskOverlays": [
+      "change_in_baseline_risk",
+      "fall_risk",
+      "injury_risk",
+      "choking_risk",
+      "environmental_hazard_present"
+    ],
+    "protocolOverlays": [
+      "gait_belt_required",
+      "line_of_sight_required",
+      "incident_protocol_active",
+      "thickened_liquids_required",
+      "supervision_required",
+      "documentation_required"
+    ],
+    "alerts": [
+      "pain_reported",
+      "change_in_baseline",
+      "incident_follow_up_needed",
+      "nurse_notification_needed",
+      "supervisor_notification_needed"
+    ]
+  },
+  "reusableModules": [
+    "wellness_observation",
+    "fall_prevention",
+    "mobility_monitoring_support",
+    "incident_documentation",
+    "hydration_monitoring",
+    "follow_up_review",
+    "supervisor_notification"
+  ],
+  "moduleRules": [
+    {
+      "when": "wellness_check + change_in_baseline",
+      "activate": [
+        "wellness_observation",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "fall_prevention + fall_risk",
+      "activate": [
+        "fall_prevention",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "incident_response + incident_follow_up_needed",
+      "activate": [
+        "incident_documentation",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "mobility_monitoring + gait_belt_required",
+      "activate": [
+        "mobility_monitoring_support",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "hydration_support + thickened_liquids_required",
+      "activate": [
+        "hydration_monitoring",
+        "follow_up_review"
+      ]
+    }
+  ]
+}

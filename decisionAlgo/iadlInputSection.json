@@ -1,0 +1,194 @@
+{
+  "sectionId": "iadl-input-section",
+  "title": "IADL Input Section",
+  "description": "Task-focused IADL intake fields for a case-row note modal. The case row already provides the broader note context, so the DSP only selects the instrumental daily living details for this block.",
+  "buildOrderMessage": "Medication Support and Meal Preparation are the first strong IADL paths to validate. Keep the IADL section focused on the task, support provided, safety context, and follow-up needs.",
+  "questionSteps": [
+    "What IADL task was supported?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person engage during the IADL task?",
+    "Were any IADL risks or protocols active?",
+    "Were any alerts present?",
+    "Add an IADL note."
+  ],
+  "tasks": [
+    { "value": "meal_preparation", "label": "Meal preparation" },
+    { "value": "medication_support", "label": "Medication support" },
+    { "value": "laundry", "label": "Laundry" },
+    { "value": "housekeeping", "label": "Housekeeping" },
+    { "value": "shopping", "label": "Shopping" },
+    { "value": "transportation_coordination", "label": "Transportation coordination" },
+    { "value": "appointment_scheduling", "label": "Appointment scheduling" },
+    { "value": "money_management_support", "label": "Money management support" },
+    { "value": "communication_support", "label": "Phone or communication support" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "refused_initially", "label": "Refused initially" },
+    { "value": "re_engaged", "label": "Re-engaged" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "standby_assist", "label": "Standby assist" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "visual_prompt", "label": "Visual prompt" },
+    { "value": "gestural_prompt", "label": "Gestural prompt" },
+    { "value": "modeling_required", "label": "Modeling required" },
+    { "value": "redirection_required", "label": "Redirection required" },
+    { "value": "partial_assist", "label": "Partial assist" },
+    { "value": "full_assist", "label": "Full assist" },
+    { "value": "setup_assistance", "label": "Set-up assistance" },
+    { "value": "dependent", "label": "Dependent" }
+  ],
+  "assistanceOverrides": {
+    "medication_support": [
+      { "value": "independent", "label": "Independent" },
+      { "value": "verbal_prompt", "label": "Verbal prompt" },
+      { "value": "visual_prompt", "label": "Visual prompt" },
+      { "value": "setup_assistance", "label": "Set-up assistance" },
+      { "value": "supervision_only", "label": "Supervision only" }
+    ],
+    "meal_preparation": [
+      { "value": "independent", "label": "Independent" },
+      { "value": "verbal_prompt", "label": "Verbal prompt" },
+      { "value": "setup_assistance", "label": "Set-up assistance" },
+      { "value": "partial_assist", "label": "Partial assist" },
+      { "value": "full_assist", "label": "Full assist" }
+    ]
+  },
+  "taskDetails": {
+    "meal_preparation": {
+      "subtasks": [
+        { "value": "meal_setup", "label": "Meal set-up" },
+        { "value": "snack_preparation", "label": "Snack preparation" },
+        { "value": "beverage_preparation", "label": "Beverage preparation" }
+      ],
+      "risks": [
+        "choking_risk",
+        "burn_risk",
+        "sharp_object_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "thickened_liquids_required",
+        "dietary_restrictions_active",
+        "supervision_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "pain_reported",
+        "change_in_baseline",
+        "nurse_notification_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "medication_support": {
+      "subtasks": [
+        { "value": "med_prompt", "label": "Medication prompt" },
+        { "value": "med_set_up", "label": "Medication set-up" },
+        { "value": "med_follow_up", "label": "Medication follow-up" }
+      ],
+      "risks": [
+        "medication_risk",
+        "choking_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "medication_prompt_only",
+        "thickened_liquids_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "missed_medication_window",
+        "pain_reported",
+        "change_in_baseline",
+        "nurse_notification_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "laundry": {
+      "subtasks": [
+        { "value": "sort_clothing", "label": "Sort clothing" },
+        { "value": "start_washer", "label": "Start washer" },
+        { "value": "fold_clothing", "label": "Fold clothing" }
+      ],
+      "risks": [
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "documentation_required"
+      ],
+      "alerts": []
+    },
+    "housekeeping": {
+      "subtasks": [
+        { "value": "bed_making", "label": "Bed making" },
+        { "value": "surface_cleaning", "label": "Surface cleaning" },
+        { "value": "dishwashing", "label": "Dishwashing" }
+      ],
+      "risks": [
+        "fall_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "documentation_required"
+      ],
+      "alerts": []
+    },
+    "shopping": {
+      "subtasks": [
+        { "value": "grocery_shopping", "label": "Grocery shopping" },
+        { "value": "supply_pickup", "label": "Supply pickup" },
+        { "value": "checkout_support", "label": "Checkout support" }
+      ],
+      "risks": [
+        "elopement_risk",
+        "fall_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "line_of_sight_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "change_in_baseline",
+        "supervisor_notification_needed"
+      ]
+    },
+    "transportation_coordination": {
+      "subtasks": [
+        { "value": "schedule_transport", "label": "Schedule transport" },
+        { "value": "ride_follow_up", "label": "Ride follow-up" },
+        { "value": "appointment_transport", "label": "Appointment transport support" }
+      ],
+      "risks": [
+        "elopement_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "line_of_sight_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "missed_transport_window",
+        "supervisor_notification_needed"
+      ]
+    }
+  }
+}

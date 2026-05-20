@@ -1,0 +1,97 @@
+{
+  "workflowId": "documentation-and-coordination",
+  "label": "Documentation and Coordination Runtime Map",
+  "runtimeStates": {
+    "tasks": [
+      "shift_handoff",
+      "family_communication",
+      "care_team_communication",
+      "progress_documentation",
+      "incident_documentation",
+      "supervisor_update"
+    ],
+    "outcomes": [
+      "completed",
+      "partially_completed",
+      "deferred",
+      "not_completed",
+      "not_needed"
+    ],
+    "assistance": [
+      "independent",
+      "supervision_only",
+      "coordinated_follow_up",
+      "supervisor_support"
+    ],
+    "engagement": [
+      "clear",
+      "needs_clarification",
+      "time_sensitive",
+      "routine",
+      "escalated"
+    ],
+    "riskOverlays": [
+      "unresolved_follow_up_risk",
+      "change_in_baseline_risk",
+      "miscommunication_risk",
+      "missing_documentation_risk"
+    ],
+    "protocolOverlays": [
+      "handoff_required",
+      "approved_update_only",
+      "documentation_required",
+      "time_sensitive_update"
+    ],
+    "alerts": [
+      "change_in_baseline",
+      "guardian_notification_needed",
+      "nurse_notification_needed",
+      "supervisor_notification_needed"
+    ]
+  },
+  "reusableModules": [
+    "handoff_documentation",
+    "family_update_support",
+    "care_team_update_support",
+    "progress_summary_support",
+    "follow_up_review",
+    "supervisor_notification"
+  ],
+  "moduleRules": [
+    {
+      "when": "shift_handoff + handoff_required",
+      "activate": [
+        "handoff_documentation",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "family_communication + approved_update_only",
+      "activate": [
+        "family_update_support",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "care_team_communication + time_sensitive_update",
+      "activate": [
+        "care_team_update_support",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "progress_documentation + documentation_required",
+      "activate": [
+        "progress_summary_support"
+      ]
+    },
+    {
+      "when": "change_in_baseline",
+      "activate": [
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    }
+  ]
+}

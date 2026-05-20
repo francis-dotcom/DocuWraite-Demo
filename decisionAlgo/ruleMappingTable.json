@@ -1,0 +1,281 @@
+{
+  "mappingId": "rule-mapping-table",
+  "label": "Rule Mapping Table",
+  "description": "Human-readable mapping between runtime conditions and reusable modules.",
+  "mappings": [
+    {
+      "when": "fall_risk",
+      "activate": [
+        "fall_prevention",
+        "transfer_safety"
+      ]
+    },
+    {
+      "when": "hesitant",
+      "activate": [
+        "redirection"
+      ]
+    },
+    {
+      "when": "incident_occurred",
+      "activate": [
+        "incident_documentation",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "bathing + safety_prevented_completion",
+      "activate": [
+        "privacy_setup",
+        "bathing_support",
+        "fall_prevention",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "toileting + full_assist",
+      "activate": [
+        "privacy_setup",
+        "toileting_support",
+        "fall_prevention"
+      ]
+    },
+    {
+      "when": "needed_redirection",
+      "activate": [
+        "behavioral_observation_support",
+        "redirection",
+        "response_tracking"
+      ]
+    },
+    {
+      "when": "de_escalation_support",
+      "activate": [
+        "behavioral_observation_support",
+        "de_escalation_support",
+        "response_tracking"
+      ]
+    },
+    {
+      "when": "behavior_support_plan_active",
+      "activate": [
+        "behavior_plan_support",
+        "behavioral_observation_support"
+      ]
+    },
+    {
+      "when": "behavior_continued",
+      "activate": [
+        "response_tracking",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "meal_preparation + choking_risk",
+      "activate": [
+        "meal_preparation_support",
+        "dietary_compliance",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "meal_preparation + dietary_restrictions_active",
+      "activate": [
+        "meal_preparation_support",
+        "dietary_compliance"
+      ]
+    },
+    {
+      "when": "medication_support + medication_prompt_only",
+      "activate": [
+        "medication_reminder",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "missed_medication_window",
+      "activate": [
+        "medication_support_module",
+        "medication_reminder",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "refused_medication",
+      "activate": [
+        "medication_support_module",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "meal_support + choking_risk",
+      "activate": [
+        "meal_support_module",
+        "dietary_compliance",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "poor_intake_observed",
+      "activate": [
+        "meal_support_module",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "shopping + elopement_risk",
+      "activate": [
+        "shopping_support",
+        "transport_coordination_support",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "transportation_coordination + missed_transport_window",
+      "activate": [
+        "transport_coordination_support",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "community_outing + elopement_risk",
+      "activate": [
+        "community_supervision",
+        "community_redirection",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "appointment_support + line_of_sight_required",
+      "activate": [
+        "appointment_support_module",
+        "community_supervision"
+      ]
+    },
+    {
+      "when": "missed_appointment_window",
+      "activate": [
+        "appointment_support_module",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "communication_breakdown",
+      "activate": [
+        "communication_support_module",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "missed_contact_attempt",
+      "activate": [
+        "communication_support_module",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "wellness_check + change_in_baseline",
+      "activate": [
+        "wellness_observation",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "fall_prevention + fall_risk",
+      "activate": [
+        "fall_prevention",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "incident_response + incident_follow_up_needed",
+      "activate": [
+        "incident_documentation",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "mobility_monitoring + gait_belt_required",
+      "activate": [
+        "mobility_monitoring_support",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "hydration_support + thickened_liquids_required",
+      "activate": [
+        "hydration_monitoring",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "interrupted_sleep_pattern",
+      "activate": [
+        "sleep_routine_support",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "near_fall_observed",
+      "activate": [
+        "mobility_support_module",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "coughing_episode_observed",
+      "activate": [
+        "safety_monitoring_support",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "shift_handoff + handoff_required",
+      "activate": [
+        "handoff_documentation",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "family_communication + approved_update_only",
+      "activate": [
+        "family_update_support",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "care_team_communication + time_sensitive_update",
+      "activate": [
+        "care_team_update_support",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "progress_documentation + documentation_required",
+      "activate": [
+        "progress_summary_support"
+      ]
+    },
+    {
+      "when": "change_in_baseline",
+      "activate": [
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    }
+  ]
+}

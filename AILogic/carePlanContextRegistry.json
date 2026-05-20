@@ -1,0 +1,420 @@
+{
+  "registryName": "Care Plan Context Registry",
+  "version": "1.0.0",
+  "format": "care-plan-context-registry",
+  "entries": [
+    {
+      "context_key": "toileting_baseline",
+      "label": "Toileting Baseline",
+      "description": "The person's usual toileting presentation, baseline routine, and typical level of support.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#baseline"]
+    },
+    {
+      "context_key": "continence_support_level",
+      "label": "Continence Support Level",
+      "description": "The expected level of continence-related support, cueing, or hands-on care.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#continence-support"]
+    },
+    {
+      "context_key": "usual_toileting_schedule",
+      "label": "Usual Toileting Schedule",
+      "description": "The routine timing or pattern for toileting support.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#schedule"]
+    },
+    {
+      "context_key": "toileting_prompt_level",
+      "label": "Toileting Prompt Level",
+      "description": "The usual prompt intensity needed for toileting participation.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#prompting"]
+    },
+    {
+      "context_key": "toileting_assistance_level",
+      "label": "Toileting Assistance Level",
+      "description": "The expected overall assistance level during toileting support.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#assistance"]
+    },
+    {
+      "context_key": "toileting_independence_level",
+      "label": "Toileting Independence Level",
+      "description": "How independently the person usually completes toileting tasks.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#independence"]
+    },
+    {
+      "context_key": "clothing_management_support",
+      "label": "Clothing Management Support",
+      "description": "Support needed for clothing adjustment before or after toileting.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#clothing-management"]
+    },
+    {
+      "context_key": "perineal_care_support",
+      "label": "Perineal Care Support",
+      "description": "Support needed for cleansing and hygiene after toileting.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#perineal-care"]
+    },
+    {
+      "context_key": "brief_change_support",
+      "label": "Brief Change Support",
+      "description": "Expected support for brief changes or incontinence care.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#brief-change"]
+    },
+    {
+      "context_key": "overnight_toileting_support",
+      "label": "Overnight Toileting Support",
+      "description": "Expected toileting support or continence care needed overnight.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#overnight"]
+    },
+    {
+      "context_key": "transfer_support_level",
+      "label": "Transfer Support Level",
+      "description": "Required transfer support related to toileting movement and positioning.",
+      "data_type": "string",
+      "tags": ["#adl", "#toileting", "#mobility", "#transfers"]
+    },
+    {
+      "context_key": "mobility_status",
+      "label": "Mobility Status",
+      "description": "The person's current baseline mobility level relevant to toileting access and safety.",
+      "data_type": "string",
+      "tags": ["#toileting", "#mobility", "#baseline"]
+    },
+    {
+      "context_key": "mobility_precautions",
+      "label": "Mobility Precautions",
+      "description": "Mobility-related precautions that apply during toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#mobility", "#fall-risk", "#precautions"]
+    },
+    {
+      "context_key": "ambulation_support_level",
+      "label": "Ambulation Support Level",
+      "description": "Support required for walking to or from the toileting area.",
+      "data_type": "string",
+      "tags": ["#toileting", "#mobility", "#ambulation"]
+    },
+    {
+      "context_key": "positioning_support",
+      "label": "Positioning Support",
+      "description": "Support needed for safe body positioning during toileting care.",
+      "data_type": "string",
+      "tags": ["#toileting", "#mobility", "#positioning"]
+    },
+    {
+      "context_key": "gait_belt_required",
+      "label": "Gait Belt Required",
+      "description": "Whether a gait belt must be used during toileting-related transfers or mobility.",
+      "data_type": "boolean",
+      "tags": ["#toileting", "#mobility", "#transfers", "#protocol"]
+    },
+    {
+      "context_key": "two_person_transfer_required",
+      "label": "Two-Person Transfer Required",
+      "description": "Whether toileting-related transfers require two staff.",
+      "data_type": "boolean",
+      "tags": ["#toileting", "#mobility", "#transfers", "#protocol"]
+    },
+    {
+      "context_key": "assistive_device_required",
+      "label": "Assistive Device Required",
+      "description": "Whether a mobility or transfer assistive device is required.",
+      "data_type": "string",
+      "tags": ["#toileting", "#mobility", "#assistive-device"]
+    },
+    {
+      "context_key": "wheelchair_use",
+      "label": "Wheelchair Use",
+      "description": "Whether the person uses a wheelchair relevant to toileting access or transfer support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#mobility", "#wheelchair"]
+    },
+    {
+      "context_key": "fall_risk_status",
+      "label": "Fall Risk Status",
+      "description": "Documented fall-risk status relevant to toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#mobility", "#fall-risk", "#safety"]
+    },
+    {
+      "context_key": "supervision_requirements",
+      "label": "Supervision Requirements",
+      "description": "The required level of staff supervision during toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#adl", "#community", "#behavior-support", "#supervision"]
+    },
+    {
+      "context_key": "line_of_sight_requirement",
+      "label": "Line-of-Sight Requirement",
+      "description": "Whether line-of-sight supervision is required during or around toileting support.",
+      "data_type": "boolean",
+      "tags": ["#toileting", "#supervision", "#safety"]
+    },
+    {
+      "context_key": "elopement_risk_if_applicable",
+      "label": "Elopement Risk If Applicable",
+      "description": "Any elopement-related context that may affect bathroom supervision or transport.",
+      "data_type": "string",
+      "tags": ["#toileting", "#supervision", "#behavior-support", "#risk"]
+    },
+    {
+      "context_key": "universal_precautions_required",
+      "label": "Universal Precautions Required",
+      "description": "Whether universal precautions must be applied during toileting support.",
+      "data_type": "boolean",
+      "tags": ["#toileting", "#safety", "#infection-control", "#protocol"]
+    },
+    {
+      "context_key": "toileting_safety_protocols",
+      "label": "Toileting Safety Protocols",
+      "description": "Specific toileting-related safety procedures or protocols that apply.",
+      "data_type": "string",
+      "tags": ["#toileting", "#safety", "#protocol"]
+    },
+    {
+      "context_key": "infection_control_precautions",
+      "label": "Infection Control Precautions",
+      "description": "Precautions related to infection prevention during toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#safety", "#infection-control"]
+    },
+    {
+      "context_key": "skin_integrity_risk",
+      "label": "Skin Integrity Risk",
+      "description": "Any known skin-integrity risk relevant to toileting care and observation.",
+      "data_type": "string",
+      "tags": ["#toileting", "#skin-risk", "#safety", "#adl"]
+    },
+    {
+      "context_key": "skin_check_required",
+      "label": "Skin Check Required",
+      "description": "Whether skin observation is expected during toileting support.",
+      "data_type": "boolean",
+      "tags": ["#toileting", "#skin-risk", "#observation"]
+    },
+    {
+      "context_key": "injury_risk_during_toileting",
+      "label": "Injury Risk During Toileting",
+      "description": "Any documented risk of injury associated with toileting activity or transfers.",
+      "data_type": "string",
+      "tags": ["#toileting", "#safety", "#risk"]
+    },
+    {
+      "context_key": "uti_history_or_risk",
+      "label": "UTI History or Risk",
+      "description": "Known urinary tract infection history, warning signs, or elevated risk factors.",
+      "data_type": "string",
+      "tags": ["#toileting", "#uti-risk", "#clinical"]
+    },
+    {
+      "context_key": "bowel_pattern_baseline",
+      "label": "Bowel Pattern Baseline",
+      "description": "The person's usual bowel routine or baseline elimination pattern.",
+      "data_type": "string",
+      "tags": ["#toileting", "#clinical", "#baseline"]
+    },
+    {
+      "context_key": "bladder_pattern_baseline",
+      "label": "Bladder Pattern Baseline",
+      "description": "The person's usual bladder pattern, frequency, or continence baseline.",
+      "data_type": "string",
+      "tags": ["#toileting", "#clinical", "#baseline"]
+    },
+    {
+      "context_key": "constipation_history_or_risk",
+      "label": "Constipation History or Risk",
+      "description": "Known history or risk factors related to constipation.",
+      "data_type": "string",
+      "tags": ["#toileting", "#clinical", "#bowel"]
+    },
+    {
+      "context_key": "incontinence_pattern",
+      "label": "Incontinence Pattern",
+      "description": "The usual pattern or baseline presentation of incontinence.",
+      "data_type": "string",
+      "tags": ["#toileting", "#continence-support", "#baseline"]
+    },
+    {
+      "context_key": "frequency_or_urgency_pattern",
+      "label": "Frequency or Urgency Pattern",
+      "description": "Any usual urinary frequency, urgency, or pattern that matters for care context.",
+      "data_type": "string",
+      "tags": ["#toileting", "#clinical", "#urinary"]
+    },
+    {
+      "context_key": "pain_with_toileting_history",
+      "label": "Pain With Toileting History",
+      "description": "Known history of discomfort, pain, or distress during toileting tasks.",
+      "data_type": "string",
+      "tags": ["#toileting", "#clinical", "#pain"]
+    },
+    {
+      "context_key": "hemorrhoid_or_rectal_concern_history",
+      "label": "Hemorrhoid or Rectal Concern History",
+      "description": "Relevant rectal, hemorrhoid, or related clinical history affecting toileting care.",
+      "data_type": "string",
+      "tags": ["#toileting", "#clinical"]
+    },
+    {
+      "context_key": "catheter_or_ostomy_status_if_applicable",
+      "label": "Catheter or Ostomy Status If Applicable",
+      "description": "Any catheter or ostomy-related care context relevant to elimination support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#clinical", "#medical-device"]
+    },
+    {
+      "context_key": "hydration_related_monitoring",
+      "label": "Hydration Related Monitoring",
+      "description": "Hydration-related context that may affect urine output, toileting, or clinical interpretation.",
+      "data_type": "string",
+      "tags": ["#toileting", "#clinical", "#hydration"]
+    },
+    {
+      "context_key": "behavior_support_notes",
+      "label": "Behavior Support Notes",
+      "description": "Relevant behavioral notes that may affect toileting support or documentation.",
+      "data_type": "string",
+      "tags": ["#toileting", "#behavior-support", "#overlay"]
+    },
+    {
+      "context_key": "behavior_support_plan_status",
+      "label": "Behavior Support Plan Status",
+      "description": "Whether a behavior support plan is active and relevant to toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#behavior-support", "#plan-status"]
+    },
+    {
+      "context_key": "refusal_pattern_during_toileting",
+      "label": "Refusal Pattern During Toileting",
+      "description": "Known refusal patterns or avoidance behaviors associated with toileting.",
+      "data_type": "string",
+      "tags": ["#toileting", "#behavior-support", "#refusal"]
+    },
+    {
+      "context_key": "known_toileting_triggers",
+      "label": "Known Toileting Triggers",
+      "description": "Known environmental, behavioral, or interpersonal triggers tied to toileting care.",
+      "data_type": "string",
+      "tags": ["#toileting", "#behavior-support", "#triggers"]
+    },
+    {
+      "context_key": "preferred_redirection_approach",
+      "label": "Preferred Redirection Approach",
+      "description": "The redirection or coaching style that works best during toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#behavior-support", "#prompting"]
+    },
+    {
+      "context_key": "preferred_prompting_style",
+      "label": "Preferred Prompting Style",
+      "description": "The person's preferred cueing or prompting style during support tasks.",
+      "data_type": "string",
+      "tags": ["#toileting", "#prompting", "#communication"]
+    },
+    {
+      "context_key": "sensory_or_privacy_sensitivities",
+      "label": "Sensory or Privacy Sensitivities",
+      "description": "Any sensory, privacy, or comfort sensitivities that affect toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#privacy", "#sensory"]
+    },
+    {
+      "context_key": "trauma_informed_care_notes_if_applicable",
+      "label": "Trauma-Informed Care Notes If Applicable",
+      "description": "Trauma-informed support considerations relevant to intimate care or toileting.",
+      "data_type": "string",
+      "tags": ["#toileting", "#privacy", "#trauma-informed"]
+    },
+    {
+      "context_key": "privacy_preferences",
+      "label": "Privacy Preferences",
+      "description": "Documented privacy preferences relevant to toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#privacy", "#preferences"]
+    },
+    {
+      "context_key": "gender_or_staffing_preference_if_applicable",
+      "label": "Gender or Staffing Preference If Applicable",
+      "description": "Any staff preference or accommodation that should be respected during toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#privacy", "#staffing"]
+    },
+    {
+      "context_key": "preferred_toileting_routine",
+      "label": "Preferred Toileting Routine",
+      "description": "The person's preferred sequence or routine around toileting care.",
+      "data_type": "string",
+      "tags": ["#toileting", "#preferences", "#routine"]
+    },
+    {
+      "context_key": "preferred_language_or_cues",
+      "label": "Preferred Language or Cues",
+      "description": "Preferred communication language or cueing used during support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#communication", "#preferences"]
+    },
+    {
+      "context_key": "communication_support_needed",
+      "label": "Communication Support Needed",
+      "description": "Communication accommodations needed during toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#communication", "#support"]
+    },
+    {
+      "context_key": "adaptive_equipment_preferences",
+      "label": "Adaptive Equipment Preferences",
+      "description": "Preferred adaptive supports or equipment used for toileting care.",
+      "data_type": "string",
+      "tags": ["#toileting", "#equipment", "#preferences"]
+    },
+    {
+      "context_key": "supervisor_notification_threshold",
+      "label": "Supervisor Notification Threshold",
+      "description": "What kind of toileting-related changes or concerns require supervisor notification.",
+      "data_type": "string",
+      "tags": ["#toileting", "#escalation", "#supervisor"]
+    },
+    {
+      "context_key": "nurse_notification_threshold",
+      "label": "Nurse Notification Threshold",
+      "description": "What kind of clinical toileting-related concerns require nurse notification.",
+      "data_type": "string",
+      "tags": ["#toileting", "#escalation", "#nurse"]
+    },
+    {
+      "context_key": "incident_reporting_threshold",
+      "label": "Incident Reporting Threshold",
+      "description": "What toileting-related events should trigger incident documentation or reporting.",
+      "data_type": "string",
+      "tags": ["#toileting", "#escalation", "#incident"]
+    },
+    {
+      "context_key": "change_in_baseline_reporting_rule",
+      "label": "Change in Baseline Reporting Rule",
+      "description": "How changes from toileting baseline should be documented or escalated.",
+      "data_type": "string",
+      "tags": ["#toileting", "#escalation", "#baseline"]
+    },
+    {
+      "context_key": "skin_issue_escalation_rule",
+      "label": "Skin Issue Escalation Rule",
+      "description": "Escalation requirements for skin redness, breakdown, or integrity concerns during toileting support.",
+      "data_type": "string",
+      "tags": ["#toileting", "#skin-risk", "#escalation"]
+    },
+    {
+      "context_key": "uti_sign_escalation_rule",
+      "label": "UTI Sign Escalation Rule",
+      "description": "Escalation requirements when UTI-related signs or urinary concerns are observed.",
+      "data_type": "string",
+      "tags": ["#toileting", "#uti-risk", "#escalation"]
+    }
+  ]
+}

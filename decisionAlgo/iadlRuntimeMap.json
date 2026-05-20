@@ -1,0 +1,134 @@
+{
+  "workflowId": "iadl",
+  "label": "IADL Runtime Map",
+  "runtimeStates": {
+    "tasks": [
+      "meal_preparation",
+      "medication_support",
+      "laundry",
+      "housekeeping",
+      "shopping",
+      "transportation_coordination",
+      "appointment_scheduling",
+      "money_management_support",
+      "communication_support"
+    ],
+    "outcomes": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_completed",
+      "interrupted",
+      "not_needed",
+      "alternative_completed"
+    ],
+    "assistance": [
+      "independent",
+      "standby_assist",
+      "supervision_only",
+      "verbal_prompt",
+      "visual_prompt",
+      "gestural_prompt",
+      "modeling_required",
+      "redirection_required",
+      "partial_assist",
+      "full_assist",
+      "setup_assistance",
+      "dependent"
+    ],
+    "engagement": [
+      "engaged",
+      "hesitant",
+      "distracted",
+      "withdrawn",
+      "refused_initially",
+      "re_engaged",
+      "cooperative",
+      "resistant"
+    ],
+    "riskOverlays": [
+      "choking_risk",
+      "burn_risk",
+      "sharp_object_risk",
+      "medication_risk",
+      "fall_risk",
+      "elopement_risk",
+      "environmental_hazard_present"
+    ],
+    "protocolOverlays": [
+      "medication_prompt_only",
+      "thickened_liquids_required",
+      "dietary_restrictions_active",
+      "line_of_sight_required",
+      "supervision_required",
+      "documentation_required"
+    ],
+    "alerts": [
+      "pain_reported",
+      "change_in_baseline",
+      "missed_medication_window",
+      "missed_transport_window",
+      "nurse_notification_needed",
+      "supervisor_notification_needed"
+    ]
+  },
+  "reusableModules": [
+    "meal_preparation_support",
+    "dietary_compliance",
+    "medication_reminder",
+    "housekeeping_support",
+    "shopping_support",
+    "transport_coordination_support",
+    "communication_support_module",
+    "follow_up_review",
+    "supervisor_notification"
+  ],
+  "moduleRules": [
+    {
+      "when": "meal_preparation + choking_risk",
+      "activate": [
+        "meal_preparation_support",
+        "dietary_compliance",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "meal_preparation + dietary_restrictions_active",
+      "activate": [
+        "meal_preparation_support",
+        "dietary_compliance"
+      ]
+    },
+    {
+      "when": "medication_support + medication_prompt_only",
+      "activate": [
+        "medication_reminder",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "missed_medication_window",
+      "activate": [
+        "medication_reminder",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "shopping + elopement_risk",
+      "activate": [
+        "shopping_support",
+        "transport_coordination_support",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "transportation_coordination + missed_transport_window",
+      "activate": [
+        "transport_coordination_support",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    }
+  ]
+}

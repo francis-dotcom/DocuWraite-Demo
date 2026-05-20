@@ -1,0 +1,26 @@
+{
+  "workflowId": "medication-support",
+  "label": "Medication Runtime Map",
+  "runtimeStates": {
+    "tasks": ["medication_prompt", "medication_setup", "medication_follow_up", "medication_observation"],
+    "outcomes": ["completed", "partially_completed", "refused", "not_completed", "interrupted", "not_needed", "alternative_completed"],
+    "assistance": ["independent", "supervision_only", "verbal_prompt", "visual_prompt", "setup_assistance", "redirection_required"],
+    "engagement": ["engaged", "hesitant", "distracted", "withdrawn", "refused_initially", "re_engaged", "cooperative", "resistant"],
+    "riskOverlays": ["medication_risk", "choking_risk", "aspiration_risk", "change_in_baseline_risk", "environmental_hazard_present"],
+    "protocolOverlays": ["medication_prompt_only", "thickened_liquids_required", "documentation_required", "supervision_required"],
+    "alerts": ["missed_medication_window", "refused_medication", "pain_reported", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+  },
+  "reusableModules": ["medication_support_module", "medication_reminder", "follow_up_review", "supervisor_notification"],
+  "taskModules": {
+    "medication_prompt": ["medication_support_module", "medication_reminder"],
+    "medication_setup": ["medication_support_module"],
+    "medication_follow_up": ["follow_up_review"],
+    "medication_observation": ["medication_support_module", "follow_up_review"]
+  },
+  "moduleRules": [
+    { "when": "medication_prompt + medication_prompt_only", "activate": ["medication_support_module", "medication_reminder"] },
+    { "when": "missed_medication_window", "activate": ["medication_reminder", "follow_up_review", "supervisor_notification"] },
+    { "when": "refused_medication", "activate": ["medication_support_module", "follow_up_review", "supervisor_notification"] },
+    { "when": "change_in_baseline", "activate": ["follow_up_review", "supervisor_notification"] }
+  ]
+}

@@ -204,13 +204,13 @@ export function getMaryBetProfile() {
       workflowId: "morning-adl",
     },
     "9am–11am": {
-      prompt: `Document feeding support for breakfast or lunch, staff support rendered, and observed response for ${displayName} during 9am–11am.`,
-      source: "Shift Timeline / Feeding Support",
+      prompt: `Document meal support for breakfast or lunch, staff support rendered, and observed response for ${displayName} during 9am–11am.`,
+      source: "Shift Timeline / Meal Support",
       workflowId: "feeding-support",
     },
     "11am–1pm": {
-      prompt: `Document in-home leisure, rest, and pre-outing preparation for ${displayName} during 11am–1pm.`,
-      source: "Shift Timeline / In-Home Leisure",
+      prompt: `Document safety monitoring, rest, and pre-outing preparation for ${displayName} during 11am–1pm.`,
+      source: "Shift Timeline / Safety Monitoring",
       workflowId: "in-home-leisure",
     },
     "1pm–3pm": {
@@ -535,13 +535,13 @@ export function getMarkBrentProfile() {
       workflowId: "morning-adl",
     },
     "2pm–3pm": {
-      prompt: `Document vocational skills practice, task sequencing, and staff coaching for ${displayName} during 2pm–3pm.`,
-      source: "Shift Timeline / Vocational Skills Lab",
+      prompt: `Document safety monitoring during vocational skills practice, task sequencing, and staff coaching for ${displayName} during 2pm–3pm.`,
+      source: "Shift Timeline / Safety Monitoring",
       workflowId: "in-home-leisure",
     },
     "3pm–4pm": {
-      prompt: `Document sensory regulation, coping strategies, and observed response for ${displayName} during 3pm–4pm.`,
-      source: "Shift Timeline / Sensory Regulation Block",
+      prompt: `Document safety monitoring during sensory regulation support, coping strategies, and observed response for ${displayName} during 3pm–4pm.`,
+      source: "Shift Timeline / Safety Monitoring",
       workflowId: "in-home-leisure",
     },
     "4pm–5pm": {
@@ -1161,9 +1161,9 @@ export function buildCaseNoteDocumentationItems(clientProfile) {
       theme: "behavior",
     },
     {
-      description: `Document vocational task support, prompt level, and observed response for ${displayName}.`,
+      description: `Document safety monitoring, prompt level, and observed response for ${displayName}.`,
       workflowId: "in-home-leisure",
-      theme: "behavior",
+      theme: "monitoring",
     },
     {
       description: `Document glucose monitoring, meal support, and diabetes precautions for ${displayName}.`,
@@ -1171,7 +1171,7 @@ export function buildCaseNoteDocumentationItems(clientProfile) {
       theme: "meal",
     },
     {
-      description: `Document seizure precautions, medication reminders, and observed response for ${displayName}.`,
+      description: `Document medication support, seizure precautions, and observed response for ${displayName}.`,
       workflowId: "medication-support",
       theme: "medication",
     },

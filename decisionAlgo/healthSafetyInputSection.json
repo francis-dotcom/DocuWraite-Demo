@@ -1,0 +1,150 @@
+{
+  "sectionId": "health-safety-input-section",
+  "title": "Health and Safety Input Section",
+  "description": "Task-focused health and safety intake fields for a case-row note modal. The DSP selects the health or safety task, support provided, clinical or safety context, and follow-up needs for the documented block.",
+  "buildOrderMessage": "Wellness Check and Incident Response are the first strong health and safety paths to validate. Keep the section focused on observations, precautions, immediate actions, and follow-up requirements.",
+  "questionSteps": [
+    "What health and safety task was supported?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person present during the health and safety task?",
+    "Were any health or safety risks or protocols active?",
+    "Were any alerts present?",
+    "Add a health and safety note."
+  ],
+  "tasks": [
+    { "value": "wellness_check", "label": "Wellness check" },
+    { "value": "fall_prevention", "label": "Fall prevention" },
+    { "value": "mobility_monitoring", "label": "Mobility monitoring" },
+    { "value": "incident_response", "label": "Incident response" },
+    { "value": "hydration_support", "label": "Hydration support" },
+    { "value": "environmental_safety_check", "label": "Environmental safety check" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "standby_assist", "label": "Standby assist" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "partial_assist", "label": "Partial assist" },
+    { "value": "full_assist", "label": "Full assist" }
+  ],
+  "taskDetails": {
+    "wellness_check": {
+      "subtasks": [
+        { "value": "general_observation", "label": "General observation" },
+        { "value": "pain_check", "label": "Pain check" },
+        { "value": "fatigue_check", "label": "Fatigue check" }
+      ],
+      "risks": [
+        "change_in_baseline_risk",
+        "fall_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "documentation_required",
+        "supervision_required"
+      ],
+      "alerts": [
+        "pain_reported",
+        "change_in_baseline",
+        "nurse_notification_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "fall_prevention": {
+      "subtasks": [
+        { "value": "environment_check", "label": "Environment check" },
+        { "value": "transfer_watch", "label": "Transfer watch" },
+        { "value": "mobility_support", "label": "Mobility support" }
+      ],
+      "risks": [
+        "fall_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "gait_belt_required",
+        "line_of_sight_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "incident_follow_up_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "mobility_monitoring": {
+      "subtasks": [
+        { "value": "gait_observation", "label": "Gait observation" },
+        { "value": "fatigue_monitoring", "label": "Fatigue monitoring" }
+      ],
+      "risks": [
+        "fall_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "gait_belt_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "change_in_baseline",
+        "nurse_notification_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "incident_response": {
+      "subtasks": [
+        { "value": "near_fall_response", "label": "Near-fall response" },
+        { "value": "injury_check", "label": "Injury check" },
+        { "value": "immediate_follow_up", "label": "Immediate follow-up" }
+      ],
+      "risks": [
+        "fall_risk",
+        "injury_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "incident_protocol_active",
+        "documentation_required"
+      ],
+      "alerts": [
+        "incident_follow_up_needed",
+        "nurse_notification_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "hydration_support": {
+      "subtasks": [
+        { "value": "hydration_prompt", "label": "Hydration prompt" },
+        { "value": "fluid_monitoring", "label": "Fluid monitoring" }
+      ],
+      "risks": [
+        "choking_risk",
+        "change_in_baseline_risk"
+      ],
+      "protocols": [
+        "thickened_liquids_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "change_in_baseline",
+        "nurse_notification_needed"
+      ]
+    }
+  }
+}

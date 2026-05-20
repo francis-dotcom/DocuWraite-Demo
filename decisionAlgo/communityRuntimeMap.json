@@ -1,0 +1,100 @@
+{
+  "workflowId": "community",
+  "label": "Community Runtime Map",
+  "runtimeStates": {
+    "tasks": [
+      "community_outing",
+      "appointment_support",
+      "social_participation",
+      "recreational_activity",
+      "faith_based_activity",
+      "errands"
+    ],
+    "outcomes": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_completed",
+      "interrupted",
+      "not_needed",
+      "alternative_completed"
+    ],
+    "assistance": [
+      "independent",
+      "standby_assist",
+      "supervision_only",
+      "verbal_prompt",
+      "visual_prompt",
+      "redirection_required",
+      "partial_assist",
+      "full_assist",
+      "line_of_sight_support"
+    ],
+    "engagement": [
+      "engaged",
+      "hesitant",
+      "distracted",
+      "withdrawn",
+      "refused_initially",
+      "re_engaged",
+      "cooperative",
+      "resistant"
+    ],
+    "riskOverlays": [
+      "elopement_risk",
+      "fall_risk",
+      "behavioral_escalation_risk",
+      "environmental_hazard_present"
+    ],
+    "protocolOverlays": [
+      "line_of_sight_required",
+      "community_supervision_required",
+      "appointment_supervision_required",
+      "documentation_required"
+    ],
+    "alerts": [
+      "change_in_baseline",
+      "incident_follow_up_needed",
+      "missed_appointment_window",
+      "supervisor_notification_needed"
+    ]
+  },
+  "reusableModules": [
+    "community_supervision",
+    "appointment_support_module",
+    "community_redirection",
+    "follow_up_review",
+    "supervisor_notification"
+  ],
+  "moduleRules": [
+    {
+      "when": "community_outing + elopement_risk",
+      "activate": [
+        "community_supervision",
+        "community_redirection",
+        "follow_up_review"
+      ]
+    },
+    {
+      "when": "appointment_support + line_of_sight_required",
+      "activate": [
+        "appointment_support_module",
+        "community_supervision"
+      ]
+    },
+    {
+      "when": "distracted",
+      "activate": [
+        "community_redirection"
+      ]
+    },
+    {
+      "when": "missed_appointment_window",
+      "activate": [
+        "appointment_support_module",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    }
+  ]
+}

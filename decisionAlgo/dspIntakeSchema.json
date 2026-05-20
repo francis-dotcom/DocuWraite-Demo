@@ -1,0 +1,73 @@
+{
+  "schemaId": "dsp-intake-schema",
+  "label": "DSP Intake Schema",
+  "description": "Canonical DSP intake fields collected before runtime composition and note generation.",
+  "workflowOrder": [
+    "workflow",
+    "category",
+    "subtask",
+    "outcome",
+    "assistance",
+    "engagement",
+    "risks",
+    "protocols",
+    "alerts",
+    "note"
+  ],
+  "fields": [
+    {
+      "id": "workflow",
+      "label": "Workflow",
+      "type": "single_select",
+      "required": true
+    },
+    {
+      "id": "category",
+      "label": "Category",
+      "type": "single_select",
+      "required": true
+    },
+    {
+      "id": "subtask",
+      "label": "Subtask",
+      "type": "single_select",
+      "required": false
+    },
+    {
+      "id": "outcome",
+      "label": "Outcome",
+      "type": "single_select",
+      "required": true
+    },
+    {
+      "id": "assistance",
+      "label": "Assistance",
+      "type": "single_select",
+      "required": true
+    },
+    {
+      "id": "engagement",
+      "label": "Engagement",
+      "type": "single_select",
+      "required": false
+    },
+    {
+      "id": "risks",
+      "label": "Risks / Protocols",
+      "type": "multi_select",
+      "required": false
+    },
+    {
+      "id": "alerts",
+      "label": "Alerts",
+      "type": "multi_select",
+      "required": false
+    },
+    {
+      "id": "note",
+      "label": "Note",
+      "type": "multiline_text",
+      "required": false
+    }
+  ]
+}

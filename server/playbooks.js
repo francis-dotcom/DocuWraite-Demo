@@ -5,14 +5,16 @@ const SHIFT_INTELLIGENCE = {
 };
 
 const WORKFLOW_META = {
-  "morning-adl": { eyebrow: "Morning ADL support" },
-  "feeding-support": { eyebrow: "Feeding support" },
-  "in-home-leisure": { eyebrow: "In-home leisure and rest" },
-  "community-outing": { eyebrow: "Community outing detected" },
+  "morning-adl": { eyebrow: "ADL" },
+  mobility: { eyebrow: "Mobility" },
+  "feeding-support": { eyebrow: "Meal Support" },
+  "in-home-leisure": { eyebrow: "Safety Monitoring" },
+  "community-outing": { eyebrow: "Community Outing" },
   "return-home": { eyebrow: "Return-home transition" },
-  "behavior-support": { eyebrow: "Behavior support" },
-  "communication-support": { eyebrow: "Communication support" },
-  "medication-support": { eyebrow: "Medication support" },
+  "behavior-support": { eyebrow: "Behavior Support" },
+  "communication-support": { eyebrow: "Communication" },
+  "medication-support": { eyebrow: "Medication" },
+  "night-adl": { eyebrow: "Sleep Support" },
   "case-note-final": { eyebrow: "Final case note" },
   "assigned-nodes": { eyebrow: "Assigned decision workflow" },
 };
@@ -107,6 +109,7 @@ function renderAssignedNodesStep(stepKey) {
 
 const STEP_ORDERS = {
   "morning-adl": getMorningAdlStepOrder,
+  mobility: getMorningAdlStepOrder,
   "feeding-support": getFeedingStepOrder,
   "in-home-leisure": getInHomeLeisureStepOrder,
   "community-outing": getCommunityOutingStepOrder,
@@ -579,6 +582,7 @@ function renderCaseNoteFinalStep(stepKey, patientName, fieldContext, answers) {
 
 const STEP_RENDERERS = {
   "morning-adl": renderMorningAdlStep,
+  mobility: renderMorningAdlStep,
   "feeding-support": renderFeedingStep,
   "in-home-leisure": renderInHomeLeisureStep,
   "community-outing": renderCommunityOutingStep,

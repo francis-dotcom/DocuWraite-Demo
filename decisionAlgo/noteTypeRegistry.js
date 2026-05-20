@@ -34,6 +34,24 @@ const BASEPLAN_BLOCK_SECTIONS = new Set([
   "J. night-adl",
 ]);
 
+/** Aligns Baseplan block sections with shift time-block workflow ids. */
+export const BASEPLAN_SECTION_WORKFLOW_IDS = {
+  "A. morning-adl": "morning-adl",
+  "B. afternoon-adl": "mobility",
+  "C. feeding-support": "feeding-support",
+  "D. in-home-leisure": "in-home-leisure",
+  "E. community-outing": "community-outing",
+  "F. return-home": "return-home",
+  "G. behavior-support": "behavior-support",
+  "H. communication-support": "communication-support",
+  "I. medication-support": "medication-support",
+  "J. night-adl": "night-adl",
+};
+
+export function getWorkflowIdForBaseplanSection(section = "") {
+  return BASEPLAN_SECTION_WORKFLOW_IDS[section] || null;
+}
+
 const BASEPLAN_SECTION_NOTE_TYPES = {
   "K. case-note-final": "final-note",
   "L. row-note-support": "row-note",

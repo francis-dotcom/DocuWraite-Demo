@@ -1,0 +1,27 @@
+{
+  "workflowId": "in-home-leisure",
+  "label": "Safety Monitoring Runtime Map",
+  "runtimeStates": {
+    "tasks": ["general_safety_monitoring", "fall_risk_monitoring", "aspiration_precaution_monitoring", "environmental_safety_check", "post_incident_observation"],
+    "outcomes": ["completed", "partially_completed", "refused", "not_completed", "interrupted", "not_needed", "alternative_completed"],
+    "assistance": ["independent", "supervision_only", "verbal_prompt", "partial_assist", "line_of_sight_support"],
+    "engagement": ["engaged", "hesitant", "distracted", "withdrawn", "cooperative", "resistant"],
+    "riskOverlays": ["fall_risk", "elopement_risk", "choking_risk", "aspiration_risk", "injury_risk", "change_in_baseline_risk", "environmental_hazard_present"],
+    "protocolOverlays": ["line_of_sight_required", "gait_belt_required", "aspiration_precautions_active", "thickened_liquids_required", "incident_protocol_active", "documentation_required"],
+    "alerts": ["safety_concern_noted", "near_fall_observed", "coughing_episode_observed", "incident_follow_up_needed", "pain_reported", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+  },
+  "reusableModules": ["safety_monitoring_support", "fall_prevention", "wellness_observation", "follow_up_review", "supervisor_notification"],
+  "taskModules": {
+    "general_safety_monitoring": ["safety_monitoring_support"],
+    "fall_risk_monitoring": ["safety_monitoring_support", "fall_prevention"],
+    "aspiration_precaution_monitoring": ["safety_monitoring_support", "follow_up_review"],
+    "environmental_safety_check": ["safety_monitoring_support"],
+    "post_incident_observation": ["safety_monitoring_support", "wellness_observation", "follow_up_review"]
+  },
+  "moduleRules": [
+    { "when": "fall_risk_monitoring + fall_risk", "activate": ["fall_prevention", "follow_up_review"] },
+    { "when": "aspiration_precaution_monitoring + aspiration_precautions_active", "activate": ["safety_monitoring_support", "follow_up_review"] },
+    { "when": "post_incident_observation + incident_follow_up_needed", "activate": ["wellness_observation", "follow_up_review", "supervisor_notification"] },
+    { "when": "change_in_baseline", "activate": ["wellness_observation", "follow_up_review", "supervisor_notification"] }
+  ]
+}

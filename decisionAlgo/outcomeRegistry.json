@@ -1,0 +1,31 @@
+{
+  "registryId": "outcome-registry",
+  "label": "Outcome Registry",
+  "description": "Canonical outcome states for workflow completion and incident handling.",
+  "states": [
+    {
+      "id": "completed",
+      "label": "Completed"
+    },
+    {
+      "id": "partially_completed",
+      "label": "Partially Completed"
+    },
+    {
+      "id": "refused",
+      "label": "Refused"
+    },
+    {
+      "id": "not_completed",
+      "label": "Not Completed"
+    },
+    {
+      "id": "not_needed",
+      "label": "Not Needed"
+    },
+    {
+      "id": "incident_occurred",
+      "label": "Incident Occurred"
+    }
+  ]
+}

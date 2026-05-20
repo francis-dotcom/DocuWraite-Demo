@@ -12,6 +12,9 @@ const LIBRARY_SOURCES = [
 ];
 
 async function parseDecisionAlgo() {
+  const { inferNodeDocumentationCategory, getDepthLevelFromNodeId } = await import("./workflowCatalog.js");
+  const { getWorkflowIdForBaseplanSection } = await import("./noteTypeRegistry.js");
+
   const rootDir = path.join(__dirname);
   const libraries = [];
 
@@ -29,6 +32,10 @@ async function parseDecisionAlgo() {
         currentNode.choices = currentNode.choices || [];
         currentNode.children = currentNode.children || [];
         currentNode.conditions = currentNode.conditions || [];
+        const workflowId = getWorkflowIdForBaseplanSection(currentNode.section || "");
+        currentNode.depthLevel = getDepthLevelFromNodeId(currentNode.id);
+        currentNode.depth = currentNode.depthLevel;
+        currentNode.category = inferNodeDocumentationCategory(currentNode, workflowId || "");
         nodes.push(currentNode);
       }
       currentNode = null;

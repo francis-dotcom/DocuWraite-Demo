@@ -1,0 +1,90 @@
+{
+  "sectionId": "medication-input-section",
+  "title": "Medication Input Section",
+  "description": "Medication-focused intake fields for a case-row note modal. The DSP selects the medication support task, support level, medication-specific precautions, and any follow-up needs for the documented block.",
+  "buildOrderMessage": "Medication Prompt and Medication Follow-up are the first strong medication paths to validate. Keep this section focused on adherence support, timing, safety context, and follow-up.",
+  "questionSteps": [
+    "What medication support task was provided?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person engage during medication support?",
+    "Were any medication risks or protocols active?",
+    "Were any alerts present?",
+    "Add a medication note."
+  ],
+  "tasks": [
+    { "value": "medication_prompt", "label": "Medication prompt" },
+    { "value": "medication_setup", "label": "Medication set-up" },
+    { "value": "medication_follow_up", "label": "Medication follow-up" },
+    { "value": "medication_observation", "label": "Medication observation" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "refused_initially", "label": "Refused initially" },
+    { "value": "re_engaged", "label": "Re-engaged" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "visual_prompt", "label": "Visual prompt" },
+    { "value": "setup_assistance", "label": "Set-up assistance" },
+    { "value": "redirection_required", "label": "Redirection required" }
+  ],
+  "taskDetails": {
+    "medication_prompt": {
+      "subtasks": [
+        { "value": "scheduled_meds", "label": "Scheduled medications" },
+        { "value": "with_meal_prompt", "label": "Medication with meal prompt" },
+        { "value": "hydration_with_meds", "label": "Hydration with medications" }
+      ],
+      "risks": ["medication_risk", "choking_risk", "aspiration_risk", "change_in_baseline_risk"],
+      "protocols": ["medication_prompt_only", "thickened_liquids_required", "documentation_required"],
+      "alerts": ["missed_medication_window", "refused_medication", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    },
+    "medication_setup": {
+      "subtasks": [
+        { "value": "cup_setup", "label": "Cup or organizer set-up" },
+        { "value": "label_review", "label": "Label review" },
+        { "value": "water_setup", "label": "Water or beverage set-up" }
+      ],
+      "risks": ["medication_risk", "choking_risk", "environmental_hazard_present"],
+      "protocols": ["medication_prompt_only", "thickened_liquids_required", "documentation_required"],
+      "alerts": ["missed_medication_window", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    },
+    "medication_follow_up": {
+      "subtasks": [
+        { "value": "compliance_check", "label": "Compliance check" },
+        { "value": "timing_follow_up", "label": "Timing follow-up" },
+        { "value": "side_effect_observation", "label": "Side-effect observation" }
+      ],
+      "risks": ["medication_risk", "change_in_baseline_risk"],
+      "protocols": ["documentation_required", "supervision_required"],
+      "alerts": ["missed_medication_window", "pain_reported", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    },
+    "medication_observation": {
+      "subtasks": [
+        { "value": "post_medication_check", "label": "Post-medication check" },
+        { "value": "tolerance_observation", "label": "Tolerance observation" },
+        { "value": "behavior_change_check", "label": "Behavior change check" }
+      ],
+      "risks": ["medication_risk", "change_in_baseline_risk"],
+      "protocols": ["documentation_required", "supervision_required"],
+      "alerts": ["pain_reported", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    }
+  }
+}

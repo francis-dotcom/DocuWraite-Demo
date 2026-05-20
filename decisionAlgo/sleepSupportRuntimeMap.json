@@ -1,0 +1,26 @@
+{
+  "workflowId": "night-adl",
+  "label": "Sleep Support Runtime Map",
+  "runtimeStates": {
+    "tasks": ["bedtime_routine", "overnight_monitoring", "repositioning_support", "wake_up_support", "overnight_toileting"],
+    "outcomes": ["completed", "partially_completed", "refused", "not_completed", "interrupted", "not_needed", "alternative_completed"],
+    "assistance": ["independent", "standby_assist", "supervision_only", "verbal_prompt", "partial_assist", "full_assist"],
+    "engagement": ["engaged", "hesitant", "distracted", "withdrawn", "cooperative", "resistant"],
+    "riskOverlays": ["fall_risk", "wandering_risk", "skin_breakdown_risk", "change_in_baseline_risk", "injury_risk", "environmental_hazard_present"],
+    "protocolOverlays": ["sleep_plan_active", "line_of_sight_required", "q2_positioning_required", "gait_belt_required", "documentation_required"],
+    "alerts": ["interrupted_sleep_pattern", "pain_reported", "change_in_baseline", "incontinence_episode", "nurse_notification_needed", "supervisor_notification_needed"]
+  },
+  "reusableModules": ["sleep_routine_support", "follow_up_review", "supervisor_notification"],
+  "taskModules": {
+    "bedtime_routine": ["sleep_routine_support"],
+    "overnight_monitoring": ["sleep_routine_support", "follow_up_review"],
+    "repositioning_support": ["sleep_routine_support"],
+    "wake_up_support": ["sleep_routine_support"],
+    "overnight_toileting": ["sleep_routine_support", "follow_up_review"]
+  },
+  "moduleRules": [
+    { "when": "overnight_monitoring + line_of_sight_required", "activate": ["sleep_routine_support", "follow_up_review"] },
+    { "when": "repositioning_support + q2_positioning_required", "activate": ["sleep_routine_support", "follow_up_review"] },
+    { "when": "interrupted_sleep_pattern", "activate": ["follow_up_review", "supervisor_notification"] }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "workflowId": "behavior-support",
+  "label": "Behavioral Runtime Map",
+  "runtimeStates": {
+    "behaviorObserved": [
+      "needed_redirection",
+      "boundary_seeking_behavior",
+      "agitation",
+      "anxiety",
+      "refusal_behavior",
+      "withdrawn_behavior",
+      "verbal_escalation",
+      "no_target_behavior_observed"
+    ],
+    "interventionUsed": [
+      "verbal_redirection",
+      "cueing_and_reassurance",
+      "environmental_change",
+      "coping_skill_prompt",
+      "de_escalation_support",
+      "supervisor_notification",
+      "behavior_plan_followed"
+    ],
+    "response": [
+      "calmed_with_support",
+      "accepted_redirection",
+      "needed_repeated_prompts",
+      "behavior_continued",
+      "partial_improvement",
+      "no_behavior_observed"
+    ],
+    "engagement": [
+      "engaged",
+      "hesitant",
+      "distracted",
+      "withdrawn",
+      "refused_initially",
+      "re_engaged",
+      "cooperative",
+      "resistant"
+    ],
+    "riskOverlays": [
+      "elopement_risk",
+      "aggression_risk",
+      "self_injury_risk",
+      "environmental_trigger_present",
+      "behavioral_escalation_risk"
+    ],
+    "planOverlays": [
+      "behavior_support_plan_active",
+      "line_of_sight_required",
+      "redirection_protocol_active",
+      "de_escalation_protocol_active",
+      "documentation_required"
+    ],
+    "alerts": [
+      "change_in_baseline",
+      "incident_follow_up_needed",
+      "guardian_notification_needed",
+      "nurse_notification_needed",
+      "supervisor_notification_needed"
+    ]
+  },
+  "reusableModules": [
+    "behavioral_observation_support",
+    "redirection",
+    "de_escalation_support",
+    "behavior_plan_support",
+    "response_tracking",
+    "incident_documentation",
+    "supervisor_notification",
+    "follow_up_review"
+  ],
+  "moduleRules": [
+    {
+      "when": "needed_redirection",
+      "activate": [
+        "behavioral_observation_support",
+        "redirection",
+        "response_tracking"
+      ]
+    },
+    {
+      "when": "de_escalation_support",
+      "activate": [
+        "behavioral_observation_support",
+        "de_escalation_support",
+        "response_tracking"
+      ]
+    },
+    {
+      "when": "behavior_support_plan_active",
+      "activate": [
+        "behavior_plan_support",
+        "behavioral_observation_support"
+      ]
+    },
+    {
+      "when": "behavior_continued",
+      "activate": [
+        "response_tracking",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    },
+    {
+      "when": "incident_follow_up_needed",
+      "activate": [
+        "incident_documentation",
+        "follow_up_review",
+        "supervisor_notification"
+      ]
+    }
+  ]
+}

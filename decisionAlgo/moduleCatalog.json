@@ -1,0 +1,216 @@
+{
+  "catalogId": "reusable-module-catalog",
+  "label": "Reusable Module Catalog",
+  "modules": [
+    {
+      "moduleId": "privacy_setup",
+      "label": "Privacy Setup",
+      "family": "preparation",
+      "purpose": "Prepare privacy-sensitive support tasks such as toileting and bathing."
+    },
+    {
+      "moduleId": "transfer_safety",
+      "label": "Transfer Safety",
+      "family": "safety",
+      "purpose": "Guide safe transfers, gait-belt use, and fall prevention checks."
+    },
+    {
+      "moduleId": "bathing_support",
+      "label": "Bathing Support",
+      "family": "assistance",
+      "purpose": "Support bathing, hygiene tolerance, and safety-sensitive completion."
+    },
+    {
+      "moduleId": "toileting_support",
+      "label": "Toileting Support",
+      "family": "assistance",
+      "purpose": "Support toileting, hygiene, and skin-integrity-aware documentation."
+    },
+    {
+      "moduleId": "medication_reminder",
+      "label": "Medication Reminder",
+      "family": "clinical",
+      "purpose": "Document medication reminder, prompting, and timing support."
+    },
+    {
+      "moduleId": "medication_support_module",
+      "label": "Medication Support",
+      "family": "clinical",
+      "purpose": "Document medication prompting, set-up, observation, and adherence follow-up."
+    },
+    {
+      "moduleId": "redirection",
+      "label": "Redirection",
+      "family": "behavioral",
+      "purpose": "Handle distraction, hesitance, or behavior-related support during tasks."
+    },
+    {
+      "moduleId": "incident_documentation",
+      "label": "Incident Documentation",
+      "family": "documentation",
+      "purpose": "Capture incident-linked details, immediate response, and reporting requirements."
+    },
+    {
+      "moduleId": "fall_prevention",
+      "label": "Fall Prevention",
+      "family": "safety",
+      "purpose": "Expand documentation when fall risk, instability, or mobility hazards are active."
+    },
+    {
+      "moduleId": "supervisor_notification",
+      "label": "Supervisor Notification",
+      "family": "escalation",
+      "purpose": "Capture whether supervisor review or notification is required."
+    },
+    {
+      "moduleId": "behavioral_observation_support",
+      "label": "Behavioral Observation Support",
+      "family": "behavioral",
+      "purpose": "Capture target behavior, presentation, triggers, and behavior context during support."
+    },
+    {
+      "moduleId": "de_escalation_support",
+      "label": "De-escalation Support",
+      "family": "behavioral",
+      "purpose": "Document de-escalation steps, calming supports, and whether the person stabilized."
+    },
+    {
+      "moduleId": "behavior_plan_support",
+      "label": "Behavior Plan Support",
+      "family": "behavioral",
+      "purpose": "Ensure active behavior support plans and least restrictive interventions are followed."
+    },
+    {
+      "moduleId": "response_tracking",
+      "label": "Response Tracking",
+      "family": "behavioral",
+      "purpose": "Track how the person responded to intervention and whether follow-up is needed."
+    },
+    {
+      "moduleId": "follow_up_review",
+      "label": "Follow-Up Review",
+      "family": "documentation",
+      "purpose": "Capture handoff needs, retry plans, monitoring needs, and downstream follow-up."
+    },
+    {
+      "moduleId": "meal_preparation_support",
+      "label": "Meal Preparation Support",
+      "family": "iadl",
+      "purpose": "Document meal, snack, and beverage preparation with safety-aware support details."
+    },
+    {
+      "moduleId": "meal_support_module",
+      "label": "Meal Support",
+      "family": "nutrition",
+      "purpose": "Document meal support, intake support, and supervision during food and beverage tasks."
+    },
+    {
+      "moduleId": "dietary_compliance",
+      "label": "Dietary Compliance",
+      "family": "iadl",
+      "purpose": "Capture dietary restrictions, liquid consistency, and food-safety compliance."
+    },
+    {
+      "moduleId": "housekeeping_support",
+      "label": "Housekeeping Support",
+      "family": "iadl",
+      "purpose": "Document setup, cueing, and safety context for housekeeping and room-support tasks."
+    },
+    {
+      "moduleId": "shopping_support",
+      "label": "Shopping Support",
+      "family": "iadl",
+      "purpose": "Capture shopping assistance, supervision context, and community-task follow-up."
+    },
+    {
+      "moduleId": "transport_coordination_support",
+      "label": "Transport Coordination Support",
+      "family": "iadl",
+      "purpose": "Document ride scheduling, missed-window follow-up, and appointment transportation support."
+    },
+    {
+      "moduleId": "communication_support_module",
+      "label": "Communication Support",
+      "family": "iadl",
+      "purpose": "Document phone, appointment, and communication-based IADL support steps."
+    },
+    {
+      "moduleId": "community_supervision",
+      "label": "Community Supervision",
+      "family": "community",
+      "purpose": "Capture supervision level, line-of-sight support, and safety monitoring in the community."
+    },
+    {
+      "moduleId": "appointment_support_module",
+      "label": "Appointment Support",
+      "family": "community",
+      "purpose": "Document transport, check-in support, scheduling follow-up, and appointment attendance."
+    },
+    {
+      "moduleId": "community_redirection",
+      "label": "Community Redirection",
+      "family": "community",
+      "purpose": "Capture distraction, re-engagement, and redirection support during community tasks."
+    },
+    {
+      "moduleId": "wellness_observation",
+      "label": "Wellness Observation",
+      "family": "health",
+      "purpose": "Capture changes in presentation, pain, fatigue, and baseline wellness observations."
+    },
+    {
+      "moduleId": "mobility_monitoring_support",
+      "label": "Mobility Monitoring Support",
+      "family": "health",
+      "purpose": "Document gait, fatigue, and mobility monitoring during safety-sensitive observation."
+    },
+    {
+      "moduleId": "mobility_support_module",
+      "label": "Mobility Support",
+      "family": "mobility",
+      "purpose": "Document mobility assistance, positioning, wheelchair use, and movement support across the shift."
+    },
+    {
+      "moduleId": "hydration_monitoring",
+      "label": "Hydration Monitoring",
+      "family": "health",
+      "purpose": "Document hydration prompts, fluid monitoring, and liquid-consistency precautions."
+    },
+    {
+      "moduleId": "sleep_routine_support",
+      "label": "Sleep Routine Support",
+      "family": "sleep",
+      "purpose": "Document bedtime routine, overnight support, sleep observation, and wake-up follow-up."
+    },
+    {
+      "moduleId": "safety_monitoring_support",
+      "label": "Safety Monitoring Support",
+      "family": "safety",
+      "purpose": "Document active monitoring, environmental safety checks, aspiration precautions, and post-incident observation."
+    },
+    {
+      "moduleId": "handoff_documentation",
+      "label": "Handoff Documentation",
+      "family": "coordination",
+      "purpose": "Capture shift handoff details, unresolved items, and priority follow-up communication."
+    },
+    {
+      "moduleId": "family_update_support",
+      "label": "Family Update Support",
+      "family": "coordination",
+      "purpose": "Document approved family updates, what was communicated, and any needed follow-up."
+    },
+    {
+      "moduleId": "care_team_update_support",
+      "label": "Care Team Update Support",
+      "family": "coordination",
+      "purpose": "Document nurse, provider, or interdisciplinary team updates and time-sensitive communication."
+    },
+    {
+      "moduleId": "progress_summary_support",
+      "label": "Progress Summary Support",
+      "family": "coordination",
+      "purpose": "Capture goal progress, service summaries, and structured documentation follow-up."
+    }
+  ]
+}

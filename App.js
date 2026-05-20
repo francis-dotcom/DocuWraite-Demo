@@ -57,9 +57,235 @@ import {
   getSectionAssignmentStatus,
   resolveDecisionNoteType,
 } from "./decisionAlgo/noteTypeRegistry";
+import {
+  ASSIGNMENT_SCOPE_FULL,
+  ASSIGNMENT_SCOPE_TARGET,
+  buildAssignmentContract,
+  buildAssignmentTargetContext,
+  collectNodeKeysOnOtherTimeBlocks,
+  extractCrossSystemsFromClientProfile,
+  filterNodesForAssignmentTarget,
+  getAssignmentScopeHint,
+  resolveNodesForAssignmentScope,
+} from "./decisionAlgo/decisionAssignmentScope";
 import { SMART_SELECT_PRESETS, buildSmartSelection } from "./decisionAlgo/smartSelection";
+import {
+  WORKFLOW_SCHEDULE_OPTIONS,
+  getCategoriesForWorkflow,
+  groupNodesByDocumentationCategory,
+} from "./decisionAlgo/workflowCatalog";
+const { composeDecisionRuntime } = require("./decisionAlgo/runtimeComposer");
 
 const decisionNodes = require("./decisionAlgo/nodes.json");
+const dspIntakeSchema = require("./decisionAlgo/dspIntakeSchema.json");
+const adlInputSection = require("./decisionAlgo/adlInputSection.json");
+const behavioralInputSection = require("./decisionAlgo/behavioralInputSection.json");
+const behavioralRuntimeMap = require("./decisionAlgo/behavioralRuntimeMap.json");
+const iadlInputSection = require("./decisionAlgo/iadlInputSection.json");
+const iadlRuntimeMap = require("./decisionAlgo/iadlRuntimeMap.json");
+const medicationInputSection = require("./decisionAlgo/medicationInputSection.json");
+const medicationRuntimeMap = require("./decisionAlgo/medicationRuntimeMap.json");
+const mealSupportInputSection = require("./decisionAlgo/mealSupportInputSection.json");
+const mealSupportRuntimeMap = require("./decisionAlgo/mealSupportRuntimeMap.json");
+const communicationInputSection = require("./decisionAlgo/communicationInputSection.json");
+const communicationRuntimeMap = require("./decisionAlgo/communicationRuntimeMap.json");
+const communityInputSection = require("./decisionAlgo/communityInputSection.json");
+const communityRuntimeMap = require("./decisionAlgo/communityRuntimeMap.json");
+const healthSafetyInputSection = require("./decisionAlgo/healthSafetyInputSection.json");
+const healthSafetyRuntimeMap = require("./decisionAlgo/healthSafetyRuntimeMap.json");
+const sleepSupportInputSection = require("./decisionAlgo/sleepSupportInputSection.json");
+const sleepSupportRuntimeMap = require("./decisionAlgo/sleepSupportRuntimeMap.json");
+const safetyMonitoringInputSection = require("./decisionAlgo/safetyMonitoringInputSection.json");
+const safetyMonitoringRuntimeMap = require("./decisionAlgo/safetyMonitoringRuntimeMap.json");
+const mobilityInputSection = require("./decisionAlgo/mobilityInputSection.json");
+const mobilityRuntimeMap = require("./decisionAlgo/mobilityRuntimeMap.json");
+const documentationCoordinationInputSection = require("./decisionAlgo/documentationCoordinationInputSection.json");
+const documentationCoordinationRuntimeMap = require("./decisionAlgo/documentationCoordinationRuntimeMap.json");
+const moduleCatalog = require("./decisionAlgo/moduleCatalog.json");
+const ruleMappingTable = require("./decisionAlgo/ruleMappingTable.json");
+const noteOutputTemplate = require("./decisionAlgo/noteOutputTemplate.json");
+const bPhaganToiletingContext = require("./AILogic/clientContexts/BPhagan.toiletingContext.json");
+const { resolveAiLogicPath, aiLogicExists } = require("./AILogic/engine/aiLogicResolver");
+const { loadAiLogic } = require("./AILogic/engine/aiLogicLoader");
+const { evaluateAiSafety } = require("./AILogic/engine/aiSafetyEngine");
+const { buildAiSystemPrompt, buildAiUserPrompt } = require("./AILogic/engine/aiPromptBuilder");
+
+const WORKFLOW_INPUT_SECTION_CONFIGS = {
+  behavioral: behavioralInputSection,
+  adl: adlInputSection,
+  iadl: iadlInputSection,
+  medication: medicationInputSection,
+  "meal-support": mealSupportInputSection,
+  communication: communicationInputSection,
+  community: communityInputSection,
+  "health-safety": healthSafetyInputSection,
+  "sleep-support": sleepSupportInputSection,
+  "safety-monitoring": safetyMonitoringInputSection,
+  mobility: mobilityInputSection,
+  "documentation-coordination": documentationCoordinationInputSection,
+};
+
+const WORKFLOW_RUNTIME_MAPS = {
+  behavioral: behavioralRuntimeMap,
+  iadl: iadlRuntimeMap,
+  medication: medicationRuntimeMap,
+  "meal-support": mealSupportRuntimeMap,
+  communication: communicationRuntimeMap,
+  community: communityRuntimeMap,
+  "health-safety": healthSafetyRuntimeMap,
+  "sleep-support": sleepSupportRuntimeMap,
+  "safety-monitoring": safetyMonitoringRuntimeMap,
+  mobility: mobilityRuntimeMap,
+  "documentation-coordination": documentationCoordinationRuntimeMap,
+};
+
+const aiLogicCache = new Map();
+const CLIENT_WORKFLOW_CONTEXT_MAP = [
+  {
+    workflowTag: "#toileting",
+    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
+    context: bPhaganToiletingContext,
+  },
+];
+
+const ADL_GUIDED_TASK_OPTIONS = [
+  { value: "bathing", label: "Bathing" },
+  { value: "toileting", label: "Toileting" },
+  { value: "dressing", label: "Dressing" },
+  { value: "grooming", label: "Grooming" },
+  { value: "hygiene", label: "Hygiene" },
+  { value: "transfers", label: "Transfers" },
+];
+
+const ADL_GUIDED_OUTCOME_OPTIONS = [
+  { value: "completed", label: "Completed" },
+  { value: "partially_completed", label: "Partially completed" },
+  { value: "refused", label: "Refused" },
+  { value: "not_needed", label: "Not needed" },
+  { value: "safety_prevented_completion", label: "Safety prevented completion" },
+];
+
+const ADL_GUIDED_ASSISTANCE_OPTIONS = [
+  { value: "independent", label: "Independent" },
+  { value: "verbal_prompt", label: "Verbal prompt" },
+  { value: "partial_assist", label: "Partial assist" },
+  { value: "full_assist", label: "Full assist" },
+];
+
+const ADL_GUIDED_ENGAGEMENT_OPTIONS = [
+  { value: "engaged", label: "Engaged" },
+  { value: "hesitant", label: "Hesitant" },
+  { value: "distracted", label: "Distracted" },
+  { value: "withdrawn", label: "Withdrawn" },
+  { value: "re_engaged", label: "Re-engaged" },
+];
+
+const ADL_GUIDED_RISK_OPTIONS = [
+  { value: "fall_risk", label: "Fall risk" },
+  { value: "skin_breakdown_risk", label: "Skin breakdown risk" },
+  { value: "aggression_risk", label: "Aggression risk" },
+  { value: "environmental_hazard", label: "Environmental hazard" },
+];
+
+function uniqueValues(values = []) {
+  return [...new Set((values || []).filter(Boolean))];
+}
+
+function buildModuleCatalogById() {
+  return Object.fromEntries((moduleCatalog.modules || []).map((item) => [item.moduleId, item]));
+}
+
+const moduleCatalogById = buildModuleCatalogById();
+
+function matchRuleExpression(expression = "", activeTokens = []) {
+  const normalized = String(expression || "").trim();
+  if (!normalized) {
+    return false;
+  }
+  const requiredTokens = normalized
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return requiredTokens.every((token) => activeTokens.includes(token));
+}
+
+function collectActivatedModuleIds({ activeTokens = [], runtimeRuleMap = null, extraRuleMappings = [] } = {}) {
+  const runtimeActivated = (runtimeRuleMap?.moduleRules || [])
+    .filter((rule) => matchRuleExpression(rule.when, activeTokens))
+    .flatMap((rule) => rule.activate || []);
+  const mappedActivated = (extraRuleMappings || [])
+    .filter((mapping) => matchRuleExpression(mapping.when, activeTokens))
+    .flatMap((mapping) => mapping.activate || []);
+  return uniqueValues([...runtimeActivated, ...mappedActivated]);
+}
+
+function getModuleObjects(moduleIds = []) {
+  return uniqueValues(moduleIds).map((moduleId) => moduleCatalogById[moduleId]).filter(Boolean);
+}
+
+function buildInitialGuidedAdlPromptState() {
+  return {
+    task: "bathing",
+    outcome: "completed",
+    assistance: "",
+    engagement: "",
+    risks: [],
+  };
+}
+
+function buildGuidedAdlPromptText({
+  task = "",
+  outcome = "",
+  assistance = "",
+  engagement = "",
+  risks = [],
+} = {}) {
+  const taskLabel =
+    ADL_GUIDED_TASK_OPTIONS.find((option) => option.value === task)?.label?.toLowerCase() || "ADL support";
+  const parts = [`Document ${taskLabel} support`];
+
+  if (assistance) {
+    const assistanceLabel =
+      ADL_GUIDED_ASSISTANCE_OPTIONS.find((option) => option.value === assistance)?.label?.toLowerCase() ||
+      assistance.replace(/_/g, " ");
+    parts.push(`${assistanceLabel} provided`);
+  }
+
+  if (engagement) {
+    const engagementLabel =
+      ADL_GUIDED_ENGAGEMENT_OPTIONS.find((option) => option.value === engagement)?.label?.toLowerCase() ||
+      engagement.replace(/_/g, " ");
+    if (engagement === "hesitant" || engagement === "distracted" || engagement === "withdrawn") {
+      parts.push(`${engagementLabel} engagement and re-engagement support`);
+    } else {
+      parts.push(`${engagementLabel} participation`);
+    }
+  }
+
+  if (Array.isArray(risks) && risks.length) {
+    const riskLabels = risks
+      .map((risk) => ADL_GUIDED_RISK_OPTIONS.find((option) => option.value === risk)?.label?.toLowerCase() || risk.replace(/_/g, " "))
+      .join(", ");
+    parts.push(`${riskLabels} precautions`);
+  }
+
+  if (outcome) {
+    const outcomeLabel =
+      ADL_GUIDED_OUTCOME_OPTIONS.find((option) => option.value === outcome)?.label?.toLowerCase() ||
+      outcome.replace(/_/g, " ");
+    if (outcome === "completed" || outcome === "partially_completed") {
+      parts.push(`how the person tolerated the task and ${outcomeLabel} status`);
+    } else if (outcome === "refused") {
+      parts.push("refusal response and follow-up");
+    } else if (outcome === "safety_prevented_completion") {
+      parts.push("why safety prevented completion");
+    } else {
+      parts.push(`${outcomeLabel} outcome`);
+    }
+  }
+
+  return `${parts.join(", ")}.`;
+}
 
 const DECISION_LIBRARY_HELP = {
   aidraft: "AI draft rules for when notes are generated, what they must include, and which safety guardrails apply.",
@@ -140,9 +366,21 @@ const modules = [
   "Assessment & Screening",
   "Attendance",
   "Behavior Data",
+  "Behavioral Input Flow",
   "Behavior Plan",
   "Care Plan",
-  "Decision Engine",
+  "Communication Input Flow",
+  "Community Input Flow",
+  "DSP Input Flow",
+  "Documentation and Coordination Input Flow",
+  "Health and Safety Input Flow",
+  "IADL Input Flow",
+  "Meal Support Input Flow",
+  "Medication Input Flow",
+  "Mobility Input Flow",
+  "Safety Monitoring Input Flow",
+  "Sleep Support Input Flow",
+  "Supervisor Setup",
   "Case Note",
   "Document Storage",
   "Drug Count",
@@ -161,7 +399,7 @@ const modules = [
   "Time Tracking",
 ];
 
-const pdfs = ["Emergency Data Form", "Face Sheet", "Medical Information"];
+const pdfs = ["Emergency Data Form", "Face Sheet", "Medical Information", "Glossary"];
 
 const documentationHowToGuides = [
   {
@@ -184,6 +422,23 @@ const documentationHowToGuides = [
     ],
   },
   {
+    title: "Decision Algo Glossary",
+    summary: "Plain-English definitions for the main Decision Engine libraries and helpers.",
+    steps: [
+      "**Baseplan:** Core documentation questions for standard workflow sections like ADLs, meals, outings, behavior, medications, and night support.",
+      "**Branching:** Follow-up and escalation questions for refusal, fatigue, risk and safety, protocol failure, and incidents.",
+      "**Careplan:** Client-specific questions driven by the care plan, including risks, goals, supports, and interventions.",
+      "**Runtime:** Live shift questions for overdue work, due tasks, handoff items, and other active conditions.",
+      "**Readiness:** Completion and quality checks that decide whether documentation is clear, safe, and ready to draft or finalize.",
+      "**PlaybookR:** The rulebook for how the engine should assemble, inject, branch, dedupe, order, and block questions.",
+      "**AIDraft / IntelliDraft:** AI drafting rules for row notes, block summaries, final notes, handoff notes, and orders documentation.",
+      "**Note Type Registry:** Mapping logic that decides which sections belong to block time, row note, final note, handover note, or orders.",
+      "**Smart Selection:** Rule-based auto-selection presets like Essential, Default, Supervisor focus, and Complete.",
+      "**Parse MD to Nodes:** The parser that converts markdown question libraries into structured runtime data.",
+      "**Nodes JSON:** The compiled machine-readable output of the question libraries, not the authored source of truth.",
+    ],
+  },
+  {
     title: "How to finalize documentation",
     summary: "Close the note without leaving readiness gaps behind.",
     steps: [
@@ -194,12 +449,12 @@ const documentationHowToGuides = [
   },
   {
     title: "How to use Decision Engine",
-    summary: "Build and assign guided question sets for the DSP case note.",
+    summary: "Supervisors set up the DSP case-note timeline, rows, and workflow categories here.",
     steps: [
-      "Open the Decision Engine module and choose the library, note type, and target block or row.",
+      "Open the Decision Engine module and define the timeline blocks and case-note rows the DSP will document.",
       "Schedule Builder can use the same time range more than once when the workflow is different, such as 8am-9am Behavior and 8am-9am ADL.",
-      "Select the questions and branches you want included, then lock the library assignment.",
-      "Use Final Assign to send staged assignments into the DSP Case Note before documentation starts.",
+      "Choose the workflow category for each block or row so DocuWraite opens the correct modal questions later.",
+      "Review the descriptions and prompts so the DSP sees the right documentation context during the shift.",
     ],
   },
   {
@@ -241,19 +496,22 @@ const documentationHowToGuides = [
     ],
   },
   {
-    title: "How to use Smart select (supervisor quick pick)",
-    summary: "Pre-check a sensible subset when you cannot review every question in the list.",
+    title: "How to assign questions (Workflow → Category → Depth)",
+    summary: "Legacy assignment tooling for advanced admin use only.",
     steps: [
-      "Smart select is a shortcut for checking boxes in the Decision Engine question list. It does not final-assign by itself — review, lock the library, then Final Assign. The DSP bubble still asks only what you final-assigned.",
-      "Set Library, Note type, Mode, Branch, and Depth first. Every preset only affects questions already visible in the current filter (branch, library, note type, and depth control what appears).",
-      "Essential — fastest pass. In each section, checks depth 1 only: the opening or trigger question (one per section). Use when you want a minimal starter set and will add more by hand.",
-      "Default (recommended) — typical setup. Checks depths 1 and 2: opening questions plus the first follow-up layer in each section. Use for a normal block or row without pulling in the whole tree.",
-      "Supervisor focus — risk and escalation lean. Still depths 1–2, but also checks prompts whose text matches supervisor keywords (for example supervisor, escalate, risk, refusal, incident, emergency, protocol, safety, fall, aspiration, medication). Use when safety, refusal, and handoff-style prompts matter most.",
-      "Complete — checks every selectable question in the current filter (full annotation pack for what is on screen). Best with Full branch, Note type Block time, library Baseplan or Careplan, and Depth 3–5. If the filter is narrow (selective branch, low depth), you may only get a few questions — widen the filter for a whole-shift pack.",
-      "All visible — same mechanical idea as Complete: checks everything currently shown, like using Select all on the visible list. Use when you literally want every question in the current filter checked.",
-      "Clear visible — unchecks all questions in the current filter. To undo only the last Smart select batch (and keep manual checks), tap × on the summary line under Smart select.",
-      "After any preset, a summary lists what was checked (section and question). Tweak checkboxes, lock the library to the target block or row, then Final Assign as usual.",
-      "Quick pick: Default = normal block (start here) · Essential = skim · Supervisor focus = safety/escalation · Complete or All visible = full visible pack (pair with Full branch + high depth for real shift setup). Logic lives in decisionAlgo/smartSelection.js (rule-based, not a second AI interview).",
+      "The current DSP note flow does not depend on manual assignment for supported categories.",
+      "Use Schedule Builder and Row Builder to define block time, case-note rows, and workflow categories.",
+      "Keep this section only if you still need advanced admin-only assignment experiments later.",
+      "See decisionAlgo/documentationArchitecture.md for the full model.",
+    ],
+  },
+  {
+    title: "How to use Smart select (supervisor quick pick)",
+    summary: "Legacy helper for advanced admin assignment only.",
+    steps: [
+      "Smart select is no longer required for the supervisor setup flow used by DSP note bubbles.",
+      "The supported categories now open their question flow automatically from the row or block workflow.",
+      "Keep Smart select only if you still need the advanced admin assignment library later.",
     ],
   },
 ];
@@ -836,6 +1094,36 @@ function parseScheduleBlockHours(block = {}) {
   return { startHour: 7, endHour: 8 };
 }
 
+function groupTimeBlocksByLabel(blocks = []) {
+  const groups = [];
+  const byLabel = new Map();
+
+  blocks.forEach((block) => {
+    const label = String(block?.label || "Unscheduled");
+    if (!byLabel.has(label)) {
+      const group = { label, blocks: [] };
+      byLabel.set(label, group);
+      groups.push(group);
+    }
+    byLabel.get(label).blocks.push(block);
+  });
+
+  return groups;
+}
+
+function timeBlockHasAssignedQuestions(assignments = [], blockId = "") {
+  if (!blockId) {
+    return false;
+  }
+
+  return assignments.some(
+    (assignment) =>
+      assignment?.target?.type === "time-block" &&
+      String(assignment.target.targetId) === String(blockId) &&
+      (Number(assignment.selectedCount) > 0 || (assignment.selectedNodesPayload || []).length > 0)
+  );
+}
+
 function buildBuilderDraftSeedFromTarget(
   targetKey = "",
   timeBlocks = [],
@@ -952,9 +1240,284 @@ function getTimeBlockSource(blockOrLabel, clientProfile = null) {
   }
 }
 
+function getCachedAiLogic(logicPath = "") {
+  if (!logicPath) {
+    return null;
+  }
+  if (aiLogicCache.has(logicPath)) {
+    return aiLogicCache.get(logicPath);
+  }
+  const loaded = loadAiLogic(logicPath);
+  aiLogicCache.set(logicPath, loaded);
+  return loaded;
+}
+
+function normalizeLookupName(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getWorkflowTagForFieldContext(fieldContext = {}) {
+  const explicit = String(fieldContext.workflowTag || "").trim();
+  if (explicit) {
+    return explicit.startsWith("#") ? explicit : `#${explicit}`;
+  }
+
+  const aiLogicTask = inferAiLogicSelection(fieldContext)?.task || "";
+  if (String(aiLogicTask || "").trim().toLowerCase() === "toileting") {
+    return "#toileting";
+  }
+
+  return "";
+}
+
+function resolveClientCarePlanContext({ workflowTag = "", clientProfile = null, activePatientName = "" } = {}) {
+  const normalizedWorkflowTag = String(workflowTag || "").trim().toLowerCase();
+  if (!normalizedWorkflowTag) {
+    return null;
+  }
+
+  const candidateNames = [
+    clientProfile?.displayName,
+    clientProfile?.fullName,
+    clientProfile?.name,
+    activePatientName,
+  ]
+    .map((item) => normalizeLookupName(item))
+    .filter(Boolean);
+
+  return (
+    CLIENT_WORKFLOW_CONTEXT_MAP.find(
+      (entry) =>
+        entry.workflowTag.toLowerCase() === normalizedWorkflowTag &&
+        entry.clientNames.some((name) => candidateNames.includes(normalizeLookupName(name)))
+    )?.context || null
+  );
+}
+
+function attachClientCarePlanContext(fieldContext = {}, options = {}) {
+  if (!fieldContext || typeof fieldContext !== "object") {
+    return fieldContext;
+  }
+
+  if (fieldContext.carePlanContext) {
+    return fieldContext;
+  }
+
+  const workflowTag = getWorkflowTagForFieldContext(fieldContext);
+  if (!workflowTag) {
+    return fieldContext;
+  }
+
+  const carePlanContext = resolveClientCarePlanContext({
+    workflowTag,
+    clientProfile: options.clientProfile || null,
+    activePatientName: options.activePatientName || "",
+  });
+
+  if (!carePlanContext) {
+    return {
+      ...fieldContext,
+      workflowTag,
+    };
+  }
+
+  return {
+    ...fieldContext,
+    workflowTag,
+    carePlanContext,
+  };
+}
+
+function inferAiLogicSelection(fieldContext = {}) {
+  const workflowId = String(fieldContext.workflowId || "").trim();
+  const haystack = normalizeInferenceText(
+    [fieldContext.label, fieldContext.description, fieldContext.source, fieldContext.assignedNodeSummary]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+  if (["adl", "morning-adl"].includes(workflowId)) {
+    const toiletingSignals = [
+      "toileting",
+      "toilet",
+      "brief change",
+      "perineal care",
+      "incontinence",
+      "continence",
+    ];
+    if (toiletingSignals.some((signal) => haystack.includes(normalizeInferenceText(signal)))) {
+      return {
+        category: "ADL",
+        task: "Toileting",
+      };
+    }
+  }
+
+  return null;
+}
+
+function mapAiLogicQuestionToWorkflowStep(question = {}, logic = null) {
+  const questionType = String(question.type || "").trim().toLowerCase();
+  const isMultiSelect = questionType === "multi_select";
+  const isFreeText = questionType === "free_text";
+
+  return {
+    stepKey: question.id,
+    kind: isFreeText ? "input" : "suggestions",
+    question: question.label || question.id,
+    suggestions: isFreeText ? [] : (question.options || []).map((option) => String(option)),
+    multiSelect: isMultiSelect,
+    allowCustom: false,
+    requiredWhen: question.requiredWhen || null,
+    requiredWhenIncludes: question.requiredWhenIncludes || null,
+    rationale: isFreeText
+      ? "Provide the specific detail needed for this documentation path."
+      : "Answer within the configured care-documentation options for this workflow.",
+    sourceAiLogicPath: logic?.path || "",
+    sourceAiLogicWorkflowId: logic?.raw?.workflowId || "",
+    sourceAiLogicTask: logic?.meta?.task || "",
+  };
+}
+
+function buildAiLogicWorkflowBundle(fieldContext = {}) {
+  const selection = inferAiLogicSelection(fieldContext);
+  if (!selection) {
+    return null;
+  }
+
+  const logicPath = resolveAiLogicPath({
+    category: selection.category,
+    task: selection.task,
+    workflowId: fieldContext.workflowId,
+    fieldContext,
+  });
+  if (!logicPath || !aiLogicExists(logicPath)) {
+    return null;
+  }
+
+  try {
+    const logic = getCachedAiLogic(logicPath);
+    const sequence = logic?.rules?.sequence || [];
+    const questionsById = logic?.rules?.questionsById || {};
+    const steps = sequence
+      .map((questionId) => questionsById[questionId])
+      .filter(Boolean)
+      .map((question) => mapAiLogicQuestionToWorkflowStep(question, logic));
+
+    if (!steps.length) {
+      return null;
+    }
+
+    return {
+      category: selection.category,
+      task: selection.task,
+      logic,
+      steps: [
+        ...steps,
+        {
+          stepKey: "assigned-nodes-draft",
+          kind: "draft",
+          question: "Review and generate note",
+          sourceAiLogicPath: logic.path,
+        },
+      ],
+    };
+  } catch (error) {
+    console.warn("Failed to load AI logic bundle", error);
+    return null;
+  }
+}
+
+function includesWorkflowSelection(answerValue, targetValue) {
+  if (Array.isArray(answerValue)) {
+    return answerValue.includes(targetValue);
+  }
+  return answerValue === targetValue;
+}
+
+function shouldPresentLocalWorkflowStep(step = {}, answers = {}) {
+  if (!step || !step.stepKey || ["draft", "affirm", "readiness", "why", "context-action"].includes(step.kind)) {
+    return true;
+  }
+
+  if (step.requiredWhen) {
+    return getWorkflowAnswer(answers, step.requiredWhen.questionId || "") === step.requiredWhen.equals;
+  }
+
+  if (step.requiredWhenIncludes) {
+    return includesWorkflowSelection(
+      getWorkflowAnswer(answers, step.requiredWhenIncludes.questionId || ""),
+      step.requiredWhenIncludes.value
+    );
+  }
+
+  return true;
+}
+
+function getNextVisibleLocalWorkflowStepIndex(localSteps = [], answers = {}, startIndex = 0, direction = 1) {
+  if (!localSteps.length) {
+    return 0;
+  }
+
+  if (direction < 0) {
+    for (let index = Math.min(startIndex, localSteps.length - 1); index >= 0; index -= 1) {
+      if (shouldPresentLocalWorkflowStep(localSteps[index], answers)) {
+        return index;
+      }
+    }
+    return 0;
+  }
+
+  for (let index = Math.max(startIndex, 0); index < localSteps.length; index += 1) {
+    if (shouldPresentLocalWorkflowStep(localSteps[index], answers)) {
+      return index;
+    }
+  }
+
+  return Math.max(localSteps.length - 1, 0);
+}
+
+function buildAiLogicDraftPayload(workflowSnapshot = {}, shiftContext = {}) {
+  const aiLogicPath = (workflowSnapshot.localSteps || []).find((step) => step?.sourceAiLogicPath)?.sourceAiLogicPath || "";
+  if (!aiLogicPath) {
+    return null;
+  }
+
+  const logic = getCachedAiLogic(aiLogicPath);
+  const answers = workflowSnapshot.answers || {};
+  const safety = evaluateAiSafety(logic, answers);
+  const carePlan = workflowSnapshot.fieldContext?.carePlanContext || {};
+
+  return {
+    logicPath: aiLogicPath,
+    workflowId: logic?.raw?.workflowId || "",
+    safety,
+    systemPrompt: buildAiSystemPrompt(logic, safety),
+    userPrompt: buildAiUserPrompt(logic, answers, carePlan, shiftContext, safety),
+  };
+}
+
 function getAssignedWorkflowStepsForField(fieldContext = {}) {
   if (fieldContext.assignedWorkflowSteps?.length) {
     return fieldContext.assignedWorkflowSteps;
+  }
+  if (fieldContext.workflowId === "case-note-final") {
+    return buildCaseNoteFinalWorkflowSteps();
+  }
+  const aiLogicBundle = buildAiLogicWorkflowBundle(fieldContext);
+  if (aiLogicBundle?.steps?.length) {
+    return aiLogicBundle.steps;
+  }
+  if (fieldContext.workflowId) {
+    const configDrivenSteps = buildConfigDrivenRowWorkflowSteps(fieldContext.workflowId);
+    if (configDrivenSteps.length) {
+      return configDrivenSteps;
+    }
   }
   return createAssignedWorkflowSteps(fieldContext.assignedNodes || []);
 }
@@ -966,6 +1529,23 @@ function fieldHasAssignedDecisionWorkflow(fieldContext = {}) {
 
   const steps = getAssignedWorkflowStepsForField(fieldContext);
   return steps.some((step) => step.kind !== "draft");
+}
+
+function getTimeBlockWorkflowTagLabel(blockOrLabel = {}, workflowOptions = []) {
+  const workflowId =
+    typeof blockOrLabel === "object"
+      ? String(blockOrLabel?.workflowId || "").trim()
+      : "";
+  if (!workflowId) {
+    return "";
+  }
+  return workflowOptions.find((option) => option.workflowId === workflowId)?.label || "";
+}
+
+function buildTimeBlockAssignmentTargetLabel(block = {}, workflowOptions = []) {
+  const baseLabel = getTimeBlockLabelValue(block) || block.label || "Time block";
+  const workflowTag = getTimeBlockWorkflowTagLabel(block, workflowOptions);
+  return workflowTag ? `${baseLabel} · ${workflowTag}` : baseLabel;
 }
 
 function getTimeBlockWorkflowId(blockOrLabel, clientProfile = null) {
@@ -1002,22 +1582,36 @@ function getWorkflowEyebrow(workflowId) {
   switch (workflowId) {
     case "assigned-nodes":
       return "Assigned decision workflow";
+    case "adl":
+      return "ADL";
     case "morning-adl":
-      return "Morning ADL support";
+      return "ADL";
+    case "mobility":
+      return "Mobility";
+    case "iadl":
+      return "IADL";
     case "feeding-support":
-      return "Feeding support";
+      return "Meal Support";
     case "in-home-leisure":
-      return "In-home leisure and rest";
+      return "Safety Monitoring";
+    case "community":
+      return "Community";
     case "community-outing":
-      return "Community outing detected";
+      return "Community Outing";
     case "return-home":
       return "Return-home transition";
     case "behavior-support":
-      return "Behavior support";
+      return "Behavior Support";
     case "communication-support":
-      return "Communication support";
+      return "Communication";
     case "medication-support":
-      return "Medication support";
+      return "Medication";
+    case "health-safety":
+      return "Health and Safety";
+    case "documentation-coordination":
+      return "Documentation and Coordination";
+    case "night-adl":
+      return "Sleep Support";
     case "case-note-final":
       return "Final case note";
     default:
@@ -1156,6 +1750,12 @@ function getDecisionNodeDisplayChoices(node = {}) {
   return (node.choices || []).filter(Boolean);
 }
 
+function titleCase(value = "") {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 function getDecisionSectionFilterLabel(sectionKey = "") {
   const normalized = String(sectionKey || "").trim();
   if (!normalized) {
@@ -1245,9 +1845,536 @@ function createAssignedWorkflowSteps(assignedNodes = []) {
     {
       stepKey: "assigned-nodes-draft",
       kind: "draft",
-      question: "Generated documentation",
+      question: "Review and generate note",
     },
   ];
+}
+
+function buildCaseNoteFinalWorkflowSteps() {
+  return [
+    {
+      stepKey: "final-emphasis",
+      kind: "suggestions",
+      question: "What should the final case note emphasize?",
+      suggestions: [
+        "Overall shift summary",
+        "Behavior and interventions",
+        "ADL and personal care",
+        "Meal support and medication",
+        "Community and transitions",
+        "Health and safety supports",
+        "Other...",
+      ],
+      allowCustom: true,
+      multiSelect: true,
+      rationale: "Set the summary focus for the final case note.",
+    },
+    {
+      stepKey: "final-shift-concern",
+      kind: "suggestions",
+      question: "Were there any shift-wide concerns to highlight?",
+      suggestions: [
+        "None",
+        "Change in baseline",
+        "Repeated refusal",
+        "Safety concern",
+        "Medication concern",
+        "Poor intake",
+        "Behavioral escalation",
+        "Follow-up required",
+        "Other...",
+      ],
+      allowCustom: true,
+      rationale: "Capture any concern that should carry into the final note.",
+    },
+    {
+      stepKey: "final-shift-outcome",
+      kind: "suggestions",
+      question: "What was the overall shift outcome?",
+      suggestions: [
+        "Stable shift",
+        "Supported with minor issues",
+        "Supported with notable concerns",
+        "Partial completion of planned supports",
+        "Follow-up needed",
+        "Other...",
+      ],
+      allowCustom: true,
+      rationale: "Give DocuWraite the high-level outcome for the shift.",
+    },
+    {
+      stepKey: "final-follow-up",
+      kind: "suggestions",
+      question: "What follow-up should be carried forward?",
+      suggestions: [
+        "None",
+        "Supervisor review",
+        "Nurse follow-up",
+        "Care team update",
+        "Family update",
+        "Monitor next shift",
+        "Other...",
+      ],
+      allowCustom: true,
+      rationale: "Clarify who needs to know or what should be monitored next.",
+    },
+    {
+      stepKey: "final-guidance",
+      kind: "suggestions",
+      question: "Add final note guidance if needed.",
+      suggestions: [
+        "Keep concise",
+        "Highlight positive participation",
+        "Highlight refusals and redirection",
+        "Highlight health and safety supports",
+        "Highlight transitions and follow-up",
+        "No extra guidance",
+        "Other...",
+      ],
+      allowCustom: true,
+      rationale: "Optional wording direction for the final summary.",
+      optionalNarration: true,
+      narrationField: "finalGuidanceNarration",
+      manualContinue: true,
+    },
+    {
+      stepKey: "assigned-nodes-draft",
+      kind: "draft",
+      question: "Review and generate note",
+    },
+    {
+      stepKey: "final-note-affirm",
+      kind: "affirm",
+      question: "Review final case note",
+    },
+  ];
+}
+
+function buildBehaviorSupportRowWorkflowSteps() {
+  const behaviorOptions = (behavioralInputSection.behaviorOptions || []).map((item) => item.label);
+  const interventionOptions = (behavioralInputSection.interventionOptions || []).map((item) => item.label);
+  const responseOptions = (behavioralInputSection.responseOptions || []).map((item) => item.label);
+  const engagementOptions = (behavioralInputSection.engagementOptions || []).map((item) => item.label);
+  const riskOptions = (behavioralInputSection.riskOptions || []).map((item) => titleCase(item));
+  const planOptions = (behavioralInputSection.planOptions || []).map((item) => titleCase(item));
+  const alertOptions = (behavioralInputSection.alertOptions || []).map((item) => titleCase(item));
+
+  return [
+    {
+      stepKey: "behavior-observed",
+      kind: "suggestions",
+      question: behavioralInputSection.questionSteps?.[0] || "What behavior or support need was observed?",
+      suggestions: [...behaviorOptions, "Other..."],
+      allowCustom: true,
+      rationale: "Identify the target behavior or support need observed in this row.",
+    },
+    {
+      stepKey: "behavior-intervention",
+      kind: "suggestions",
+      question: behavioralInputSection.questionSteps?.[1] || "What intervention was used?",
+      suggestions: [...interventionOptions, "Other..."],
+      allowCustom: true,
+      rationale: "Select the actual intervention or staff support used.",
+    },
+    {
+      stepKey: "behavior-response",
+      kind: "suggestions",
+      question: behavioralInputSection.questionSteps?.[2] || "How did the person respond?",
+      suggestions: [...responseOptions, "Other..."],
+      allowCustom: true,
+      rationale: "Capture the observed response to the intervention.",
+    },
+    {
+      stepKey: "behavior-engagement",
+      kind: "suggestions",
+      question:
+        behavioralInputSection.questionSteps?.[3] ||
+        "How did the person engage during the behavioral support?",
+      suggestions: [...engagementOptions, "Other..."],
+      allowCustom: true,
+      rationale: "Document engagement because it affects support quality and note strength.",
+    },
+    {
+      stepKey: "behavior-risks-plans",
+      kind: "suggestions",
+      question:
+        behavioralInputSection.questionSteps?.[4] ||
+        "Were any behavioral risks or plans active?",
+      suggestions: [...riskOptions, ...planOptions],
+      multiSelect: true,
+      rationale: "Select all risk or plan overlays that were active during this support.",
+    },
+    {
+      stepKey: "behavior-alerts",
+      kind: "suggestions",
+      question:
+        behavioralInputSection.questionSteps?.[5] ||
+        "Were any alerts or follow-up needs present?",
+      suggestions: [...alertOptions, "None"],
+      multiSelect: true,
+      rationale: "Document only real alerts or follow-up needs tied to this row.",
+    },
+    {
+      stepKey: "assigned-nodes-draft",
+      kind: "draft",
+      question: "Review and generate note",
+    },
+  ];
+}
+
+function getInputSectionDomainForWorkflow(workflowId = "") {
+  switch (String(workflowId || "").trim()) {
+    case "behavior-support":
+      return "behavioral";
+    case "adl":
+    case "morning-adl":
+      return "adl";
+    case "night-adl":
+      return "sleep-support";
+    case "mobility":
+      return "mobility";
+    case "iadl":
+      return "iadl";
+    case "feeding-support":
+      return "meal-support";
+    case "medication-support":
+      return "medication";
+    case "communication-support":
+      return "communication";
+    case "community":
+    case "community-outing":
+    case "return-home":
+      return "community";
+    case "health-safety":
+      return "health-safety";
+    case "in-home-leisure":
+      return "safety-monitoring";
+    case "documentation-coordination":
+      return "documentation-coordination";
+    default:
+      return "";
+  }
+}
+
+function getWorkflowInputSectionConfig(workflowId = "") {
+  const domain = getInputSectionDomainForWorkflow(workflowId);
+  return WORKFLOW_INPUT_SECTION_CONFIGS[domain] || null;
+}
+
+function getWorkflowInputSectionRuntimeMap(workflowId = "") {
+  const domain = getInputSectionDomainForWorkflow(workflowId);
+  return WORKFLOW_RUNTIME_MAPS[domain] || null;
+}
+
+function getGenericInputTaskLabel(config = {}, taskValue = "") {
+  return (config.tasks || []).find((item) => item.value === taskValue)?.label || titleCase(taskValue);
+}
+
+function getGenericInputTaskDetail(config = {}, taskValue = "") {
+  return config.taskDetails?.[taskValue] || null;
+}
+
+function buildConfigDrivenRowWorkflowSteps(workflowId = "") {
+  if (workflowId === "behavior-support") {
+    return buildBehaviorSupportRowWorkflowSteps();
+  }
+
+  const config = getWorkflowInputSectionConfig(workflowId);
+  if (!config) {
+    return [];
+  }
+
+  const taskSuggestions = (config.tasks || []).map((item) => item.label);
+  const subtaskSuggestions = Array.from(
+    new Set(
+      (config.tasks || []).flatMap((task) =>
+        (getGenericInputTaskDetail(config, task.value)?.subtasks || []).map((subtask) => subtask.label)
+      )
+    )
+  );
+  const outcomeSuggestions = (config.genericOutcomeOptions || []).map((item) => item.label);
+  const assistanceSuggestions = (config.genericAssistanceOptions || []).map((item) => item.label);
+  const engagementSuggestions = (config.engagementOptions || []).map((item) => item.label);
+
+  const overlaySuggestions = Array.from(
+    new Set(
+      (config.tasks || []).flatMap((task) => {
+        const detail = getGenericInputTaskDetail(config, task.value);
+        return [...(detail?.risks || []), ...(detail?.protocols || [])];
+      })
+    )
+  ).map((item) => titleCase(item));
+
+  const alertSuggestions = Array.from(
+    new Set(
+      (config.tasks || []).flatMap((task) => {
+        const detail = getGenericInputTaskDetail(config, task.value);
+        return [...(detail?.alerts || [])];
+      })
+    )
+  ).map((item) => titleCase(item));
+
+  return [
+    {
+      stepKey: "domain-task",
+      kind: "suggestions",
+      question: config.questionSteps?.[0] || "What task was supported?",
+      suggestions: [...taskSuggestions, "Other..."],
+      allowCustom: true,
+      rationale: "Identify the documented task for this row.",
+    },
+    {
+      stepKey: "domain-subtask",
+      kind: "suggestions",
+      question: "Was there a subtask?",
+      suggestions: subtaskSuggestions.length ? [...subtaskSuggestions, "No subtask", "Other..."] : ["No subtask"],
+      allowCustom: subtaskSuggestions.length > 0,
+      rationale: "Capture a more specific subtask when the row description makes it relevant.",
+    },
+    {
+      stepKey: "domain-outcome",
+      kind: "suggestions",
+      question: config.questionSteps?.[1] || "What was the outcome?",
+      suggestions: [...outcomeSuggestions, "Other..."],
+      allowCustom: true,
+      rationale: "Select the outcome that best matches what occurred.",
+    },
+    {
+      stepKey: "domain-assistance",
+      kind: "suggestions",
+      question: config.questionSteps?.[2] || "What assistance was provided?",
+      suggestions: [...assistanceSuggestions, "Other..."],
+      allowCustom: true,
+      rationale: "Document the support level actually rendered.",
+    },
+    {
+      stepKey: "domain-engagement",
+      kind: "suggestions",
+      question: config.questionSteps?.[3] || "How did the person engage during the task?",
+      suggestions: [...engagementSuggestions, "Other..."],
+      allowCustom: true,
+      rationale: "Capture participation or presentation during the support.",
+    },
+    {
+      stepKey: "domain-overlays",
+      kind: "suggestions",
+      question: config.questionSteps?.[4] || "Were any risks or protocols active?",
+      suggestions: overlaySuggestions.length ? overlaySuggestions : ["None"],
+      multiSelect: true,
+      rationale: "Select any active risks, requirements, or protocols that applied to this row.",
+    },
+    {
+      stepKey: "domain-alerts",
+      kind: "suggestions",
+      question: config.questionSteps?.[5] || "Were any alerts present?",
+      suggestions: [...alertSuggestions, "None"],
+      multiSelect: true,
+      rationale: "Capture follow-up needs or leave as None if nothing additional applied.",
+    },
+    {
+      stepKey: "assigned-nodes-draft",
+      kind: "draft",
+      question: "Review and generate note",
+    },
+  ];
+}
+
+function normalizeInferenceText(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function inferTaskValueFromRowText(config = {}, text = "") {
+  const haystack = normalizeInferenceText(text);
+  if (!haystack) {
+    return "";
+  }
+
+  const aliasesByTask = {
+    toileting: ["toileting", "toilet", "brief change", "perineal care", "incontinence"],
+    bathing: ["bathing", "bath", "shower", "tub bath"],
+    dressing: ["dressing", "dress", "clothing"],
+    grooming: ["grooming", "groom", "hair care", "shaving"],
+    hygiene: ["hygiene", "wash up", "clean up"],
+    transfers: ["transfer", "bed to chair", "chair to toilet", "standing transfer"],
+    oral_care: ["oral care", "teeth", "brushing teeth"],
+    feeding_assistance: ["feeding", "meal support", "eating support"],
+    ambulation: ["ambulation", "ambulate", "walking", "mobility"],
+    continence_care: ["continence", "incontinence care"],
+    meal_preparation: ["meal preparation", "meal prep", "snack preparation", "beverage preparation"],
+    medication_support: ["medication support", "medication prompt", "medication set up", "medication follow up", "medication"],
+    laundry: ["laundry", "fold clothing", "washer"],
+    housekeeping: ["housekeeping", "bed making", "surface cleaning", "dishwashing"],
+    shopping: ["shopping", "grocery shopping", "checkout support", "supply pickup"],
+    transportation_coordination: ["transportation coordination", "transport", "ride follow up", "appointment transport"],
+    appointment_scheduling: ["appointment scheduling", "schedule appointment"],
+    money_management_support: ["money management", "budget", "finances"],
+    communication_support: ["communication support", "phone support", "communication"],
+    community_outing: ["community outing", "outing", "store trip", "park visit", "walking activity"],
+    appointment_support: ["appointment support", "check in support", "transport to visit"],
+    social_participation: ["social participation", "peer interaction", "group participation"],
+    recreational_activity: ["recreational activity", "recreation"],
+    faith_based_activity: ["faith based activity", "church", "faith based"],
+    errands: ["errands", "errand"],
+    wellness_check: ["wellness check", "pain check", "fatigue check", "general observation"],
+    fall_prevention: ["fall prevention", "fall risk", "environment check"],
+    mobility_monitoring: ["mobility monitoring", "gait observation", "fatigue monitoring"],
+    incident_response: ["incident response", "injury check", "near fall", "immediate follow up", "incident"],
+    hydration_support: ["hydration support", "hydration prompt", "fluid monitoring", "fluids offered"],
+    environmental_safety_check: ["environmental safety check", "safety check"],
+    shift_handoff: ["shift handoff", "verbal handoff", "written handoff", "handoff"],
+    family_communication: ["family communication", "update call", "message follow up", "guardian"],
+    care_team_communication: ["care team communication", "nurse update", "provider update", "team follow up"],
+    progress_documentation: ["progress documentation", "goal progress", "service summary", "documentation"],
+    incident_documentation: ["incident documentation", "incident report"],
+    supervisor_update: ["supervisor update", "supervisor notification"],
+  };
+
+  for (const task of config.tasks || []) {
+    const candidates = new Set([
+      normalizeInferenceText(task.label),
+      normalizeInferenceText(String(task.value || "").replace(/_/g, " ")),
+      ...(aliasesByTask[task.value] || []).map((item) => normalizeInferenceText(item)),
+    ]);
+
+    for (const candidate of candidates) {
+      if (candidate && haystack.includes(candidate)) {
+        return task.value;
+      }
+    }
+  }
+
+  return "";
+}
+
+function inferBehaviorValueFromRowText(text = "") {
+  const haystack = normalizeInferenceText(text);
+  if (!haystack) {
+    return "";
+  }
+
+  const behaviorMatchers = [
+    ["needed_redirection", ["redirection", "redirected"]],
+    ["boundary_seeking_behavior", ["boundary seeking", "boundary"]],
+    ["agitation", ["agitation", "agitated"]],
+    ["anxiety", ["anxiety", "anxious"]],
+    ["refusal_behavior", ["refusal", "refused"]],
+    ["withdrawn_behavior", ["withdrawn", "shut down"]],
+    ["verbal_escalation", ["verbal escalation", "escalation", "yelling"]],
+  ];
+
+  for (const [value, aliases] of behaviorMatchers) {
+    if (aliases.some((alias) => haystack.includes(normalizeInferenceText(alias)))) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function inferSubtaskValueFromRowText(config = {}, taskValue = "", text = "") {
+  const haystack = normalizeInferenceText(text);
+  if (!haystack) {
+    return "";
+  }
+
+  const taskDetail = taskValue ? getGenericInputTaskDetail(config, taskValue) : null;
+  const scopedSubtasks = taskDetail?.subtasks?.length
+    ? taskDetail.subtasks
+    : (config.tasks || []).flatMap((task) => getGenericInputTaskDetail(config, task.value)?.subtasks || []);
+
+  for (const subtask of scopedSubtasks) {
+    const candidates = new Set([
+      normalizeInferenceText(subtask.label),
+      normalizeInferenceText(String(subtask.value || "").replace(/_/g, " ")),
+    ]);
+
+    for (const candidate of candidates) {
+      if (candidate && haystack.includes(candidate)) {
+        return subtask.value;
+      }
+    }
+  }
+
+  return "";
+}
+
+function buildInitialLocalWorkflowAnswers(fieldContext = {}, localSteps = []) {
+  const workflowId = String(fieldContext.workflowId || "").trim();
+  const combinedText = [fieldContext.description, fieldContext.source, fieldContext.assignedNodeSummary]
+    .filter(Boolean)
+    .join(" ");
+  const answers = {};
+
+  if (!localSteps.length) {
+    return { answers, stepIndex: 0 };
+  }
+
+  const aiLogicTask = String(localSteps.find((step) => step?.sourceAiLogicTask)?.sourceAiLogicTask || "").trim().toLowerCase();
+
+  if (aiLogicTask === "toileting") {
+    const toiletingOptions = (localSteps.find((step) => step.stepKey === "toileting_task_type")?.suggestions || []).map(
+      (item) => String(item)
+    );
+    const inferredToiletingTask =
+      toiletingOptions.find((option) => normalizeInferenceText(combinedText).includes(normalizeInferenceText(option))) || "";
+    if (inferredToiletingTask) {
+      answers["toileting_task_type"] = inferredToiletingTask;
+    }
+  } else if (workflowId === "behavior-support") {
+    const behaviorValue = inferBehaviorValueFromRowText(combinedText);
+    if (behaviorValue) {
+      const firstStep = localSteps.find((step) => step.stepKey === "behavior-observed");
+      const match = (firstStep?.suggestions || []).find(
+        (item) => normalizeInferenceText(item) === normalizeInferenceText(behavioralInputSection.behaviorOptions.find((opt) => opt.value === behaviorValue)?.label || "")
+      );
+      if (match) {
+        answers["behavior-observed"] = match;
+      }
+    }
+  } else {
+    const config = getWorkflowInputSectionConfig(workflowId);
+    const taskValue = inferTaskValueFromRowText(config || {}, combinedText);
+    if (taskValue) {
+      const label = getGenericInputTaskLabel(config || {}, taskValue);
+      if (label) {
+        answers["domain-task"] = label;
+      }
+    }
+    const subtaskValue = inferSubtaskValueFromRowText(config || {}, taskValue, combinedText);
+    if (subtaskValue) {
+      const subtaskLabel =
+        (getGenericInputTaskDetail(config || {}, taskValue)?.subtasks || [])
+          .concat(
+            taskValue
+              ? []
+              : (config?.tasks || []).flatMap((task) => getGenericInputTaskDetail(config || {}, task.value)?.subtasks || [])
+          )
+          .find((item) => item.value === subtaskValue)?.label || "";
+      if (subtaskLabel) {
+        answers["domain-subtask"] = subtaskLabel;
+      }
+    }
+  }
+
+  return {
+    answers,
+    stepIndex: getNextVisibleLocalWorkflowStepIndex(
+      localSteps,
+      answers,
+      Math.max(
+        localSteps.findIndex(
+          (step) =>
+            shouldPresentLocalWorkflowStep(step, answers) &&
+            step.kind !== "draft" &&
+            !Boolean(getWorkflowAnswer(answers, step.stepKey || ""))
+        ),
+        0
+      )
+    ),
+  };
 }
 
 function formatAssignedWorkflowAnswer(value) {
@@ -1301,7 +2428,7 @@ const DEFAULT_DRAFT_CONTEXT_TOGGLES = {
 
 const DRAFT_CONTEXT_PRIMARY_TOGGLE = {
   key: "assignedAnswers",
-  label: "Assigned answers",
+  label: "Workflow answers",
   locked: true,
 };
 
@@ -1313,7 +2440,6 @@ const DRAFT_CONTEXT_GRID_TOGGLES = [
   { key: "alerts", label: "Alerts", intelKey: "alerts" },
   { key: "incompleteGoals", label: "Incomplete goals", intelKey: "incompleteGoals" },
   { key: "blockDescription", label: "Block note", fieldKey: "description" },
-  { key: "existingComment", label: "This field", fieldKey: "currentNote" },
 ];
 
 function getDefaultDraftContextToggles() {
@@ -1547,7 +2673,7 @@ function DocuWraiteDraftContextToggles({ toggles = {}, onToggle, fieldContext = 
           {isOn ? <Text style={styles.docuWraiteDraftToggleChipOn}>ON</Text> : null}
         </View>
         <Text style={styles.docuWraiteDraftToggleChipPreview} numberOfLines={2}>
-          {option.key === "assignedAnswers" ? "Your library answers" : preview}
+          {option.key === "assignedAnswers" ? "Your guided answers" : preview}
         </Text>
         {isDraftToggleEnabledButEmpty(option, resolvedToggles, fieldContext, currentNote) ? (
           <Text style={styles.docuWraiteDraftToggleChipWarn}>ON — no shift data to send</Text>
@@ -1590,6 +2716,20 @@ function runDraftContextQuestionLayoutAnimation() {
     delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
   });
 }
+
+function runDecisionSectionLayoutAnimation() {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+}
+
+const DECISION_SECTION_VIEW_OPTIONS = [
+  { value: "open", label: "Open section" },
+  { value: "close", label: "Close section" },
+];
+
+const DECISION_SECTION_BULK_OPTIONS = [
+  { value: "expand-all", label: "Open all sections" },
+  { value: "collapse-all", label: "Close all sections" },
+];
 
 function useDraftContextQuestionState(toggles, fieldContext, responses) {
   const resolvedToggles = normalizeDraftContextToggles(toggles);
@@ -1835,6 +2975,132 @@ function DocuWraiteDraftContextQuestionInline({
 }
 
 function generateAssignedWorkflowNote(answers = {}, workflowState = {}, fieldContext = {}) {
+  if (fieldContext.workflowId === "case-note-final") {
+    const sourceEntries = fieldContext.sourceEntries || [];
+    const rowSummaries = sourceEntries
+      .map((entry) => String(entry.comment || "").trim())
+      .filter(Boolean);
+    const emphasisSelections = []
+      .concat(getWorkflowAnswer(answers, "final-emphasis") || [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    const emphasis = emphasisSelections.join(", ");
+    const concern = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "final-shift-concern"));
+    const outcome = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "final-shift-outcome"));
+    const followUp = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "final-follow-up"));
+    const guidance = [
+      formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "final-guidance")),
+      String(answers.finalGuidanceNarration || "").trim(),
+    ]
+      .filter(Boolean)
+      .join(" - ");
+    const normalizedOutcome = String(outcome || "").trim().toLowerCase();
+    const normalizedConcern = String(concern || "").trim().toLowerCase();
+    const normalizedFollowUp = String(followUp || "").trim().toLowerCase();
+    const normalizedEmphasisSelections = emphasisSelections.map((item) => item.toLowerCase());
+
+    const leadByOutcome = {
+      "stable shift":
+        "Throughout the shift, the client remained generally stable and staff provided routine supports across scheduled activities.",
+      "supported with minor issues":
+        "Throughout the shift, the client participated in scheduled supports with minor barriers that were addressed by staff as they arose.",
+      "supported with notable concerns":
+        "Throughout the shift, the client required ongoing staff support and the note reflects notable concerns that affected participation, tolerance, or routine flow.",
+      "partial completion of planned supports":
+        "Throughout the shift, staff provided planned supports, although some activities were only partially completed due to the barriers noted below.",
+      "follow-up needed":
+        "Throughout the shift, staff provided required supports and identified follow-up items that should be carried forward for supervisor or clinical review.",
+    };
+
+    const emphasisLeadByType = {
+      "behavior and interventions":
+        "Behavioral presentation, staff intervention, and the person's response remained a primary focus of the shift.",
+      "adl and personal care":
+        "ADL and personal-care supports remained a primary focus of the shift, including staff assistance, prompting, and observed tolerance.",
+      "meal support and medication":
+        "Meal support, intake monitoring, and medication-related supports remained a primary focus of the shift.",
+      "community and transitions":
+        "Community participation and transition supports remained a primary focus of the shift.",
+      "health and safety supports":
+        "Health and safety supports remained a primary focus of the shift, including ongoing monitoring, precautions, and follow-up awareness.",
+    };
+
+    const concernSentenceByType = {
+      "change in baseline":
+        "A change from baseline was observed and should remain visible in supervisory review of the shift.",
+      "repeated refusal":
+        "Repeated refusal affected parts of the shift and required additional staff redirection, pacing, or alternate support approaches.",
+      "safety concern":
+        "Safety concerns remained relevant during the shift and required active staff monitoring and precaution-based support.",
+      "medication concern":
+        "Medication-related concerns were noted during the shift and should remain visible in the final supervisory summary.",
+      "poor intake":
+        "Intake concerns were observed during the shift and should remain visible in follow-up review.",
+      "behavioral escalation":
+        "Behavioral escalation affected the shift and required documented intervention and response tracking.",
+      "follow-up required":
+        "The shift included issues that require follow-up beyond routine end-of-shift review.",
+    };
+
+    const followUpSentenceByType = {
+      "supervisor review":
+        "Supervisor review should remain explicit in the final note.",
+      "nurse follow-up":
+        "Nursing follow-up should remain explicit in the final note.",
+      "care team update":
+        "A care-team update should be carried forward from this shift summary.",
+      "family update":
+        "A family update should be carried forward if appropriate and authorized.",
+      "monitor next shift":
+        "The next shift should continue monitoring the items summarized here.",
+    };
+
+    const leadSentence =
+      leadByOutcome[normalizedOutcome] ||
+      "Throughout the shift, staff provided scheduled supports and documented the client's response across row-level activities.";
+
+    const parts = [leadSentence];
+
+    const emphasisLeadParts = normalizedEmphasisSelections
+      .filter((item) => item !== "overall shift summary")
+      .map((item) => emphasisLeadByType[item] || `The final note should emphasize ${item}.`);
+    if (emphasisLeadParts.length) {
+      parts.push(emphasisLeadParts.join(" "));
+    }
+
+    if (rowSummaries.length) {
+      parts.push(rowSummaries.join(" "));
+    }
+
+    if (concernSentenceByType[normalizedConcern]) {
+      parts.push(concernSentenceByType[normalizedConcern]);
+    } else if (normalizedConcern && normalizedConcern !== "none") {
+      parts.push(`Shift-wide concern to highlight: ${concern}.`);
+    }
+
+    if (normalizedOutcome === "supported with notable concerns") {
+      parts.push("Barriers, staff response, and follow-up considerations should remain prominent in the final summary.");
+    }
+
+    if (normalizedOutcome === "follow-up needed") {
+      parts.push("Carry-forward needs should be stated clearly so the supervisor can review outstanding items without reconstructing the shift from row notes.");
+    }
+
+    if (followUpSentenceByType[normalizedFollowUp]) {
+      parts.push(followUpSentenceByType[normalizedFollowUp]);
+    } else if (normalizedFollowUp && normalizedFollowUp !== "none") {
+      parts.push(`Follow-up to carry forward: ${followUp}.`);
+    }
+
+    if (guidance && guidance.toLowerCase() !== "no extra guidance") {
+      parts.push(`Additional final-note guidance: ${guidance}.`);
+    }
+
+    return parts.length
+      ? parts.join(" ")
+      : "No row-level documentation was available to summarize into a final case note.";
+  }
+
   const answeredSteps = (workflowState.localSteps || [])
     .filter((step) => step.kind !== "draft")
     .map((step) => {
@@ -3595,7 +4861,7 @@ function getCommunityOutingStepMeta(stepKey) {
       };
     case "draft":
       return {
-        question: "Generated documentation",
+        question: "Review and generate note",
         kind: "draft",
       };
     case "decline":
@@ -3862,7 +5128,8 @@ function DocuWraiteGuidedWorkflowPanel({
   onDismiss,
 }) {
   const [activeReadinessRemediationKey, setActiveReadinessRemediationKey] = useState(null);
-  const workflowEyebrow = getWorkflowEyebrow(workflowId);
+  const workflowEyebrow =
+    workflowState?.fieldContext?.localWorkflowEyebrow || getWorkflowEyebrow(workflowId);
   const answers = workflowState?.answers || {};
   const useAiWorkflow = workflowState?.ai?.enabled && !docuWraiteUseRuleBasedFallback;
   const useAssignedNodeWorkflow =
@@ -3918,6 +5185,7 @@ function DocuWraiteGuidedWorkflowPanel({
   const whyItems =
     aiStep?.whyItems?.length > 0 ? aiStep.whyItems : communityOutingWhyItMatters;
   const readinessIssues = stepMeta?.kind === "readiness" ? collectReadinessIssues(stepMeta, workflowMeta) : [];
+  const aiLogicQuestionFlow = useAssignedNodeWorkflow && assignedNodeSteps.some((step) => step?.sourceAiLogicPath);
   const progressLabel =
     stepMeta?.kind === "draft" || stepMeta?.kind === "why" || stepMeta?.kind === "readiness" || stepMeta?.kind === "affirm"
       ? null
@@ -3926,8 +5194,19 @@ function DocuWraiteGuidedWorkflowPanel({
       : useAiWorkflow
         ? `Question ${stepIndex + 1}`
         : useAssignedNodeWorkflow
-          ? `Assigned question ${Math.min(stepIndex + 1, assignedNodeSteps.length)} of ${assignedNodeSteps.length}`
-        : `Question ${Math.min(stepIndex + 1, Math.max(ruleSteps.length, stepIndex + 1))}`;
+          ? `${aiLogicQuestionFlow ? "Workflow question" : "Assigned question"} ${Math.min(stepIndex + 1, assignedNodeSteps.length)} of ${assignedNodeSteps.length}`
+          : `Question ${Math.min(stepIndex + 1, Math.max(ruleSteps.length, stepIndex + 1))}`;
+  const prefilledTask = String(getWorkflowAnswer(answers, "domain-task") || "").trim();
+  const prefilledSubtask = String(getWorkflowAnswer(answers, "domain-subtask") || "").trim();
+  const prefilledBehavior = String(getWorkflowAnswer(answers, "behavior-observed") || "").trim();
+  const prefilledSummary = prefilledBehavior
+    ? `Prefilled: ${prefilledBehavior}`
+    : prefilledTask && prefilledSubtask && prefilledSubtask !== "No subtask"
+      ? `Prefilled: ${prefilledTask} -> ${prefilledSubtask}`
+      : prefilledTask
+        ? `Prefilled: ${prefilledTask}`
+        : "";
+  const isFinalCaseNoteWorkflow = fieldContextForDraft?.workflowId === "case-note-final" || workflowId === "case-note-final";
   const reviewDraftNote = answers.finalDraftNote || generatedNote;
   const narrationValue = answers[stepMeta?.narrationField || `${stepKey}Narration`] || "";
   const canGoBack =
@@ -4145,6 +5424,7 @@ function DocuWraiteGuidedWorkflowPanel({
       >
       <Text style={styles.docuWraiteWorkflowEyebrow}>{workflowEyebrow}</Text>
       {progressLabel ? <Text style={styles.docuWraiteWorkflowProgress}>{progressLabel}</Text> : null}
+      {prefilledSummary ? <Text style={styles.docuWraiteWorkflowMetaLine}>{prefilledSummary}</Text> : null}
       {workflowMeta?.confidence ? (
         <Text style={styles.docuWraiteWorkflowMetaLine}>
           {`Confidence: ${workflowMeta.confidence}${workflowMeta.noteQuality ? ` • Note quality: ${workflowMeta.noteQuality}` : ""}`}
@@ -4212,6 +5492,24 @@ function DocuWraiteGuidedWorkflowPanel({
         ) : (
           suggestionList
         )
+      ) : null}
+
+      {stepMeta.kind === "input" ? (
+        <View style={styles.docuWraiteWorkflowSuggestionList}>
+          <TextInput
+            value={String(answers[stepKey] || "")}
+            onChangeText={(entry) => onAnswer({ [stepKey]: entry })}
+            placeholder="Type answer"
+            placeholderTextColor="#888888"
+            multiline
+            style={[styles.docuWraiteWorkflowInput, styles.docuWraiteWorkflowNarrationInput]}
+          />
+          {String(answers[stepKey] || "").trim() ? (
+            <Pressable style={styles.docuWraiteWorkflowNext} onPress={() => onAnswer({}, { advance: true })}>
+              <Text style={styles.docuWraiteWorkflowNextText}>Continue</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
 
       {stepMeta.kind === "readiness" ? (
@@ -4509,8 +5807,8 @@ function DocuWraiteGuidedWorkflowPanel({
           {showAssignedGenerateStep ? (
             <>
               <Text style={styles.docuWraiteWorkflowDraftLead}>
-                You finished the assigned library questions. Choose what OpenAI may use, generate the note, then insert
-                it into this field.
+                Review the guided answers, choose what DocuWraite may use for context, generate the note, then insert it
+                into this field.
               </Text>
               <DocuWraiteDraftContextToggles
                 toggles={draftContextToggles}
@@ -4545,7 +5843,7 @@ function DocuWraiteGuidedWorkflowPanel({
           {useAssignedNodeWorkflow && assignedDraftLoading ? (
             <View style={styles.docuWraiteWorkflowLoadingRow}>
               <ActivityIndicator size="small" color={docuWraiteColors.primary} />
-              <Text style={styles.docuWraiteWorkflowLoading}>Generating note with OpenAI...</Text>
+              <Text style={styles.docuWraiteWorkflowLoading}>Generating note with DocuWraite...</Text>
             </View>
           ) : null}
           {!showAssignedGenerateStep && !assignedDraftLoading && generatedNote ? (
@@ -4630,7 +5928,7 @@ function DocuWraiteGuidedWorkflowPanel({
                       const noteToInsert = [generatedNote, answers.extraNotes?.trim()]
                         .filter(Boolean)
                         .join(" ");
-                      if (workflowId === "case-note-final") {
+                      if (isFinalCaseNoteWorkflow) {
                         onAnswer({ finalDraftNote: noteToInsert }, { advance: true });
                       } else {
                         onInsert(noteToInsert);
@@ -4641,7 +5939,7 @@ function DocuWraiteGuidedWorkflowPanel({
                   <Text style={styles.docuWraiteCardPrimaryText}>
                     {draftBlocked
                       ? "Complete required items first"
-                      : workflowId === "case-note-final"
+                      : isFinalCaseNoteWorkflow
                         ? "Continue to quick check"
                         : "Insert into note"}
                   </Text>
@@ -4952,11 +6250,6 @@ function DocumentationCommentField({
               Suggest Wording
             </Text>
           </Pressable>
-          {onAssignQuestions ? (
-            <Pressable onPress={onAssignQuestions}>
-              <Text style={styles.docCommentTool}>Assign Questions</Text>
-            </Pressable>
-          ) : null}
         </View>
         <Text style={styles.docCommentCounter}>{`About ${remaining} characters left`}</Text>
       </View>
@@ -4995,6 +6288,11 @@ function DocumentationFormTable({
         <Text style={[styles.docTableHeaderCell, styles.docScoresColumn]}>Scores/Comments</Text>
       </View>
       {rows.map((row) => {
+        const rowConfig = getWorkflowInputSectionConfig(row.workflowId);
+        const configDrivenWorkflowSteps = buildConfigDrivenRowWorkflowSteps(row.workflowId);
+        const rowAssignedWorkflowSteps = configDrivenWorkflowSteps.length
+          ? configDrivenWorkflowSteps
+          : createAssignedWorkflowSteps(row.assignedNodes || []);
         const rowFieldContext = {
           fieldKind: "row",
           score: row.score,
@@ -5005,7 +6303,8 @@ function DocumentationFormTable({
           shiftIntelligence: runtimeShiftIntelligence,
           assignedNodes: row.assignedNodes || [],
           assignedNodeSummary: row.assignedNodeSummary || "",
-          assignedWorkflowSteps: createAssignedWorkflowSteps(row.assignedNodes || []),
+          assignedWorkflowSteps: rowAssignedWorkflowSteps,
+          localWorkflowEyebrow: rowConfig ? getWorkflowEyebrow(row.workflowId) : "",
         };
 
         return (
@@ -5265,16 +6564,28 @@ function DocumentationEntryScreen({
         assignedWorkflowSteps: workflowSnapshot.localSteps || [],
       };
       const currentNote = workflowSnapshot.currentNote || "";
+      const aiLogicDraftPayload = buildAiLogicDraftPayload(workflowSnapshot, {
+        clientName: activePatientName,
+        date: session?.selectedDateLabel || session?.serviceDate || "",
+        shiftType: fieldContextForDraft.label || fieldContextForDraft.source || "",
+        staffName: session?.staffName || session?.dspName || session?.enteredBy || "",
+      });
       const enabledDraftSections = buildEnabledDraftSections(
         draftContextToggles,
         fieldContextForDraft,
         currentNote,
-        mappedAnswers,
+        {
+          ...mappedAnswers,
+          aiLogicDraftPayload,
+        },
         workflowSnapshot.answers?.draftContextResponses || {}
       );
 
       const { step, meta } = await fetchAssignedNodesDraft({
-        answers: mappedAnswers,
+        answers: {
+          ...mappedAnswers,
+          aiLogicDraftPayload,
+        },
         fieldContext: fieldContextForDraft,
         patientName: activePatientName,
         currentNote,
@@ -5288,7 +6599,7 @@ function DocumentationEntryScreen({
 
       const draftNote = String(step?.draftNote || "").trim();
       if (!draftNote) {
-        throw new Error("OpenAI did not return a draft note.");
+        throw new Error("DocuWraite did not return a draft note.");
       }
 
       setDocuWraiteWorkflow((current) => {
@@ -5323,7 +6634,7 @@ function DocumentationEntryScreen({
           assignedDraftLoading: false,
           assignedDraftError:
             error?.message ||
-            "DocuWraite could not generate a note with OpenAI. Confirm the API server and OPENAI_API_KEY are set.",
+            "DocuWraite could not generate a note. Confirm the API server and note-generation key are set.",
           assignedDraftGuidelineWarning: "",
         };
       });
@@ -5351,6 +6662,15 @@ function DocumentationEntryScreen({
     if (!assist) {
       return;
     }
+
+    const normalizedFieldContext = attachClientCarePlanContext(assist.fieldContext || {}, {
+      clientProfile,
+      activePatientName,
+    });
+    assist = {
+      ...assist,
+      fieldContext: normalizedFieldContext,
+    };
 
     const assignedNodes = assist.fieldContext?.assignedNodes || [];
     if (assignedNodes.length) {
@@ -5385,12 +6705,15 @@ function DocumentationEntryScreen({
         const useLocalWorkflow =
           assist.workflowId === "assigned-nodes" &&
           localSteps.some((step) => step.kind !== "draft");
+        const initialLocalWorkflowState = useLocalWorkflow
+          ? buildInitialLocalWorkflowAnswers(assist.fieldContext || {}, localSteps)
+          : { answers: {}, stepIndex: 0 };
 
         const startingWorkflow = {
           fieldId: assist.fieldId,
           workflowId: assist.workflowId,
-          stepIndex: 0,
-          answers: {},
+          stepIndex: initialLocalWorkflowState.stepIndex,
+          answers: initialLocalWorkflowState.answers,
           structuredAnswers: [],
           fieldContext: assist.fieldContext || {},
           localSteps,
@@ -5417,10 +6740,17 @@ function DocumentationEntryScreen({
   };
 
   const openDocuWraiteWorkflow = (fieldId, fieldContext, value) => {
+    fieldContext = attachClientCarePlanContext(fieldContext, {
+      clientProfile,
+      activePatientName,
+    });
     const hasAssignedNodes = (fieldContext.assignedNodes || []).length > 0;
     const localWorkflowSteps = getAssignedWorkflowStepsForField(fieldContext);
+    const hasLocalWorkflowSteps = localWorkflowSteps.some((step) => step.kind !== "draft");
     const workflowId = hasAssignedNodes
       ? "assigned-nodes"
+      : hasLocalWorkflowSteps
+        ? "assigned-nodes"
       : detectDocuWraiteGuidedWorkflow(fieldContext, value, clientProfile);
 
     if (!workflowId) {
@@ -5428,7 +6758,7 @@ function DocumentationEntryScreen({
     }
 
     const useAssignedWorkflow =
-      workflowId === "assigned-nodes" && localWorkflowSteps.some((step) => step.kind !== "draft");
+      workflowId === "assigned-nodes" && hasLocalWorkflowSteps;
 
     if (hasAssignedNodes && !localWorkflowSteps.some((step) => step.kind !== "draft")) {
       const alertMessage =
@@ -5462,102 +6792,13 @@ function DocumentationEntryScreen({
       fieldId: "summary",
       id: "workflow-case-note-final",
       mode: "workflow",
-      workflowId: "case-note-final",
+      workflowId: "assigned-nodes",
       fieldContext: buildCaseNoteFinalFieldContext(),
+      localWorkflowSteps: buildCaseNoteFinalWorkflowSteps(),
       title: getWorkflowEyebrow("case-note-final"),
-      message: "DocuWraite will roll the row notes into a final case note.",
+      message: "DocuWraite will summarize the row notes into a final case note.",
       trigger: "manual",
     });
-  };
-
-  const [showFinalDraftChoice, setShowFinalDraftChoice] = useState(false);
-  const [pendingFinalDraft, setPendingFinalDraft] = useState(null);
-  const [pendingFinalDraftSource, setPendingFinalDraftSource] = useState(null);
-  const [finalDraftError, setFinalDraftError] = useState("");
-  const [isGeneratingFinalDraft, setIsGeneratingFinalDraft] = useState(false);
-
-  const generateSimpleFinalNote = () => {
-    setFinalDraftError("");
-    setPendingFinalDraft(null);
-    setPendingFinalDraftSource(null);
-    // Prefer row comments (actual DSP input). Fallback to assignedNodes or timeBlock comments.
-    const parts = [];
-
-    // use rows with comments
-    (session.rows || []).forEach((r) => {
-      if (r.comment && String(r.comment).trim()) {
-        parts.push(r.comment.trim());
-      }
-    });
-
-    // fall back to timeBlocks assignedNodes or comments
-    (session.timeBlocks || []).forEach((b) => {
-      if (b.comment && String(b.comment).trim()) {
-        parts.push(b.comment.trim());
-      } else if (b.assignedNodes && b.assignedNodes.length) {
-        const prompts = b.assignedNodes.map((n) => (n.question ? n.question : n.title || n.id));
-        parts.push(prompts.map((p) => `${p}?`).join(" "));
-      }
-    });
-
-    const draft = parts.length ? parts.join("\n\n") : "No documentation available to draft a final note.";
-    setPendingFinalDraft(draft);
-    setPendingFinalDraftSource("simple");
-    setShowFinalDraftChoice(false);
-  };
-
-  const generateAIFinalNote = async () => {
-    setFinalDraftError("");
-    setPendingFinalDraft(null);
-    setPendingFinalDraftSource(null);
-    setIsGeneratingFinalDraft(true);
-
-    try {
-      const fieldContext = buildCaseNoteFinalFieldContext();
-      const { step, meta } = await fetchDocuWraiteWorkflowStep({
-        workflowId: "case-note-final",
-        answers: {},
-        fieldContext,
-        stepIndex: 0,
-        patientName: activePatientName,
-        currentNote: session.shiftSummary || "",
-        forcedStepKey: "draft",
-      });
-
-      if (step?.kind === "draft" && step.draftNote) {
-        setPendingFinalDraft(step.draftNote);
-        setPendingFinalDraftSource("ai");
-        setShowFinalDraftChoice(false);
-      } else if (step?.draftNote) {
-        setPendingFinalDraft(step.draftNote);
-        setPendingFinalDraftSource("ai");
-        setShowFinalDraftChoice(false);
-      } else if (step?.kind === "draft" && meta?.draftBlocked) {
-        const readinessIssues = collectReadinessIssues(step, meta)
-          .map((item) => item.message)
-          .filter(Boolean);
-        const detail = readinessIssues.length
-          ? ` ${readinessIssues.slice(0, 3).join("; ")}`
-          : "";
-        setFinalDraftError(`AI draft generation is blocked until readiness issues are resolved.${detail}`);
-      } else if (step?.kind === "readiness" || meta?.draftBlocked) {
-        const readinessIssues = collectReadinessIssues(step, meta)
-          .map((item) => item.message)
-          .filter(Boolean);
-        const detail = readinessIssues.length
-          ? ` ${readinessIssues.slice(0, 3).join("; ")}`
-          : "";
-        setFinalDraftError(`AI draft generation is blocked until readiness issues are resolved.${detail}`);
-      } else if (step?.question) {
-        setFinalDraftError("AI service returned an interactive workflow step instead of a draft.");
-      } else {
-        setFinalDraftError("AI could not generate a final note draft.");
-      }
-    } catch (error) {
-      setFinalDraftError(error?.message || "AI final note generation failed.");
-    } finally {
-      setIsGeneratingFinalDraft(false);
-    }
   };
 
   const evaluateDocuWraiteAssist = (fieldId, fieldContext, value, trigger) => {
@@ -5780,7 +7021,11 @@ function DocumentationEntryScreen({
               stepIndex = readinessIndex;
             }
           } else {
-            stepIndex = current.stepIndex + 1;
+            stepIndex = getNextVisibleLocalWorkflowStepIndex(
+              current.localSteps || [],
+              answers,
+              current.stepIndex + 1
+            );
           }
         }
 
@@ -5827,7 +7072,15 @@ function DocumentationEntryScreen({
           return next;
         }
 
-        const next = { ...current, stepIndex: Math.max(0, current.stepIndex - 1) };
+        const next = {
+          ...current,
+          stepIndex: getNextVisibleLocalWorkflowStepIndex(
+            current.localSteps || [],
+            current.answers || {},
+            Math.max(0, current.stepIndex - 1),
+            -1
+          ),
+        };
         if (next.ai?.enabled) {
           queueMicrotask(() => refreshDocuWraiteWorkflowStep(withWorkflowSnapshot(next)));
         }
@@ -5968,22 +7221,21 @@ function DocumentationEntryScreen({
     },
     onWorkflowInsert: (note) => {
       if (fieldId === "summary") {
-        const attestationAnswers =
-          docuWraiteWorkflow?.workflowId === "case-note-final" &&
-          docuWraiteWorkflow.answers?.["dsp-understanding-1"] &&
-          docuWraiteWorkflow.answers?.["dsp-understanding-2"] &&
-          docuWraiteWorkflow.answers?.["dsp-understanding-3"]
-            ? {
-                "dsp-understanding-1": docuWraiteWorkflow.answers["dsp-understanding-1"],
-                "dsp-understanding-2": docuWraiteWorkflow.answers["dsp-understanding-2"],
-                "dsp-understanding-3": docuWraiteWorkflow.answers["dsp-understanding-3"],
-              }
-            : null;
+        const isFinalCaseNoteWorkflow =
+          docuWraiteWorkflow?.fieldContext?.workflowId === "case-note-final" ||
+          docuWraiteWorkflow?.workflowId === "case-note-final";
 
         patchSession({
           shiftSummary: session.shiftSummary.trim() ? `${session.shiftSummary.trim()}\n${note}` : note,
-          caseNoteAttestationComplete: Boolean(attestationAnswers),
-          caseNoteAttestation: attestationAnswers,
+          caseNoteAttestationComplete: isFinalCaseNoteWorkflow,
+          caseNoteAttestation: isFinalCaseNoteWorkflow
+            ? {
+                emphasis: docuWraiteWorkflow?.answers?.["final-emphasis"] || "",
+                concern: docuWraiteWorkflow?.answers?.["final-shift-concern"] || "",
+                outcome: docuWraiteWorkflow?.answers?.["final-shift-outcome"] || "",
+                followUp: docuWraiteWorkflow?.answers?.["final-follow-up"] || "",
+              }
+            : null,
         });
       } else {
         applyDocuWraiteNote(fieldId, note);
@@ -6252,7 +7504,7 @@ function DocumentationEntryScreen({
   if (isCaseNoteSession) {
     workflowActions.splice(3, 0, {
       label: "Generate Final Case Note",
-      action: () => setShowFinalDraftChoice(true),
+      action: openCaseNoteFinalWorkflow,
     });
   }
 
@@ -6276,68 +7528,6 @@ function DocumentationEntryScreen({
           </Pressable>
         ))}
       </View>
-
-      {showFinalDraftChoice ? (
-        <View style={styles.finalDraftChoiceRow}>
-          <Text style={styles.finalDraftChoiceLabel}>Generate draft using:</Text>
-          <View style={styles.finalDraftChoiceButtons}>
-            <Pressable style={[styles.docWorkflowButton, styles.finalDraftButton]} onPress={generateSimpleFinalNote} disabled={isGeneratingFinalDraft}>
-              <Text style={styles.docWorkflowButtonText}>Simple</Text>
-            </Pressable>
-            <Pressable style={[styles.docWorkflowButton, styles.finalDraftButton]} onPress={generateAIFinalNote} disabled={isGeneratingFinalDraft}>
-              <Text style={styles.docWorkflowButtonText}>AI (Server)</Text>
-            </Pressable>
-            <Pressable style={[styles.docWorkflowButton, styles.finalDraftCancel]} onPress={() => setShowFinalDraftChoice(false)} disabled={isGeneratingFinalDraft}>
-              <Text style={styles.docWorkflowButtonText}>Cancel</Text>
-            </Pressable>
-          </View>
-          {isGeneratingFinalDraft ? (
-            <Text style={styles.finalDraftStatusText}>Generating AI draft…</Text>
-          ) : null}
-          {finalDraftError ? (
-            <Text style={styles.finalDraftErrorText}>{finalDraftError}</Text>
-          ) : null}
-        </View>
-      ) : null}
-
-      {pendingFinalDraft ? (
-        <View style={styles.finalDraftPreviewCard}>
-          <Text style={styles.finalDraftPreviewTitle}>Draft Final Note Preview</Text>
-          <ScrollView style={styles.finalDraftPreviewBody}>
-            <Text style={styles.finalDraftPreviewText}>{pendingFinalDraft}</Text>
-          </ScrollView>
-          <View style={styles.finalDraftPreviewActions}>
-            <Pressable
-              style={[styles.docWorkflowButton, styles.finalDraftButton]}
-              onPress={() => {
-                patchSession({ shiftSummary: pendingFinalDraft, statusMessage: "Applied generated final note." });
-                setPendingFinalDraft(null);
-                setPendingFinalDraftSource(null);
-              }}
-            >
-              <Text style={styles.docWorkflowButtonText}>Apply Draft</Text>
-            </Pressable>
-            {pendingFinalDraftSource === "ai" ? (
-              <Pressable
-                style={[styles.docWorkflowButton, styles.finalDraftButton]}
-                onPress={generateAIFinalNote}
-                disabled={isGeneratingFinalDraft}
-              >
-                <Text style={styles.docWorkflowButtonText}>{isGeneratingFinalDraft ? "Regenerating..." : "Regenerate AI"}</Text>
-              </Pressable>
-            ) : null}
-            <Pressable
-              style={[styles.docWorkflowButton, styles.finalDraftCancel]}
-              onPress={() => {
-                setPendingFinalDraft(null);
-                setPendingFinalDraftSource(null);
-              }}
-            >
-              <Text style={styles.docWorkflowButtonText}>Discard Draft</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
 
       <ScrollView
         style={styles.docEntryScroll}
@@ -6376,6 +7566,8 @@ function DocumentationEntryScreen({
                 <View style={styles.docGroupedList}>
                   {group.blocks.map((block, index) => {
                     const workflowId = getTimeBlockWorkflowId(block, clientProfile);
+                    const blockConfig = getWorkflowInputSectionConfig(workflowId);
+                    const configDrivenWorkflowSteps = buildConfigDrivenRowWorkflowSteps(workflowId);
                     const fieldContext = {
                       fieldKind: "time",
                       score: block.score,
@@ -6386,7 +7578,10 @@ function DocumentationEntryScreen({
                       shiftIntelligence: runtimeShiftIntelligence,
                       assignedNodes: block.assignedNodes || [],
                       assignedNodeSummary: block.assignedNodeSummary || "",
-                      assignedWorkflowSteps: createAssignedWorkflowSteps(block.assignedNodes || []),
+                      assignedWorkflowSteps: configDrivenWorkflowSteps.length
+                        ? configDrivenWorkflowSteps
+                        : createAssignedWorkflowSteps(block.assignedNodes || []),
+                      localWorkflowEyebrow: blockConfig ? getWorkflowEyebrow(workflowId) : "",
                     };
 
                     return (
@@ -7075,6 +8270,62 @@ function getDecisionOptionLabel(options = [], value = "") {
   return options.find((option) => String(option.value) === String(value))?.label || "";
 }
 
+function DecisionWhatsNextGuide({ guide, onDismiss, onAction }) {
+  if (!guide) {
+    return null;
+  }
+
+  const steps =
+    guide.type === "block-added"
+      ? [
+          ...(guide.canAddSiblingJob
+            ? [{ action: "sibling", label: `Optional: add another job at ${guide.slotLabel}` }]
+            : []),
+          { action: "target", label: `Review target — ${guide.targetLabel}` },
+          ...(guide.siblingJobCount > 1
+            ? [
+                {
+                  action: "target",
+                  label: `${guide.slotLabel} has ${guide.siblingJobCount} jobs — review each job and confirm the note prompt is correct`,
+                },
+              ]
+            : []),
+          { action: "schedule", label: "Return to Schedule when you are ready to add or edit more blocks" },
+        ]
+      : guide.type === "row-added"
+        ? [
+            { action: "target", label: `Review row — ${guide.targetLabel}` },
+            { action: "schedule", label: "Optional: add timeline blocks in Schedule above" },
+            { action: "schedule", label: "Return to setup when you are ready to add or edit more rows" },
+          ]
+        : [];
+
+  return (
+    <View style={styles.decisionGuideNote}>
+      <View style={styles.decisionGuideNoteHeader}>
+        <Text style={styles.decisionGuideNoteTitle}>What&apos;s next?</Text>
+        <Pressable onPress={onDismiss} accessibilityRole="button" hitSlop={8}>
+          <Text style={styles.decisionGuideNoteDismiss}>Dismiss</Text>
+        </Pressable>
+      </View>
+      {guide.lead ? <Text style={styles.decisionGuideNoteLead}>{guide.lead}</Text> : null}
+      {steps.map((step, index) => (
+        <Pressable
+          key={`${guide.type}-${step.action}-${index}`}
+          onPress={() => onAction(step.action, guide)}
+          accessibilityRole="button"
+          style={styles.decisionGuideNoteStepPress}
+        >
+          <Text style={styles.decisionGuideNoteStep}>
+            {`${index + 1}. `}
+            <Text style={styles.decisionGuideNoteStepLink}>{step.label}</Text>
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 function DecisionEngineScreen({
   isPhone,
   onStageAssignment,
@@ -7087,6 +8338,7 @@ function DecisionEngineScreen({
   onFinalizeAssignments,
   timeBlocks = [],
   rowTargets = [],
+  clientProfile = null,
   initialTargetKey = "",
   initialSelectionState = null,
   onScheduleChange,
@@ -7095,6 +8347,7 @@ function DecisionEngineScreen({
   externalAssignmentHint = "",
 }) {
   const { width } = useWindowDimensions();
+  const showLegacyAssignmentTools = false;
   const availableDecisionLibraries = getAvailableDecisionLibraries();
   const [selectedLibrary, setSelectedLibrary] = useState(
     initialSelectionState?.selectedLibrary || getDefaultDecisionLibrarySlug()
@@ -7108,6 +8361,31 @@ function DecisionEngineScreen({
   const [includeMode, setIncludeMode] = useState(initialSelectionState?.includeMode || "full-branch");
   const [selectedBranchKey, setSelectedBranchKey] = useState(initialSelectionState?.selectedBranchKey || "");
   const [activeDecisionDropdown, setActiveDecisionDropdown] = useState(null);
+  const [assignmentScopeMode, setAssignmentScopeMode] = useState(ASSIGNMENT_SCOPE_TARGET);
+  const [selectedDocCategoryIds, setSelectedDocCategoryIds] = useState([]);
+  const [activeWorkflowLink, setActiveWorkflowLink] = useState("schedule");
+
+  const decisionWorkflowLinks = [
+    {
+      id: "schedule",
+      title: "Schedule",
+      detail: "Timeline blocks and rows set the supervisor-defined documentation structure.",
+      anchorId: "decision-workflow-schedule",
+    },
+    {
+      id: "target",
+      title: "Target",
+      detail: "Review the block or row you are configuring for the DSP.",
+      anchorId: "decision-workflow-target",
+    },
+  ];
+
+  const scrollToWorkflowAnchor = (anchorId, linkId) => {
+    setActiveWorkflowLink(linkId);
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
   const [collapsedDecisionSections, setCollapsedDecisionSections] = useState(
     initialSelectionState?.collapsedSections || {}
   );
@@ -7128,8 +8406,7 @@ function DecisionEngineScreen({
   const [newBlockWorkflowId, setNewBlockWorkflowId] = useState(initialBlockDraftState.workflowId);
   const [blockDraftsByWorkflow, setBlockDraftsByWorkflow] = useState(initialBlockDraftState.drafts);
   const [scheduleBuilderHint, setScheduleBuilderHint] = useState("");
-  const [scheduleBuilderGuideNote, setScheduleBuilderGuideNote] = useState("");
-  const [rowBuilderGuideNote, setRowBuilderGuideNote] = useState("");
+  const [builderGuide, setBuilderGuide] = useState(null);
   const [blockBuilderHint, setBlockBuilderHint] = useState("");
   const [newRowWorkflowId, setNewRowWorkflowId] = useState(initialRowDraftState.workflowId);
   const [rowDraftsByWorkflow, setRowDraftsByWorkflow] = useState(initialRowDraftState.drafts);
@@ -7142,6 +8419,8 @@ function DecisionEngineScreen({
   const [rowPromptSuggestions, setRowPromptSuggestions] = useState([]);
   const [rowPromptLoading, setRowPromptLoading] = useState(false);
   const [rowPromptError, setRowPromptError] = useState("");
+  const [blockGuidedAdlPrompt, setBlockGuidedAdlPrompt] = useState(buildInitialGuidedAdlPromptState);
+  const [rowGuidedAdlPrompt, setRowGuidedAdlPrompt] = useState(buildInitialGuidedAdlPromptState);
   const [assignmentHint, setAssignmentHint] = useState("");
   const [lastSmartSelect, setLastSmartSelect] = useState(null);
   const [stagedAssignmentsExpandAll, setStagedAssignmentsExpandAll] = useState(false);
@@ -7155,20 +8434,20 @@ function DecisionEngineScreen({
   const blockPromptIdleTimerRef = useRef(null);
   const rowPromptIdleTimerRef = useRef(null);
   const suppressBuilderHydrationRef = useRef({ block: false, row: false });
-  const workflowOptions = [
-    { workflowId: "behavior-support", label: "Behavior", theme: "behavior", promptCategory: "behavior" },
-    { workflowId: "morning-adl", label: "ADL", theme: "hygiene", promptCategory: "adl" },
-    { workflowId: "feeding-support", label: "Meal", theme: "meal", promptCategory: "meal" },
-    { workflowId: "communication-support", label: "Communication", theme: "communication", promptCategory: "communication" },
-    { workflowId: "community-outing", label: "Community", theme: "outing", promptCategory: "community" },
-    { workflowId: "medication-support", label: "Medication", theme: "medication", promptCategory: "medication" },
-  ];
+  const workflowOptions = WORKFLOW_SCHEDULE_OPTIONS;
+  const blockPromptCategory =
+    workflowOptions.find((option) => option.workflowId === newBlockWorkflowId)?.promptCategory || "";
+  const rowPromptCategory =
+    workflowOptions.find((option) => option.workflowId === newRowWorkflowId)?.promptCategory || "";
+  const blockUsesGuidedAdlPrompt = blockPromptCategory === "adl";
+  const rowUsesGuidedAdlPrompt = rowPromptCategory === "adl";
   const assignmentTargets = [
     ...timeBlocks.map((block) => ({
       key: `time:${block.id}`,
-      label: block.label,
+      label: buildTimeBlockAssignmentTargetLabel(block, workflowOptions),
       type: "time-block",
       targetId: block.id,
+      workflowId: String(block.workflowId || "").trim(),
     })),
     ...rowTargets.map((row) => ({
       key: `row:${row.id}`,
@@ -7530,10 +8809,22 @@ function DecisionEngineScreen({
     value: String(hour),
     label: formatScheduleHourLabel(hour),
   }));
-  const targetDropdownOptions = scopedTargets.map((target) => ({
-    value: target.key,
-    label: target.label,
-  }));
+  const targetDropdownOptions = scopedTargets.map((target) => {
+    if (target.type === "time-block") {
+      const block = timeBlocks.find((entry) => entry.id === target.targetId);
+      const description = String(block?.description || "").trim();
+      return {
+        value: target.key,
+        label: target.label,
+        meta: description.length > 72 ? `${description.slice(0, 69)}…` : description,
+      };
+    }
+    return {
+      value: target.key,
+      label: target.label,
+      meta: "",
+    };
+  });
 
   useEffect(() => {
     if (!scopedTargets.length) {
@@ -7632,19 +8923,156 @@ function DecisionEngineScreen({
     [stagedAssignments, finalizedAssignments]
   );
 
-  const sections = visibleLibraryNodes.reduce((acc, node) => {
-    const sectionKey = node.section || "Uncategorized";
-    if (!acc[sectionKey]) {
-      acc[sectionKey] = [];
+  const timeBlocksWithAssignedQuestions = useMemo(() => {
+    const assignedIds = new Set();
+    timeBlocks.forEach((block) => {
+      if (timeBlockHasAssignedQuestions(decisionAssignments, block.id)) {
+        assignedIds.add(block.id);
+      }
+    });
+    return assignedIds;
+  }, [decisionAssignments, timeBlocks]);
+
+  const profileForTargets = clientProfile || getMaryBetProfile();
+
+  const assignmentTargetContext = useMemo(
+    () =>
+      buildAssignmentTargetContext({
+        selectedTargetKey,
+        targetType,
+        timeBlocks,
+        workflowOptions,
+        resolveWorkflowId: (block) => getTimeBlockWorkflowId(block, profileForTargets),
+        resolveBlockLabel: (block) => getTimeBlockLabelValue(block),
+        resolveWorkflowLabel: (block) => getTimeBlockWorkflowTagLabel(block, workflowOptions),
+      }),
+    [selectedTargetKey, targetType, timeBlocks, profileForTargets]
+  );
+
+  const nodeKeysOnOtherTimeBlocks = useMemo(() => {
+    if (targetType !== "time-block" || !selectedTargetKey) {
+      return new Set();
     }
-    acc[sectionKey].push(node);
-    return acc;
-  }, {});
+    return collectNodeKeysOnOtherTimeBlocks(decisionAssignments, selectedTargetKey);
+  }, [decisionAssignments, selectedTargetKey, targetType]);
+
+  const crossSystemOverlays = useMemo(
+    () => extractCrossSystemsFromClientProfile(clientProfile),
+    [clientProfile]
+  );
+
+  const selectableNodes = useMemo(
+    () =>
+      resolveNodesForAssignmentScope(visibleLibraryNodes, {
+        targetContext: assignmentTargetContext,
+        scopeMode: assignmentScopeMode,
+        keysOnOtherTimeBlocks: nodeKeysOnOtherTimeBlocks,
+        buildKey: buildDecisionNodeSelectionKey,
+        selectedCategoryIds: selectedDocCategoryIds,
+        crossSystemOverlays,
+      }),
+    [
+      visibleLibraryNodes,
+      assignmentTargetContext,
+      assignmentScopeMode,
+      nodeKeysOnOtherTimeBlocks,
+      selectedDocCategoryIds,
+      crossSystemOverlays,
+    ]
+  );
+
+  const workflowCategoryOptions = useMemo(() => {
+    if (
+      assignmentTargetContext?.targetType !== "time-block" ||
+      !assignmentTargetContext?.workflowId
+    ) {
+      return [];
+    }
+    return getCategoriesForWorkflow(assignmentTargetContext.workflowId);
+  }, [assignmentTargetContext]);
+
+  const workflowScopedNodes = useMemo(
+    () => filterNodesForAssignmentTarget(visibleLibraryNodes, assignmentTargetContext),
+    [visibleLibraryNodes, assignmentTargetContext]
+  );
+
+  const assignmentScopeStats = useMemo(() => {
+    const hiddenByTarget =
+      assignmentScopeMode === ASSIGNMENT_SCOPE_TARGET && assignmentTargetContext
+        ? Math.max(0, visibleLibraryNodes.length - workflowScopedNodes.length)
+        : 0;
+    const hiddenByDedupe = Math.max(0, workflowScopedNodes.length - selectableNodes.length);
+    return { hiddenByTarget, hiddenByDedupe };
+  }, [
+    assignmentScopeMode,
+    assignmentTargetContext,
+    visibleLibraryNodes.length,
+    workflowScopedNodes.length,
+    selectableNodes.length,
+  ]);
+
+  const assignmentScopeHint = getAssignmentScopeHint(assignmentTargetContext, assignmentScopeMode, {
+    ...assignmentScopeStats,
+    selectedCategoryIds: selectedDocCategoryIds,
+    crossSystemCount: crossSystemOverlays.length,
+  });
+
+  const sections = useMemo(() => {
+    const useCategoryGroups =
+      assignmentTargetContext?.targetType === "time-block" &&
+      assignmentTargetContext?.workflowId &&
+      assignmentScopeMode === ASSIGNMENT_SCOPE_TARGET;
+
+    if (useCategoryGroups) {
+      return groupNodesByDocumentationCategory(
+        selectableNodes,
+        assignmentTargetContext.workflowId
+      ).reduce((acc, group) => {
+        acc[group.label] = group.nodes;
+        return acc;
+      }, {});
+    }
+
+    return selectableNodes.reduce((acc, node) => {
+      const sectionKey = node.section || "Uncategorized";
+      if (!acc[sectionKey]) {
+        acc[sectionKey] = [];
+      }
+      acc[sectionKey].push(node);
+      return acc;
+    }, {});
+  }, [selectableNodes, assignmentTargetContext, assignmentScopeMode]);
   const decisionSectionKeys = Object.keys(sections).sort().join("|");
 
-  const allNodes = visibleLibraryNodes;
+  const allNodes = selectableNodes;
   const allNodesByKey = new Map(allNodes.map((node) => [buildDecisionNodeSelectionKey(node), node]));
   const selectedCount = allNodes.filter((node) => checkedNodes[buildDecisionNodeSelectionKey(node)]).length;
+
+  useEffect(() => {
+    setAssignmentScopeMode(ASSIGNMENT_SCOPE_TARGET);
+  }, [selectedTargetKey, targetType]);
+
+  useEffect(() => {
+    setSelectedDocCategoryIds([]);
+  }, [selectedTargetKey, assignmentTargetContext?.workflowId]);
+
+  useEffect(() => {
+    if (!assignmentTargetContext) {
+      return;
+    }
+    const allowed = new Set(allNodes.map((node) => buildDecisionNodeSelectionKey(node)));
+    setCheckedNodes((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (next[key] && !allowed.has(key)) {
+          delete next[key];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [selectedTargetKey, decisionSectionKeys, assignmentScopeMode]);
 
   useEffect(() => {
     if (!branchDropdownOptions.length) {
@@ -7661,6 +9089,21 @@ function DecisionEngineScreen({
   }, [branchDropdownOptions, depthDropdownOptions, includeMode, selectedBranchKey, selectedDepth]);
 
   const isDecisionSectionExpanded = (sectionKey) => collapsedDecisionSections[sectionKey] === false;
+
+  const decisionSectionBulkLabel = useMemo(() => {
+    const keys = Object.keys(sections);
+    if (!keys.length) {
+      return "";
+    }
+    const openCount = keys.filter((sectionKey) => isDecisionSectionExpanded(sectionKey)).length;
+    if (openCount === 0) {
+      return "All closed";
+    }
+    if (openCount === keys.length) {
+      return "All open";
+    }
+    return `${openCount} open`;
+  }, [sections, collapsedDecisionSections]);
 
   useEffect(() => {
     setCollapsedDecisionSections((prev) => {
@@ -7740,12 +9183,17 @@ function DecisionEngineScreen({
     if (isDecisionConditionalNode(node)) {
       return;
     }
+    const nodeKey = buildDecisionNodeSelectionKey(node);
+    if (targetType === "time-block" && nodeKeysOnOtherTimeBlocks.has(nodeKey)) {
+      setAssignmentHint("This question is already assigned on another time block.");
+      return;
+    }
     const assignStatus = getNodeAssignmentStatus(node, decisionAssignments, selectedTargetKey);
     if (assignStatus.status === "blocked") {
       setAssignmentHint(assignStatus.message);
       return;
     }
-    toggleNode(buildDecisionNodeSelectionKey(node));
+    toggleNode(nodeKey);
   };
 
   const toggleNodeChoice = (node, choice) => {
@@ -7810,13 +9258,23 @@ function DecisionEngineScreen({
   };
 
   const toggleSectionCollapse = (sectionKey) => {
+    runDecisionSectionLayoutAnimation();
     setCollapsedDecisionSections((prev) => ({
       ...prev,
       [sectionKey]: prev[sectionKey] === false,
     }));
   };
 
+  const setDecisionSectionView = (sectionKey, viewValue) => {
+    runDecisionSectionLayoutAnimation();
+    setCollapsedDecisionSections((prev) => ({
+      ...prev,
+      [sectionKey]: viewValue !== "open",
+    }));
+  };
+
   const expandAllDecisionSections = () => {
+    runDecisionSectionLayoutAnimation();
     setCollapsedDecisionSections((prev) => {
       const next = { ...prev };
       Object.keys(sections).forEach((sectionKey) => {
@@ -7827,6 +9285,7 @@ function DecisionEngineScreen({
   };
 
   const collapseAllDecisionSections = () => {
+    runDecisionSectionLayoutAnimation();
     setCollapsedDecisionSections((prev) => {
       const next = { ...prev };
       Object.keys(sections).forEach((sectionKey) => {
@@ -7834,6 +9293,16 @@ function DecisionEngineScreen({
       });
       return next;
     });
+  };
+
+  const handleDecisionSectionBulkView = (value) => {
+    if (value === "expand-all") {
+      expandAllDecisionSections();
+      return;
+    }
+    if (value === "collapse-all") {
+      collapseAllDecisionSections();
+    }
   };
 
   const addScheduleBlock = () => {
@@ -7854,7 +9323,7 @@ function DecisionEngineScreen({
       const selectedWorkflowLabel =
         workflowOptions.find((option) => option.workflowId === newBlockWorkflowId)?.label || "workflow";
       setScheduleBuilderHint(`That ${selectedWorkflowLabel} timeline block already exists for ${nextLabel}.`);
-      setScheduleBuilderGuideNote("");
+      setBuilderGuide(null);
       return;
     }
 
@@ -7880,9 +9349,23 @@ function DecisionEngineScreen({
     suppressBuilderHydrationRef.current.block = true;
     setSelectedTargetKey(`time:${nextBlock.id}`);
     setScheduleBuilderHint("");
-    setScheduleBuilderGuideNote(
-      `Added ${nextLabel}. Next: add more time blocks with different hours, add row notes in Row Builder, select work from the library, then scroll down to lock this block and stage for Final Assign.`
+    const blocksAtSlot = [...timeBlocks, nextBlock].filter((block) => block.label === nextLabel);
+    const siblingJobCount = blocksAtSlot.length;
+    const usedWorkflowIdsAtSlot = new Set(
+      blocksAtSlot.map((block) => String(block.workflowId || "")).filter(Boolean)
     );
+    const canAddSiblingJob = workflowOptions.some((option) => !usedWorkflowIdsAtSlot.has(option.workflowId));
+    const targetLabel = buildTimeBlockAssignmentTargetLabel(nextBlock, workflowOptions);
+    setBuilderGuide({
+      type: "block-added",
+      lead: `Added ${targetLabel}. Tap a step below or use the workflow links (Schedule → Target → Assign → Lock).`,
+      targetKey: `time:${nextBlock.id}`,
+      targetLabel,
+      slotLabel: nextLabel,
+      blockId: nextBlock.id,
+      siblingJobCount,
+      canAddSiblingJob,
+    });
     setBlockDraftsByWorkflow((prev) => ({
       ...prev,
       [newBlockWorkflowId]: "",
@@ -7891,19 +9374,90 @@ function DecisionEngineScreen({
     closeBlockPromptPopover();
   };
 
+  const groupedScheduleBlocks = useMemo(() => groupTimeBlocksByLabel(timeBlocks), [timeBlocks]);
+
+  const prepareSameTimeAnotherJob = (sourceBlock) => {
+    const { startHour, endHour } = parseScheduleBlockHours(sourceBlock);
+    const slotLabel = sourceBlock.label || buildScheduleBlockLabel(startHour, endHour);
+    setNewBlockStartHour(startHour);
+    setNewBlockEndHour(endHour);
+
+    const usedWorkflowIds = new Set(
+      timeBlocks
+        .filter((block) => block.label === slotLabel)
+        .map((block) => String(block.workflowId || ""))
+        .filter(Boolean)
+    );
+    const nextOption = workflowOptions.find((option) => !usedWorkflowIds.has(option.workflowId));
+    if (nextOption) {
+      setNewBlockWorkflowId(nextOption.workflowId);
+    }
+
+    const usedLabels = workflowOptions
+      .filter((option) => usedWorkflowIds.has(option.workflowId))
+      .map((option) => option.label)
+      .join(", ");
+
+    setScheduleBuilderHint(
+      nextOption
+        ? `Same time (${slotLabel}): describe ${nextOption.label}, then tap Add Block. Already scheduled: ${usedLabels || "none"}.`
+        : `Every job type is already on ${slotLabel}. Use a different time range or remove a block.`
+    );
+    setBuilderGuide(null);
+    scrollToWorkflowAnchor("decision-workflow-schedule", "schedule");
+  };
+
+  const handleBuilderGuideAction = (action, guide) => {
+    if (!guide) {
+      return;
+    }
+
+    switch (action) {
+      case "target":
+        if (guide.targetKey) {
+          setSelectedTargetKey(guide.targetKey);
+          setTargetType(guide.targetKey.startsWith("row:") ? "case-note-row" : "time-block");
+        }
+        scrollToWorkflowAnchor("decision-workflow-target", "target");
+        break;
+      case "assign":
+        scrollToWorkflowAnchor("decision-workflow-assign", "assign");
+        break;
+      case "lock":
+        scrollToWorkflowAnchor("decision-workflow-lock", "lock");
+        break;
+      case "final":
+        scrollToWorkflowAnchor("decision-workflow-final", "lock");
+        break;
+      case "schedule":
+        scrollToWorkflowAnchor("decision-workflow-schedule", "schedule");
+        break;
+      case "sibling": {
+        const block = timeBlocks.find((entry) => entry.id === guide.blockId);
+        if (block) {
+          prepareSameTimeAnotherJob(block);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  };
+
   const removeScheduleBlock = (blockId) => {
     const nextBlocks = timeBlocks.filter((block) => block.id !== blockId);
     onScheduleChange?.(nextBlocks);
     if (selectedTargetKey === `time:${blockId}`) {
       setSelectedTargetKey(nextBlocks[0] ? `time:${nextBlocks[0].id}` : "");
     }
-    if (!nextBlocks.length) {
-      setScheduleBuilderGuideNote("");
+    if (!nextBlocks.length || builderGuide?.blockId === blockId) {
+      setBuilderGuide(null);
     }
   };
 
   const handleBlockWorkflowOptionPress = (workflowId) => {
     setNewBlockWorkflowId(workflowId);
+    setBlockGuidedAdlPrompt(buildInitialGuidedAdlPromptState());
     closeBlockPromptPopover();
     setBlockPromptSuggestions([]);
     setBlockPromptError("");
@@ -7932,6 +9486,19 @@ function DecisionEngineScreen({
     });
     setBlockBuilderHint("");
     closeBlockPromptPopover();
+  };
+
+  const toggleGuidedAdlRisk = (value, setter) => {
+    setter((current) => ({
+      ...current,
+      risks: current.risks.includes(value)
+        ? current.risks.filter((item) => item !== value)
+        : [...current.risks, value],
+    }));
+  };
+
+  const applyBlockGuidedAdlPrompt = () => {
+    applyBlockPromptSuggestion(buildGuidedAdlPromptText(blockGuidedAdlPrompt));
   };
 
   const addRowTarget = () => {
@@ -7967,9 +9534,15 @@ function DecisionEngineScreen({
       ...prev,
       [newRowWorkflowId]: "",
     }));
-    setRowBuilderGuideNote(
-      `Added row "${String(newRowDescription).trim()}". Next: add more rows, add time blocks above, select work from the library, then scroll down to lock this row and stage for Final Assign.`
-    );
+    const rowDescription = String(newRowDescription).trim();
+    const rowTargetLabel =
+      rowDescription.length > 72 ? `${rowDescription.slice(0, 72)}…` : rowDescription;
+    setBuilderGuide({
+      type: "row-added",
+      lead: `Added row "${rowDescription}". Tap a step below to jump to Target, Assign, or Lock.`,
+      targetKey: `row:${nextRow.id}`,
+      targetLabel: rowTargetLabel || "Case-note row",
+    });
     setRowBuilderHint("");
     closeRowPromptPopover();
   };
@@ -7977,6 +9550,7 @@ function DecisionEngineScreen({
   const handleWorkflowOptionPress = (workflowId) => {
     rowWorkflowTouchedRef.current = true;
     setNewRowWorkflowId(workflowId);
+    setRowGuidedAdlPrompt(buildInitialGuidedAdlPromptState());
     closeRowPromptPopover();
     setRowPromptSuggestions([]);
     setRowPromptError("");
@@ -8007,14 +9581,18 @@ function DecisionEngineScreen({
     closeRowPromptPopover();
   };
 
+  const applyRowGuidedAdlPrompt = () => {
+    applyRowPromptSuggestion(buildGuidedAdlPromptText(rowGuidedAdlPrompt));
+  };
+
   const removeRowTarget = (rowId) => {
     const nextRows = rowTargets.filter((row) => row.id !== rowId);
     onRowsChange?.(nextRows);
     if (selectedTargetKey === `row:${rowId}`) {
       setSelectedTargetKey(nextRows[0] ? `row:${nextRows[0].id}` : "");
     }
-    if (!nextRows.length) {
-      setRowBuilderGuideNote("");
+    if (!nextRows.length || builderGuide?.targetKey === `row:${rowId}`) {
+      setBuilderGuide(null);
     }
   };
 
@@ -8060,6 +9638,9 @@ function DecisionEngineScreen({
       isSelectable: isNodeSelectableForAssignment,
       capDepth: Number(selectedDepth) || 99,
       buildKey: buildDecisionNodeSelectionKey,
+      targetContext: assignmentTargetContext,
+      clientProfile,
+      crossSystemOverlays,
     });
 
     setCheckedNodes((prev) => {
@@ -8131,7 +9712,9 @@ function DecisionEngineScreen({
   }, [selectedLibrary, activeNoteType, includeMode, selectedBranchKey, selectedDepth]);
 
   const handleStageCurrentSelection = () => {
-    const selectedKeys = Object.keys(checkedNodes).filter((key) => checkedNodes[key]);
+    const selectedKeys = Object.keys(checkedNodes).filter(
+      (key) => checkedNodes[key] && allNodesByKey.has(key)
+    );
     if (!selectedKeys.length) {
       setAssignmentHint("Select at least one question before locking this library. Try Smart select if you need a quick starting set.");
       return;
@@ -8157,6 +9740,11 @@ function DecisionEngineScreen({
       includeInFinal: Boolean(includeInFinalMap[key]),
       selectedChoices: choiceSelections[key] || [],
     }));
+    const stageTarget = {
+      ...selectedTargetOption,
+      description: String(matchedBlock?.description || matchedRow?.description || "").trim(),
+      workflowId: matchedBlock?.workflowId || matchedRow?.workflowId || "",
+    };
     onStageAssignment?.({
       id: `staged-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       selectedLibrary,
@@ -8166,11 +9754,18 @@ function DecisionEngineScreen({
       selectedBranchKey,
       selectedCount: payload.length,
       selectedNodesPayload: payload,
-      target: {
-        ...selectedTargetOption,
-        description: String(matchedBlock?.description || matchedRow?.description || "").trim(),
-        workflowId: matchedBlock?.workflowId || matchedRow?.workflowId || "",
-      },
+      target: stageTarget,
+      assignmentContract: buildAssignmentContract({
+        targetContext: assignmentTargetContext,
+        categoryIds: selectedDocCategoryIds,
+        maxDepth: Number(selectedDepth) || 2,
+        selectedNodeKeys: selectedKeys,
+        librarySlug: selectedLibrary,
+        noteType: selectedNoteType,
+        includeMode,
+        branchingBranchKey: selectedBranchKey,
+        status: "locked",
+      }),
       summary: `${selectedLibraryLabel} • ${buildDecisionTargetDisplayLabel(selectedTargetOption)}`,
       displayLibrary: selectedLibraryLabel,
       createdAt: new Date().toISOString(),
@@ -8201,8 +9796,10 @@ function DecisionEngineScreen({
   };
 
   return (
-    <Card title="Decision Engine Library" containerStyle={styles.decisionCard} bodyStyle={styles.decisionCardBody}>
+    <Card title="Decision Engine Supervisor Setup" containerStyle={styles.decisionCard} bodyStyle={styles.decisionCardBody}>
       <View
+        nativeID="decision-workflow-schedule"
+        collapsable={false}
         style={[
           styles.decisionScheduleEditor,
           styles.decisionScheduleEditorBlockBuilder,
@@ -8211,7 +9808,8 @@ function DecisionEngineScreen({
       >
         <Text style={styles.decisionScheduleTitle}>Schedule Builder</Text>
         <Text style={styles.decisionScheduleLead}>
-          Define the case-note timeline here, then assign questions to each block.
+          Supervisors define the case-note timeline here. The same hour can have multiple jobs — for example 7am–8am Behavior and 7am–8am
+          Communication are two separate blocks for the DSP to document.
         </Text>
         <View style={[styles.decisionScheduleBuilderRow, isPhone && styles.decisionToolbarPhone]}>
           <View style={styles.decisionToolbarGroup}>
@@ -8259,51 +9857,9 @@ function DecisionEngineScreen({
               }}
               placeholder="Describe what DSP should document in this time block."
               placeholderTextColor="#888888"
-              style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap, styles.decisionRowInputWithAssist]}
+              style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap]}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Show suggested block prompts"
-              onPress={toggleBlockPromptHelp}
-              style={styles.docuWraiteWrap}
-            >
-              <DocuWraiteBubbleGlyph />
-            </Pressable>
           </View>
-          {blockPromptPopoverVisible ? (
-            <Pressable
-              style={[styles.rowPromptPopover, isPhone && styles.rowPromptPopoverPhone]}
-              onPressIn={markBlockPromptEngaged}
-            >
-              <Text style={styles.rowPromptTitle}>Suggested prompts</Text>
-              <Text style={styles.rowPromptLead}>Tap a suggestion to insert it, or keep typing your own custom block note.</Text>
-              {blockPromptLoading ? <Text style={styles.rowPromptStatus}>Loading suggestions...</Text> : null}
-              {!blockPromptLoading && blockPromptError ? <Text style={styles.rowPromptStatus}>{blockPromptError}</Text> : null}
-              {!blockPromptLoading && !blockPromptError && !blockPromptSuggestions.length ? (
-                <Text style={styles.rowPromptStatus}>No suggestions available for this workflow.</Text>
-              ) : null}
-              {!blockPromptLoading && !blockPromptError && blockPromptSuggestions.length ? (
-                <ScrollView
-                  style={styles.rowPromptPopoverScroll}
-                  nestedScrollEnabled
-                  onScrollBeginDrag={markBlockPromptEngaged}
-                  onTouchStart={markBlockPromptEngaged}
-                >
-                  <View style={styles.rowPromptSuggestionList}>
-                    {blockPromptSuggestions.map((prompt) => (
-                      <Pressable
-                        key={prompt.id || prompt.prompt_key || prompt.prompt_text}
-                        onPress={() => applyBlockPromptSuggestion(prompt.prompt_text)}
-                        style={styles.rowPromptSuggestionCard}
-                      >
-                        <Text style={styles.rowPromptSuggestionText}>{prompt.prompt_text}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </ScrollView>
-              ) : null}
-            </Pressable>
-          ) : null}
         </View>
         {blockBuilderHint ? <Text style={styles.decisionInlineHint}>{blockBuilderHint}</Text> : null}
         <View style={styles.decisionWorkflowChipRow}>
@@ -8327,45 +9883,105 @@ function DecisionEngineScreen({
             </Pressable>
           ))}
         </View>
+        <Text style={styles.decisionScheduleSameTimeHint}>
+          Same time, different job? Keep Start and End, tap another category (ADL, Communication, …), write the description, then Add Block again.
+        </Text>
         {scheduleBuilderHint ? <Text style={styles.decisionInlineHint}>{scheduleBuilderHint}</Text> : null}
-        {scheduleBuilderGuideNote ? (
-          <View style={styles.decisionGuideNote}>
-            <Text style={styles.decisionGuideNoteTitle}>What&apos;s next?</Text>
-            <Text style={styles.decisionGuideNoteText}>{scheduleBuilderGuideNote}</Text>
-          </View>
+        {builderGuide?.type === "block-added" ? (
+          <DecisionWhatsNextGuide
+            guide={builderGuide}
+            onDismiss={() => setBuilderGuide(null)}
+            onAction={handleBuilderGuideAction}
+          />
         ) : null}
         <Text style={styles.decisionBuilderListLabel}>Timeline blocks</Text>
         {timeBlocks.length ? (
           <View style={styles.decisionTimelineBlockList}>
-            {timeBlocks.map((block) => {
-              const workflowLabel =
-                workflowOptions.find((option) => option.workflowId === block.workflowId)?.label || "";
-              const blockDescription = String(block.description || "").trim();
+            {groupedScheduleBlocks.map((group) => {
+              const assignedJobsInGroup = group.blocks.filter((entry) =>
+                timeBlocksWithAssignedQuestions.has(entry.id)
+              ).length;
+              const highlightMultiJobAssignments =
+                group.blocks.length > 1 && assignedJobsInGroup > 1;
 
               return (
-                <View key={block.id} style={styles.decisionTimelineBlockCard}>
-                  <View style={styles.decisionTimelineBlockHeader}>
-                    <View style={styles.decisionTimelineBlockHeaderMain}>
-                      <Text style={styles.decisionTimelineBlockTime}>{block.label}</Text>
-                      {workflowLabel ? (
-                        <Text style={styles.decisionTimelineBlockCategory}>{workflowLabel}</Text>
-                      ) : null}
-                    </View>
-                    <Pressable
-                      style={styles.decisionScheduleChipAction}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove ${block.label} timeline block`}
-                      onPress={() => removeScheduleBlock(block.id)}
-                    >
-                      <Text style={styles.decisionScheduleChipRemove}>×</Text>
-                    </Pressable>
-                  </View>
-                  {blockDescription ? (
-                    <Text style={styles.decisionTimelineBlockDetail}>{blockDescription}</Text>
-                  ) : (
-                    <Text style={styles.decisionTimelineBlockDetailMuted}>No block description added.</Text>
-                  )}
+              <View key={group.label} style={styles.decisionTimelineGroup}>
+                <View style={styles.decisionTimelineGroupHeader}>
+                  <Text style={styles.decisionTimelineGroupTime}>{group.label}</Text>
+                  {group.blocks.length > 1 ? (
+                    <Text style={styles.decisionTimelineGroupCount}>{`${group.blocks.length} jobs`}</Text>
+                  ) : null}
                 </View>
+                {group.blocks.map((block) => {
+                  const workflowLabel =
+                    workflowOptions.find((option) => option.workflowId === block.workflowId)?.label || "";
+                  const blockDescription = String(block.description || "").trim();
+                  const usedWorkflowIds = new Set(
+                    group.blocks.map((entry) => String(entry.workflowId || "")).filter(Boolean)
+                  );
+                  const canAddSiblingJob = workflowOptions.some(
+                    (option) => !usedWorkflowIds.has(option.workflowId)
+                  );
+                  const blockHasAssignedQuestions = timeBlocksWithAssignedQuestions.has(block.id);
+                  const shouldHighlightBlock =
+                    highlightMultiJobAssignments && blockHasAssignedQuestions;
+
+                  return (
+                    <View
+                      key={block.id}
+                      style={[
+                        styles.decisionTimelineBlockCard,
+                        shouldHighlightBlock && styles.decisionTimelineBlockCardMultiAssigned,
+                      ]}
+                    >
+                      <View style={styles.decisionTimelineBlockHeader}>
+                        <View style={styles.decisionTimelineBlockHeaderMain}>
+                          {workflowLabel ? (
+                            <Text style={styles.decisionTimelineBlockCategory}>{workflowLabel}</Text>
+                          ) : null}
+                          {shouldHighlightBlock ? (
+                            <Text style={styles.decisionTimelineBlockAssignedBadge}>Questions assigned</Text>
+                          ) : null}
+                        </View>
+                        <Pressable
+                          style={styles.decisionScheduleChipAction}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove ${group.label} ${workflowLabel} block`}
+                          onPress={() => removeScheduleBlock(block.id)}
+                        >
+                          <Text style={styles.decisionScheduleChipRemove}>×</Text>
+                        </Pressable>
+                      </View>
+                      {blockDescription ? (
+                        <Text style={styles.decisionTimelineBlockDetail}>{blockDescription}</Text>
+                      ) : (
+                        <Text style={styles.decisionTimelineBlockDetailMuted}>No block description added.</Text>
+                      )}
+                      <View style={styles.decisionTimelineBlockActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => {
+                            setSelectedTargetKey(`time:${block.id}`);
+                            scrollToWorkflowAnchor("decision-workflow-target", "target");
+                          }}
+                          style={styles.decisionTimelineBlockLink}
+                        >
+                          <Text style={styles.decisionTimelineBlockLinkText}>Assign questions</Text>
+                        </Pressable>
+                        {canAddSiblingJob ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={() => prepareSameTimeAnotherJob(block)}
+                            style={styles.decisionTimelineBlockLink}
+                          >
+                            <Text style={styles.decisionTimelineBlockLinkText}>Add another job at this time</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
               );
             })}
           </View>
@@ -8376,7 +9992,7 @@ function DecisionEngineScreen({
       <View style={[styles.decisionScheduleEditor, styles.decisionScheduleEditorRowBuilder]}>
         <Text style={styles.decisionScheduleTitle}>Row Builder</Text>
         <Text style={styles.decisionScheduleLead}>
-          Create the case-note rows themselves here, then assign markdown questions to them.
+          Create the case-note rows the DSP will document. The row workflow itself now drives the DocuWraite question flow.
         </Text>
         <View style={styles.rowPromptAnchor}>
           <View style={styles.decisionPromptInputWrap}>
@@ -8393,58 +10009,17 @@ function DecisionEngineScreen({
               }}
               placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
               placeholderTextColor="#888888"
-              style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap, styles.decisionRowInputWithAssist]}
+              style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap]}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Show suggested row prompts"
-              onPress={toggleRowPromptHelp}
-              style={styles.docuWraiteWrap}
-            >
-              <DocuWraiteBubbleGlyph />
-            </Pressable>
           </View>
-          {rowPromptPopoverVisible ? (
-            <Pressable
-              style={[styles.rowPromptPopover, isPhone && styles.rowPromptPopoverPhone]}
-              onPressIn={markRowPromptEngaged}
-            >
-              <Text style={styles.rowPromptTitle}>Suggested prompts</Text>
-              <Text style={styles.rowPromptLead}>Tap a suggestion to insert it, or keep typing your own custom row.</Text>
-              {rowPromptLoading ? <Text style={styles.rowPromptStatus}>Loading suggestions...</Text> : null}
-              {!rowPromptLoading && rowPromptError ? <Text style={styles.rowPromptStatus}>{rowPromptError}</Text> : null}
-              {!rowPromptLoading && !rowPromptError && !rowPromptSuggestions.length ? (
-                <Text style={styles.rowPromptStatus}>No suggestions available for this workflow.</Text>
-              ) : null}
-              {!rowPromptLoading && !rowPromptError && rowPromptSuggestions.length ? (
-                <ScrollView
-                  style={styles.rowPromptPopoverScroll}
-                  nestedScrollEnabled
-                  onScrollBeginDrag={markRowPromptEngaged}
-                  onTouchStart={markRowPromptEngaged}
-                >
-                  <View style={styles.rowPromptSuggestionList}>
-                    {rowPromptSuggestions.map((prompt) => (
-                      <Pressable
-                        key={prompt.id || prompt.prompt_key || prompt.prompt_text}
-                        onPress={() => applyRowPromptSuggestion(prompt.prompt_text)}
-                        style={styles.rowPromptSuggestionCard}
-                      >
-                        <Text style={styles.rowPromptSuggestionText}>{prompt.prompt_text}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </ScrollView>
-              ) : null}
-            </Pressable>
-          ) : null}
         </View>
         {rowBuilderHint ? <Text style={styles.decisionInlineHint}>{rowBuilderHint}</Text> : null}
-        {rowBuilderGuideNote ? (
-          <View style={styles.decisionGuideNote}>
-            <Text style={styles.decisionGuideNoteTitle}>What&apos;s next?</Text>
-            <Text style={styles.decisionGuideNoteText}>{rowBuilderGuideNote}</Text>
-          </View>
+        {builderGuide?.type === "row-added" ? (
+          <DecisionWhatsNextGuide
+            guide={builderGuide}
+            onDismiss={() => setBuilderGuide(null)}
+            onAction={handleBuilderGuideAction}
+          />
         ) : null}
         <View style={styles.decisionWorkflowChipRow}>
           {workflowOptions.map((option) => (
@@ -8489,15 +10064,44 @@ function DecisionEngineScreen({
           ))}
         </View>
       </View>
+      {showLegacyAssignmentTools ? (
       <View style={styles.decisionExplainerCard}>
-        <Text style={styles.decisionExplainerTitle}>How selections work</Text>
-        <Text style={styles.decisionExplainerText}>
-          Choose a library, select the questions and choices you want, then lock that selection to a block or note row.
-          You can stage multiple library selections, review or edit them later, and use Final Assign to send that setup
-          into the DSP Case Note.
+        <Text style={styles.decisionExplainerTitle}>Assign workflow</Text>
+        <View style={[styles.decisionWorkflowLinkRow, isPhone && styles.decisionWorkflowLinkRowPhone]}>
+          {decisionWorkflowLinks.map((item, index) => (
+            <React.Fragment key={item.id}>
+              {index > 0 ? (
+                <Text style={styles.decisionWorkflowLinkSep} accessibilityElementsHidden>
+                  →
+                </Text>
+              ) : null}
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel={`Go to ${item.title}: ${item.detail}`}
+                onPress={() => scrollToWorkflowAnchor(item.anchorId, item.id)}
+                style={styles.decisionWorkflowLinkHit}
+              >
+                <Text
+                  style={[
+                    styles.decisionWorkflowLink,
+                    activeWorkflowLink === item.id && styles.decisionWorkflowLinkActive,
+                  ]}
+                >
+                  {item.title}
+                </Text>
+              </Pressable>
+            </React.Fragment>
+          ))}
+        </View>
+        <Text style={styles.decisionWorkflowLinkDetail}>
+          {decisionWorkflowLinks.find((item) => item.id === activeWorkflowLink)?.detail || ""}
         </Text>
       </View>
+      ) : null}
+      {showLegacyAssignmentTools ? (
       <View
+        nativeID="decision-workflow-target"
+        collapsable={false}
         style={[
           styles.decisionAssignForm,
           isPhone && styles.decisionAssignFormPhone,
@@ -8644,8 +10248,9 @@ function DecisionEngineScreen({
           </View>
         </View>
       </View>
+      ) : null}
 
-      {noteTypeSelectionGuidance || noteTypeTemplateHint || includeMode ? (
+      {showLegacyAssignmentTools && (noteTypeSelectionGuidance || noteTypeTemplateHint || includeMode) ? (
         <View style={styles.decisionToolbarHints}>
           {noteTypeSelectionGuidance ? (
             <Text style={styles.decisionToolbarHintLine}>{noteTypeSelectionGuidance}</Text>
@@ -8663,6 +10268,7 @@ function DecisionEngineScreen({
         </View>
       ) : null}
 
+      {showLegacyAssignmentTools ? (
       <Modal transparent visible={showLibraryHelp} animationType="fade" onRequestClose={closeLibraryHelp}>
         <View style={styles.decisionLibraryHelpModalRoot}>
           <Pressable style={styles.decisionLibraryHelpBackdrop} onPress={closeLibraryHelp} />
@@ -8683,12 +10289,115 @@ function DecisionEngineScreen({
           ) : null}
         </View>
       </Modal>
+      ) : null}
 
-      <View style={styles.decisionQuestionList}>
+      {showLegacyAssignmentTools ? (
+      <View nativeID="decision-workflow-assign" collapsable={false} style={styles.decisionQuestionList}>
         <View style={styles.decisionSummaryRow}>
-          <Text style={styles.decisionSummaryText}>{`${selectedLibraryLabel} • ${allNodes.length} nodes`}</Text>
+          <Text style={styles.decisionSummaryText}>
+            {`${selectedLibraryLabel} • ${allNodes.length} in scope${visibleLibraryNodes.length !== allNodes.length ? ` (${visibleLibraryNodes.length} in filter)` : ""}`}
+          </Text>
           <Text style={styles.decisionSummaryText}>{`${selectedCount} selected`}</Text>
         </View>
+
+        <View style={styles.decisionScopeModeRow}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setAssignmentScopeMode(ASSIGNMENT_SCOPE_TARGET)}
+            style={[
+              styles.decisionScopeModeChip,
+              assignmentScopeMode === ASSIGNMENT_SCOPE_TARGET && styles.decisionScopeModeChipActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.decisionScopeModeChipText,
+                assignmentScopeMode === ASSIGNMENT_SCOPE_TARGET && styles.decisionScopeModeChipTextActive,
+              ]}
+            >
+              This block only
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setAssignmentScopeMode(ASSIGNMENT_SCOPE_FULL)}
+            style={[
+              styles.decisionScopeModeChip,
+              assignmentScopeMode === ASSIGNMENT_SCOPE_FULL && styles.decisionScopeModeChipActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.decisionScopeModeChipText,
+                assignmentScopeMode === ASSIGNMENT_SCOPE_FULL && styles.decisionScopeModeChipTextActive,
+              ]}
+            >
+              Full library filter (advanced)
+            </Text>
+          </Pressable>
+        </View>
+
+        {assignmentScopeHint ? (
+          <Text
+            style={[
+              styles.decisionInlineHint,
+              assignmentScopeMode === ASSIGNMENT_SCOPE_FULL && styles.decisionInlineHintWarn,
+            ]}
+          >
+            {assignmentScopeHint}
+          </Text>
+        ) : null}
+
+        {workflowCategoryOptions.length ? (
+          <View style={styles.decisionCategoryFilterBlock}>
+            <Text style={styles.decisionCategoryFilterLabel}>Category (within workflow)</Text>
+            <View style={styles.decisionCategoryFilterRow}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setSelectedDocCategoryIds([])}
+                style={[
+                  styles.decisionCategoryChip,
+                  !selectedDocCategoryIds.length && styles.decisionCategoryChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.decisionCategoryChipText,
+                    !selectedDocCategoryIds.length && styles.decisionCategoryChipTextActive,
+                  ]}
+                >
+                  All
+                </Text>
+              </Pressable>
+              {workflowCategoryOptions.map((category) => {
+                const isActive = selectedDocCategoryIds.includes(category.id);
+                return (
+                  <Pressable
+                    key={category.id}
+                    accessibilityRole="button"
+                    onPress={() =>
+                      setSelectedDocCategoryIds((current) =>
+                        isActive
+                          ? current.filter((entry) => entry !== category.id)
+                          : [...current, category.id]
+                      )
+                    }
+                    style={[styles.decisionCategoryChip, isActive && styles.decisionCategoryChipActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.decisionCategoryChipText,
+                        isActive && styles.decisionCategoryChipTextActive,
+                      ]}
+                    >
+                      {category.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
 
         {allNodes.length ? (
           <View style={styles.decisionSmartSelectBlock}>
@@ -8747,7 +10456,9 @@ function DecisionEngineScreen({
               })()}
             </View>
             <Text style={styles.decisionSmartSelectHint}>
-              Supervisor shortcut: checks a recommended subset in the current filter. Adjust boxes, then lock and Final Assign.
+              {assignmentTargetContext
+                ? `Fills the scoped list below (${assignmentTargetContext.blockLabel || "target"}). Adjust boxes, then lock and Final Assign.`
+                : "Pick a Target first, then use Default for this block's question pack."}
             </Text>
 
             {lastSmartSelect?.keys?.length ? (
@@ -8783,9 +10494,11 @@ function DecisionEngineScreen({
 
         {!allNodes.length ? (
           <Text style={styles.decisionInlineHint}>
-            {includeMode === "selective-branch"
-              ? `No questions for ${getDecisionNoteTypeLabel(activeNoteType)} at branch ${selectedBranchKey || "?"}, depth ${selectedDepth}. Try another Branch, Full branch mode, or Block time.`
-              : `No questions match ${getDecisionNoteTypeLabel(activeNoteType)} for ${selectedLibraryLabel}. Try Block time, open the section headers below, or switch libraries.`}
+            {assignmentTargetContext?.targetType === "time-block"
+              ? `No questions for ${assignmentTargetContext.blockLabel || "this block"} in scope. Use Baseplan + Block time, widen Depth, or switch branch mode.`
+              : includeMode === "selective-branch"
+                ? `No questions for ${getDecisionNoteTypeLabel(activeNoteType)} at branch ${selectedBranchKey || "?"}, depth ${selectedDepth}. Try another Branch, Full branch mode, or Block time.`
+                : `No questions match ${getDecisionNoteTypeLabel(activeNoteType)} for ${selectedLibraryLabel}. Try Block time or switch libraries.`}
           </Text>
         ) : null}
 
@@ -8795,22 +10508,19 @@ function DecisionEngineScreen({
           </Text>
         ) : null}
 
-        {Object.keys(sections).length > 1 ? (
+        {Object.keys(sections).length ? (
           <View style={styles.decisionSectionBulkRow}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={expandAllDecisionSections}
-              style={styles.decisionSectionBulkAction}
-            >
-              <Text style={styles.decisionSectionBulkActionText}>Expand all</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={collapseAllDecisionSections}
-              style={styles.decisionSectionBulkAction}
-            >
-              <Text style={styles.decisionSectionBulkActionText}>Collapse all</Text>
-            </Pressable>
+            <Text style={styles.decisionSectionBulkLabel}>Section list</Text>
+            <DecisionDropdown
+              dropdownId="decision-section-bulk"
+              placeholder="Open or close"
+              value={decisionSectionBulkLabel}
+              options={DECISION_SECTION_BULK_OPTIONS}
+              activeDropdown={activeDecisionDropdown}
+              onToggleDropdown={setActiveDecisionDropdown}
+              onChange={handleDecisionSectionBulkView}
+              fieldStyle={styles.decisionSectionBulkDropdown}
+            />
           </View>
         ) : null}
 
@@ -8833,16 +10543,18 @@ function DecisionEngineScreen({
               sectionBlocked && styles.decisionSectionCardBlocked,
             ]}
           >
-          <Pressable
-            onPress={() => toggleSectionCollapse(sectionKey)}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: sectionExpanded }}
+          <View
             style={[
               styles.decisionSectionHeader,
               !sectionExpanded && styles.decisionSectionHeaderCollapsed,
             ]}
           >
-            <View style={styles.decisionSectionHeaderContent}>
+            <Pressable
+              onPress={() => toggleSectionCollapse(sectionKey)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: sectionExpanded }}
+              style={styles.decisionSectionHeaderToggle}
+            >
               <Icon
                 name={sectionExpanded ? "chevronDown" : "chevronRight"}
                 size={16}
@@ -8862,14 +10574,21 @@ function DecisionEngineScreen({
                   </Text>
                 ) : null}
               </View>
-            </View>
+            </Pressable>
             <View style={styles.decisionSectionHeaderActions}>
+              <DecisionDropdown
+                dropdownId={`decision-section-view:${sectionKey}`}
+                placeholder="View"
+                value={sectionExpanded ? "Open" : "Closed"}
+                options={DECISION_SECTION_VIEW_OPTIONS}
+                activeDropdown={activeDecisionDropdown}
+                onToggleDropdown={setActiveDecisionDropdown}
+                onChange={(value) => setDecisionSectionView(sectionKey, value)}
+                fieldStyle={styles.decisionSectionViewDropdown}
+              />
               <Text style={styles.decisionSectionMeta}>{`${sectionNodes.length} questions`}</Text>
               <Pressable
-                onPress={(event) => {
-                  event.stopPropagation();
-                  toggleSection(sectionKey);
-                }}
+                onPress={() => toggleSection(sectionKey)}
                 style={styles.decisionSectionAction}
                 disabled={sectionBlocked}
               >
@@ -8883,7 +10602,7 @@ function DecisionEngineScreen({
                 </Text>
               </Pressable>
             </View>
-          </Pressable>
+          </View>
           {sectionExpanded ? (
             <View style={styles.decisionSectionBody}>
             {sectionNodes.map((node) => {
@@ -9008,10 +10727,12 @@ function DecisionEngineScreen({
         );
         })}
       </View>
-      {assignmentHint || externalAssignmentHint ? (
+      ) : null}
+      {showLegacyAssignmentTools && (assignmentHint || externalAssignmentHint) ? (
         <Text style={styles.decisionInlineHint}>{assignmentHint || externalAssignmentHint}</Text>
       ) : null}
-      <View style={styles.decisionAssignRow}>
+      {showLegacyAssignmentTools ? (
+      <View nativeID="decision-workflow-lock" collapsable={false} style={styles.decisionAssignRow}>
         <Pressable
           onPress={handleStageCurrentSelection}
           style={styles.decisionAssignButton}
@@ -9019,6 +10740,8 @@ function DecisionEngineScreen({
           <Text style={styles.decisionAssignButtonText}>Lock Library Assignment</Text>
         </Pressable>
       </View>
+      ) : null}
+      {showLegacyAssignmentTools ? (
       <View style={styles.decisionAssignmentsCard}>
         <View style={styles.decisionStagedPanel}>
           <DecisionAssignmentPanelHeader
@@ -9050,7 +10773,7 @@ function DecisionEngineScreen({
             <Text style={styles.decisionStagedEmpty}>Lock each library here first. Final assign will send all staged items to the Case Note together.</Text>
           )}
         </View>
-        <View style={styles.decisionAssignRow}>
+        <View nativeID="decision-workflow-final" collapsable={false} style={styles.decisionAssignRow}>
           <Pressable
             onPress={() => onFinalizeAssignments?.()}
             style={[
@@ -9096,6 +10819,16 @@ function DecisionEngineScreen({
           )}
         </View>
       </View>
+      ) : (
+        <View style={styles.decisionAssignmentsCard}>
+          <Text style={styles.decisionStagedEmpty}>
+            Supervisor setup mode is active. Use Schedule Builder and Row Builder above to define the DSP documentation structure.
+          </Text>
+          <Text style={styles.decisionStagedEmpty}>
+            The DSP note bubbles now use the row and block workflow automatically, so manual question assignment is hidden.
+          </Text>
+        </View>
+      )}
     </Card>
   );
 }
@@ -10682,6 +12415,2583 @@ function DocumentationGuideScreen({ expandedDocumentationGuide, onToggleGuide })
   );
 }
 
+function DspInputFlowScreen({ isPhone }) {
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [categoryId, setCategoryId] = useState(adlInputSection.tasks?.[0]?.value || "");
+  const [subtask, setSubtask] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [assistance, setAssistance] = useState("");
+  const [engagement, setEngagement] = useState("");
+  const [selectedRisks, setSelectedRisks] = useState([]);
+  const [selectedProtocols, setSelectedProtocols] = useState([]);
+  const [selectedAlerts, setSelectedAlerts] = useState([]);
+  const [note, setNote] = useState("");
+
+  const formatLabel = useCallback((value) => value.replace(/_/g, " "), []);
+  const titleCase = useCallback(
+    (value) => formatLabel(value).replace(/\b\w/g, (char) => char.toUpperCase()),
+    [formatLabel]
+  );
+
+  const categoryOptions = useMemo(() => adlInputSection.tasks || [], []);
+  const selectedTaskConfig = useMemo(
+    () => adlInputSection.taskDetails?.[categoryId] || {},
+    [categoryId]
+  );
+
+  useEffect(() => {
+    if (!categoryOptions.length) {
+      setCategoryId("");
+      return;
+    }
+    if (!categoryOptions.some((option) => option.value === categoryId)) {
+      setCategoryId(categoryOptions[0].value);
+    }
+  }, [categoryId, categoryOptions]);
+
+  const subtaskOptions = useMemo(() => selectedTaskConfig.subtasks || [], [selectedTaskConfig]);
+
+  useEffect(() => {
+    setSubtask("");
+    setOutcome("");
+    setAssistance("");
+    setEngagement("");
+    setSelectedRisks([]);
+    setSelectedProtocols([]);
+    setSelectedAlerts([]);
+    setNote("");
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (!subtaskOptions.some((option) => option.value === subtask)) {
+      setSubtask("");
+    }
+  }, [subtask, subtaskOptions]);
+
+  const runtime = useMemo(
+    () =>
+      composeDecisionRuntime({
+        workflowId: "adl",
+        categoryId,
+        outcome,
+        assistance,
+      }),
+    [categoryId, outcome, assistance]
+  );
+
+  const outcomeOptions = useMemo(() => {
+    const runtimeOptions = (runtime.allowedOutcomes || []).map((item) => ({ value: item, label: titleCase(item) }));
+    return runtimeOptions.length ? runtimeOptions : adlInputSection.genericOutcomeOptions || [];
+  }, [runtime.allowedOutcomes, titleCase]);
+
+  const assistanceOptions = useMemo(() => {
+    if (adlInputSection.assistanceOverrides?.[categoryId]) {
+      return adlInputSection.assistanceOverrides[categoryId];
+    }
+    const runtimeOptions = (runtime.allowedAssistance || []).map((item) => ({ value: item, label: titleCase(item) }));
+    return runtimeOptions.length ? runtimeOptions : adlInputSection.genericAssistanceOptions || [];
+  }, [categoryId, runtime.allowedAssistance, titleCase]);
+
+  useEffect(() => {
+    if (!outcomeOptions.some((option) => option.value === outcome)) {
+      setOutcome("");
+    }
+  }, [outcome, outcomeOptions]);
+
+  useEffect(() => {
+    if (!assistanceOptions.some((option) => option.value === assistance)) {
+      setAssistance("");
+    }
+  }, [assistance, assistanceOptions]);
+
+  const engagementOptions = adlInputSection.engagementOptions || [];
+  const riskOptions = selectedTaskConfig.risks || [];
+  const protocolOptions = selectedTaskConfig.protocols || [];
+  const alertOptions = selectedTaskConfig.alerts || [];
+  const bathingExampleActive = categoryId === "bathing";
+  const transferExampleActive = categoryId === "transfers";
+
+  const matchedRuleMappings = useMemo(() => {
+    return (ruleMappingTable.mappings || []).filter((mapping) => {
+      if (mapping.when === "fall_risk") {
+        return selectedRisks.includes("fall_risk");
+      }
+      if (mapping.when === "hesitant") {
+        return engagement === "hesitant";
+      }
+      if (mapping.when === "incident_occurred") {
+        return outcome === "incident_occurred";
+      }
+      if (mapping.when === "bathing + safety_prevented_completion") {
+        return categoryId === "bathing" && outcome === "safety_prevented_completion";
+      }
+      if (mapping.when === "toileting + full_assist") {
+        return categoryId === "toileting" && assistance === "full_assist";
+      }
+      return false;
+    });
+  }, [assistance, categoryId, engagement, outcome, selectedRisks]);
+
+  const activeCatalogModules = useMemo(() => {
+    const mappedModuleIds = matchedRuleMappings.flatMap((mapping) => mapping.activate || []);
+    const runtimeModuleIds = runtime.activeModules || [];
+    const manualTaskModules = [];
+    if (bathingExampleActive) {
+      manualTaskModules.push("privacy_setup", "bathing_support");
+    }
+    if (transferExampleActive) {
+      manualTaskModules.push("transfer_safety", "fall_prevention");
+    }
+    const allModuleIds = [...new Set([...runtimeModuleIds, ...mappedModuleIds, ...manualTaskModules])];
+    return (moduleCatalog.modules || []).filter((item) => allModuleIds.includes(item.moduleId));
+  }, [bathingExampleActive, matchedRuleMappings, runtime.activeModules, transferExampleActive]);
+
+  const generatedPreview = useMemo(() => {
+    const categoryLabel = categoryOptions.find((item) => item.value === categoryId)?.label || titleCase(categoryId || "task");
+    const subtaskLabel = subtaskOptions.find((item) => item.value === subtask)?.label || "";
+    if (!categoryId) {
+      return "Select an ADL task to build the runtime note.";
+    }
+
+    const lines = [];
+    if (bathingExampleActive) {
+      lines.push(`Staff supported the client with ${subtaskLabel ? `${subtaskLabel.toLowerCase()} bathing` : "bathing"}.`);
+      if (engagement === "hesitant") {
+        lines.push("Client was hesitant at the start and responded to support.");
+      } else if (engagement) {
+        lines.push(`Client presentation was ${formatLabel(engagement)} during the task.`);
+      }
+      if (assistance) {
+        if (assistance === "partial_assist" || assistance === "full_assist") {
+          lines.push(`${titleCase(assistance)} was provided during bathing.`);
+        } else {
+          lines.push(`${titleCase(assistance)} support was used.`);
+        }
+      }
+      if (selectedRisks.includes("fall_risk")) {
+        lines.push("Fall precautions were maintained.");
+      }
+      if (selectedProtocols.includes("gait_belt_required")) {
+        lines.push("Gait belt protocol was followed.");
+      }
+      if (selectedProtocols.includes("two_person_transfer_required")) {
+        lines.push("Two-person transfer protocol was followed.");
+      }
+      if (outcome === "completed") {
+        lines.push("Bathing task was completed.");
+      } else if (outcome === "partially_completed") {
+        lines.push("Bathing task was partially completed.");
+      } else if (outcome === "refused") {
+        lines.push("Bathing task was refused.");
+      } else if (outcome === "safety_prevented_completion") {
+        lines.push("Bathing was not completed due to safety concerns.");
+      } else if (outcome) {
+        lines.push(`Task outcome: ${formatLabel(outcome)}.`);
+      }
+    } else if (transferExampleActive) {
+      lines.push(`Staff provided support with ${subtaskLabel ? subtaskLabel.toLowerCase() : "transfers"}.`);
+      if (engagement) {
+        lines.push(`Client was ${formatLabel(engagement)} during the transfer task.`);
+      }
+      if (assistance) {
+        lines.push(`${titleCase(assistance)} was provided during transfers.`);
+      }
+      if (selectedRisks.includes("fall_risk")) {
+        lines.push("Fall precautions were maintained during transfer support.");
+      }
+      if (selectedProtocols.includes("gait_belt_required")) {
+        lines.push("Gait belt protocol was followed.");
+      }
+      if (selectedProtocols.includes("two_person_transfer_required")) {
+        lines.push("Two-person transfer protocol was followed.");
+      }
+      if (outcome) {
+        lines.push(`Transfer outcome: ${formatLabel(outcome)}.`);
+      }
+    } else if (categoryId === "toileting") {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "toileting"}.`);
+      if (assistance) {
+        lines.push(`${titleCase(assistance)} was provided during toileting support.`);
+      }
+      if (selectedRisks.includes("fall_risk")) {
+        lines.push("Fall precautions were maintained during toileting.");
+      }
+      if (selectedProtocols.includes("universal_precautions")) {
+        lines.push("Universal precautions were followed.");
+      }
+      if (outcome) {
+        lines.push(`Toileting outcome: ${formatLabel(outcome)}.`);
+      }
+    } else if (categoryId === "dressing") {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "dressing"}.`);
+      if (assistance) {
+        lines.push(`${titleCase(assistance)} was provided during dressing support.`);
+      }
+      if (engagement) {
+        lines.push(`Client was ${formatLabel(engagement)} during the dressing task.`);
+      }
+      if (outcome) {
+        lines.push(`Dressing outcome: ${formatLabel(outcome)}.`);
+      }
+    } else if (categoryId === "grooming") {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "grooming"}.`);
+      if (assistance) {
+        lines.push(`${titleCase(assistance)} was provided during grooming support.`);
+      }
+      if (engagement) {
+        lines.push(`Client was ${formatLabel(engagement)} during grooming support.`);
+      }
+      if (outcome) {
+        lines.push(`Grooming outcome: ${formatLabel(outcome)}.`);
+      }
+    } else if (categoryId === "hygiene") {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "hygiene"}.`);
+      if (assistance) {
+        lines.push(`${titleCase(assistance)} was provided during hygiene support.`);
+      }
+      if (selectedProtocols.includes("universal_precautions")) {
+        lines.push("Universal precautions were followed.");
+      }
+      if (outcome) {
+        lines.push(`Hygiene outcome: ${formatLabel(outcome)}.`);
+      }
+    } else {
+      lines.push(`ADL task documented: ${categoryLabel}.`);
+      if (subtaskLabel) {
+        lines.push(`Subtask: ${subtaskLabel}.`);
+      }
+      if (outcome) {
+        lines.push(`Outcome: ${titleCase(outcome)}.`);
+      }
+      if (assistance) {
+        lines.push(`Assistance: ${titleCase(assistance)}.`);
+      }
+      if (engagement) {
+        lines.push(`Engagement: ${titleCase(engagement)}.`);
+      }
+    }
+    if (selectedAlerts.length) {
+      lines.push(`Alerts/follow-up: ${selectedAlerts.map((item) => titleCase(item)).join(", ")}.`);
+    }
+    if (note.trim()) {
+      lines.push(note.trim());
+    }
+    return lines.join(" ");
+  }, [
+    assistance,
+    bathingExampleActive,
+    categoryId,
+    categoryOptions,
+    engagement,
+    formatLabel,
+    note,
+    outcome,
+    selectedAlerts,
+    selectedProtocols,
+    selectedRisks,
+    subtask,
+    subtaskOptions,
+    titleCase,
+    transferExampleActive,
+  ]);
+
+  const followUpFlags = useMemo(() => {
+    const flags = [];
+    if (selectedAlerts.includes("nurse_notification_needed")) {
+      flags.push("Nurse review");
+    }
+    if (selectedAlerts.includes("supervisor_notification_needed") || outcome === "incident_occurred") {
+      flags.push("Supervisor review");
+    }
+    if (selectedAlerts.includes("change_in_baseline")) {
+      flags.push("Change in baseline follow-up");
+    }
+    if (outcome === "safety_prevented_completion") {
+      flags.push("Safety review");
+    }
+    return [...new Set(flags)];
+  }, [outcome, selectedAlerts]);
+
+  const toggleMultiSelect = (value, setter) => {
+    setter((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  };
+
+  const questionSteps = adlInputSection.questionSteps || [];
+
+  const StepCard = ({ index, title, hint, locked, children }) => (
+    <View style={[styles.dspStepCard, locked && styles.dspStepCardLocked]}>
+      <View style={styles.dspStepHeader}>
+        <View style={styles.dspStepNumber}>
+          <Text style={styles.dspStepNumberText}>{index}</Text>
+        </View>
+        <View style={styles.dspStepHeaderCopy}>
+          <Text style={styles.dspStepTitle}>{title}</Text>
+          {hint ? <Text style={styles.dspStepHint}>{hint}</Text> : null}
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+
+  return (
+    <Card title={adlInputSection.title || "ADL Input Section"} containerStyle={styles.dspInputCard} bodyStyle={styles.dspInputCardBody}>
+      <Text style={styles.dspInputLead}>{adlInputSection.description || dspIntakeSchema.description}</Text>
+      <View style={styles.dspQuestionFlowCard}>
+        {questionSteps.map((step, index) => (
+          <View key={step} style={styles.dspQuestionFlowRow}>
+            <View style={styles.dspQuestionFlowIndex}>
+              <Text style={styles.dspQuestionFlowIndexText}>{index + 1}</Text>
+            </View>
+            <Text style={styles.dspQuestionFlowText}>{step}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.dspBathingExampleCard}>
+        <Text style={styles.dspRuntimeHeading}>Build order</Text>
+        <Text style={styles.dspRuntimeMeta}>
+          {adlInputSection.buildOrderMessage}
+        </Text>
+      </View>
+      <View style={styles.dspStepStack}>
+        <StepCard
+          index={1}
+          title="What ADL task was supported?"
+          hint={bathingExampleActive || transferExampleActive ? "This task has ADL-specific prompts, overlays, and note output." : "Select the ADL task, then narrow to an optional subtask."}
+        >
+          <View style={[styles.dspInputGrid, isPhone && styles.dspInputGridPhone]}>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Task</Text>
+              <DecisionDropdown
+                value={categoryOptions.find((item) => item.value === categoryId)?.label || ""}
+                options={categoryOptions}
+                placeholder="Select task"
+                dropdownId="dsp-task"
+                activeDropdown={activeDropdown}
+                onToggleDropdown={setActiveDropdown}
+                onChange={setCategoryId}
+                fieldStyle={styles.dspInputDropdown}
+              />
+            </View>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Subtask</Text>
+              <DecisionDropdown
+                value={subtaskOptions.find((item) => item.value === subtask)?.label || ""}
+                options={subtaskOptions}
+                placeholder={subtaskOptions.length ? "Optional subtask" : "No subtasks for this task yet"}
+                dropdownId="dsp-subtask"
+                activeDropdown={activeDropdown}
+                onToggleDropdown={setActiveDropdown}
+                onChange={setSubtask}
+                fieldStyle={styles.dspInputDropdown}
+              />
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={2} title="What was the outcome?" hint="Outcome sets the note direction and rule triggers." locked={!categoryId}>
+          <DecisionDropdown
+            value={outcomeOptions.find((item) => item.value === outcome)?.label || ""}
+            options={outcomeOptions}
+            placeholder="Select outcome"
+            dropdownId="dsp-outcome"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setOutcome}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={3} title="What assistance was provided?" hint="Use the ADL assistance states before rules fire." locked={!outcome}>
+          <DecisionDropdown
+            value={assistanceOptions.find((item) => item.value === assistance)?.label || ""}
+            options={assistanceOptions}
+            placeholder="Select assistance"
+            dropdownId="dsp-assistance"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setAssistance}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={4} title="How did the person engage during the ADL task?" hint="Engagement drives cueing, re-engagement, and redirection logic." locked={!assistance}>
+          <DecisionDropdown
+            value={engagementOptions.find((item) => item.value === engagement)?.label || ""}
+            options={engagementOptions}
+            placeholder="Select engagement"
+            dropdownId="dsp-engagement"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setEngagement}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard
+          index={5}
+          title="Were any ADL risks or protocols active?"
+          hint="Leave unselected if none were active."
+          locked={!engagement && !assistance}
+        >
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Risks</Text>
+            <View style={styles.dspInputChipRow}>
+              {riskOptions.length ? (
+                riskOptions.map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => toggleMultiSelect(item, setSelectedRisks)}
+                    style={[styles.dspInputChip, selectedRisks.includes(item) && styles.dspInputChipActive]}
+                  >
+                    <Text style={[styles.dspInputChipText, selectedRisks.includes(item) && styles.dspInputChipTextActive]}>
+                      {titleCase(item)}
+                    </Text>
+                  </Pressable>
+                ))
+              ) : (
+                <Text style={styles.dspRuntimeMeta}>No task-specific risks configured yet.</Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Protocols</Text>
+            <View style={styles.dspInputChipRow}>
+              {protocolOptions.length ? (
+                protocolOptions.map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => toggleMultiSelect(item, setSelectedProtocols)}
+                    style={[styles.dspInputChip, selectedProtocols.includes(item) && styles.dspInputChipActive]}
+                  >
+                    <Text style={[styles.dspInputChipText, selectedProtocols.includes(item) && styles.dspInputChipTextActive]}>
+                      {titleCase(item)}
+                    </Text>
+                  </Pressable>
+                ))
+              ) : (
+                <Text style={styles.dspRuntimeMeta}>No task-specific protocols configured yet.</Text>
+              )}
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={6} title="Were any alerts present?" hint="Use only real follow-up items." locked={!categoryId}>
+          <View style={styles.dspInputChipRow}>
+            {alertOptions.length ? (
+              alertOptions.map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => toggleMultiSelect(item, setSelectedAlerts)}
+                  style={[styles.dspInputChip, selectedAlerts.includes(item) && styles.dspInputChipAlertActive]}
+                >
+                  <Text style={[styles.dspInputChipText, selectedAlerts.includes(item) && styles.dspInputChipTextActive]}>
+                    {titleCase(item)}
+                  </Text>
+                </Pressable>
+              ))
+            ) : (
+              <Text style={styles.dspRuntimeMeta}>No task-specific alerts configured yet.</Text>
+            )}
+          </View>
+        </StepCard>
+        <StepCard index={7} title="Add an ADL note" hint="Use this only for context that the structured choices do not already capture." locked={!categoryId}>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="ADL note"
+            placeholderTextColor={colors.placeholder}
+            multiline
+            style={[styles.decisionRowInput, styles.dspInputNote]}
+          />
+        </StepCard>
+      </View>
+      <View style={[styles.dspRuntimeSummaryCard, isPhone && styles.dspRuntimeSummaryCardPhone]}>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Runtime Summary</Text>
+          <Text style={styles.dspRuntimeSummaryText}>{runtime.summary}</Text>
+          <Text style={styles.dspRuntimeMeta}>{`Allowed outcomes: ${(outcomeOptions || []).map((item) => item.label).join(", ") || "None"}`}</Text>
+          <Text style={styles.dspRuntimeMeta}>{`Allowed assistance: ${(assistanceOptions || []).map((item) => item.label).join(", ") || "None"}`}</Text>
+        </View>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Active Modules</Text>
+          <View style={styles.dspInputChipRow}>
+            {activeCatalogModules.length ? (
+              activeCatalogModules.map((module) => (
+                <View key={module.moduleId} style={styles.dspRuntimeModulePill}>
+                  <Text style={styles.dspRuntimeModulePillText}>{module.label}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.dspRuntimeMeta}>Select outcome and assistance to activate modules.</Text>
+            )}
+          </View>
+        </View>
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Automatic Rules</Text>
+        {runtime.matchedRules.length || matchedRuleMappings.length ? (
+          <>
+            {runtime.matchedRules.map((rule) => (
+              <Text key={rule.ruleId} style={styles.dspRuntimeMeta}>{`${rule.ruleId} -> ${rule.thenActivate.join(", ")}`}</Text>
+            ))}
+            {matchedRuleMappings.map((mapping) => (
+              <Text key={mapping.when} style={styles.dspRuntimeMeta}>{`${mapping.when} -> ${mapping.activate.join(", ")}`}</Text>
+            ))}
+          </>
+        ) : (
+          <Text style={styles.dspRuntimeMeta}>Choose outcome, assistance, and any active overlays to trigger rules.</Text>
+        )}
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Structured Output</Text>
+        <Text style={styles.dspRuntimeMeta}>{`Output sections: ${(noteOutputTemplate.sections || []).map((item) => item.label).join(" | ")}`}</Text>
+        <Text style={styles.dspRuntimeMeta}>{`Follow-up flags: ${followUpFlags.join(", ") || "None"}`}</Text>
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Generated Note Output</Text>
+        <Text style={styles.dspRuntimeSummaryText}>{generatedPreview}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function CommunityInputFlowScreen({ isPhone }) {
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [categoryId, setCategoryId] = useState(communityInputSection.tasks?.[0]?.value || "");
+  const [subtask, setSubtask] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [assistance, setAssistance] = useState("");
+  const [engagement, setEngagement] = useState("");
+  const [selectedRisks, setSelectedRisks] = useState([]);
+  const [selectedProtocols, setSelectedProtocols] = useState([]);
+  const [selectedAlerts, setSelectedAlerts] = useState([]);
+  const [note, setNote] = useState("");
+
+  const formatLabel = useCallback((value) => value.replace(/_/g, " "), []);
+  const titleCase = useCallback(
+    (value) => formatLabel(value).replace(/\b\w/g, (char) => char.toUpperCase()),
+    [formatLabel]
+  );
+
+  const categoryOptions = useMemo(() => communityInputSection.tasks || [], []);
+  const selectedTaskConfig = useMemo(() => communityInputSection.taskDetails?.[categoryId] || {}, [categoryId]);
+
+  useEffect(() => {
+    if (!categoryOptions.length) {
+      setCategoryId("");
+      return;
+    }
+    if (!categoryOptions.some((option) => option.value === categoryId)) {
+      setCategoryId(categoryOptions[0].value);
+    }
+  }, [categoryId, categoryOptions]);
+
+  const subtaskOptions = useMemo(() => selectedTaskConfig.subtasks || [], [selectedTaskConfig]);
+
+  useEffect(() => {
+    setSubtask("");
+    setOutcome("");
+    setAssistance("");
+    setEngagement("");
+    setSelectedRisks([]);
+    setSelectedProtocols([]);
+    setSelectedAlerts([]);
+    setNote("");
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (!subtaskOptions.some((option) => option.value === subtask)) {
+      setSubtask("");
+    }
+  }, [subtask, subtaskOptions]);
+
+  const outcomeOptions = useMemo(() => communityInputSection.genericOutcomeOptions || [], []);
+  const assistanceOptions = useMemo(() => communityInputSection.genericAssistanceOptions || [], []);
+  const engagementOptions = communityInputSection.engagementOptions || [];
+  const riskOptions = selectedTaskConfig.risks || [];
+  const protocolOptions = selectedTaskConfig.protocols || [];
+  const alertOptions = selectedTaskConfig.alerts || [];
+
+  const activeCommunityTokens = useMemo(
+    () =>
+      uniqueValues([
+        categoryId,
+        outcome,
+        assistance,
+        engagement,
+        ...selectedRisks,
+        ...selectedProtocols,
+        ...selectedAlerts,
+      ]),
+    [assistance, categoryId, engagement, outcome, selectedAlerts, selectedProtocols, selectedRisks]
+  );
+
+  const matchedRuleMappings = useMemo(
+    () => (ruleMappingTable.mappings || []).filter((mapping) => matchRuleExpression(mapping.when, activeCommunityTokens)),
+    [activeCommunityTokens]
+  );
+
+  const activeCatalogModules = useMemo(() => {
+    const manualModules = [];
+    if (categoryId === "community_outing") {
+      manualModules.push("community_supervision");
+    }
+    if (categoryId === "appointment_support") {
+      manualModules.push("appointment_support_module");
+    }
+    const activatedModuleIds = collectActivatedModuleIds({
+      activeTokens: activeCommunityTokens,
+      runtimeRuleMap: communityRuntimeMap,
+      extraRuleMappings: matchedRuleMappings,
+    });
+    return getModuleObjects([...manualModules, ...activatedModuleIds]);
+  }, [activeCommunityTokens, categoryId, matchedRuleMappings]);
+
+  const generatedPreview = useMemo(() => {
+    const categoryLabel = categoryOptions.find((item) => item.value === categoryId)?.label || titleCase(categoryId || "task");
+    const subtaskLabel = subtaskOptions.find((item) => item.value === subtask)?.label || "";
+    if (!categoryId) {
+      return "Select a community task to build the runtime note.";
+    }
+    const lines = [];
+    if (categoryId === "community_outing") {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "a community outing"}.`);
+      if (selectedRisks.includes("elopement_risk")) {
+        lines.push("Elopement risk precautions were maintained.");
+      }
+      if (selectedProtocols.includes("line_of_sight_required")) {
+        lines.push("Line-of-sight supervision was maintained.");
+      }
+    } else if (categoryId === "appointment_support") {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "appointment support"}.`);
+      if (selectedProtocols.includes("appointment_supervision_required")) {
+        lines.push("Appointment supervision requirements were maintained.");
+      }
+      if (selectedProtocols.includes("line_of_sight_required")) {
+        lines.push("Line-of-sight supervision was maintained.");
+      }
+      if (selectedAlerts.includes("missed_appointment_window")) {
+        lines.push("Appointment timing follow-up was required.");
+      }
+      if (selectedRisks.includes("fall_risk")) {
+        lines.push("Fall-risk precautions were maintained during appointment support.");
+      }
+    } else if (categoryId === "social_participation") {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "social participation"}.`);
+      if (selectedRisks.includes("behavioral_escalation_risk")) {
+        lines.push("Behavioral escalation risk was monitored during community participation.");
+      }
+      if (selectedProtocols.includes("community_supervision_required")) {
+        lines.push("Community supervision requirements were maintained.");
+      }
+    } else {
+      lines.push(`Community task documented: ${categoryLabel}.`);
+    }
+    if (assistance) {
+      lines.push(`${titleCase(assistance)} was provided during the community task.`);
+    }
+    if (engagement) {
+      lines.push(`Client was ${formatLabel(engagement)} during the activity.`);
+    }
+    if (outcome) {
+      lines.push(`Community outcome: ${formatLabel(outcome)}.`);
+    }
+    if (selectedAlerts.length) {
+      lines.push(`Alerts/follow-up: ${selectedAlerts.map((item) => titleCase(item)).join(", ")}.`);
+    }
+    if (note.trim()) {
+      lines.push(note.trim());
+    }
+    return lines.join(" ");
+  }, [assistance, categoryId, categoryOptions, engagement, formatLabel, note, outcome, selectedAlerts, selectedProtocols, selectedRisks, subtask, subtaskOptions, titleCase]);
+
+  const StepCard = ({ index, title, hint, locked, children }) => (
+    <View style={[styles.dspStepCard, locked && styles.dspStepCardLocked]}>
+      <View style={styles.dspStepHeader}>
+        <View style={styles.dspStepNumber}>
+          <Text style={styles.dspStepNumberText}>{index}</Text>
+        </View>
+        <View style={styles.dspStepHeaderCopy}>
+          <Text style={styles.dspStepTitle}>{title}</Text>
+          {hint ? <Text style={styles.dspStepHint}>{hint}</Text> : null}
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+
+  const toggleMultiSelect = (value, setter) => {
+    setter((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  };
+
+  return (
+    <Card title={communityInputSection.title || "Community Input Section"} containerStyle={styles.dspInputCard} bodyStyle={styles.dspInputCardBody}>
+      <Text style={styles.dspInputLead}>{communityInputSection.description}</Text>
+      <View style={styles.dspQuestionFlowCard}>
+        {(communityInputSection.questionSteps || []).map((step, index) => (
+          <View key={step} style={styles.dspQuestionFlowRow}>
+            <View style={styles.dspQuestionFlowIndex}>
+              <Text style={styles.dspQuestionFlowIndexText}>{index + 1}</Text>
+            </View>
+            <Text style={styles.dspQuestionFlowText}>{step}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.dspBathingExampleCard}>
+        <Text style={styles.dspRuntimeHeading}>Build order</Text>
+        <Text style={styles.dspRuntimeMeta}>{communityInputSection.buildOrderMessage}</Text>
+      </View>
+      <View style={styles.dspStepStack}>
+        <StepCard index={1} title="What community task was supported?" hint="Select the community task, then narrow to an optional subtask.">
+          <View style={[styles.dspInputGrid, isPhone && styles.dspInputGridPhone]}>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Task</Text>
+              <DecisionDropdown value={categoryOptions.find((item) => item.value === categoryId)?.label || ""} options={categoryOptions} placeholder="Select task" dropdownId="community-task" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setCategoryId} fieldStyle={styles.dspInputDropdown} />
+            </View>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Subtask</Text>
+              <DecisionDropdown value={subtaskOptions.find((item) => item.value === subtask)?.label || ""} options={subtaskOptions} placeholder={subtaskOptions.length ? "Optional subtask" : "No subtasks for this task yet"} dropdownId="community-subtask" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setSubtask} fieldStyle={styles.dspInputDropdown} />
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={2} title="What was the outcome?" hint="Outcome sets the note direction and follow-up." locked={!categoryId}>
+          <DecisionDropdown value={outcomeOptions.find((item) => item.value === outcome)?.label || ""} options={outcomeOptions} placeholder="Select outcome" dropdownId="community-outcome" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setOutcome} fieldStyle={styles.dspInputDropdown} />
+        </StepCard>
+        <StepCard index={3} title="What assistance was provided?" hint="Use the community assistance states before rules fire." locked={!outcome}>
+          <DecisionDropdown value={assistanceOptions.find((item) => item.value === assistance)?.label || ""} options={assistanceOptions} placeholder="Select assistance" dropdownId="community-assistance" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setAssistance} fieldStyle={styles.dspInputDropdown} />
+        </StepCard>
+        <StepCard index={4} title="How did the person engage during the community task?" hint="Engagement helps explain participation and redirection needs." locked={!assistance}>
+          <DecisionDropdown value={engagementOptions.find((item) => item.value === engagement)?.label || ""} options={engagementOptions} placeholder="Select engagement" dropdownId="community-engagement" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setEngagement} fieldStyle={styles.dspInputDropdown} />
+        </StepCard>
+        <StepCard index={5} title="Were any community risks or protocols active?" hint="Leave unselected if none were active." locked={!engagement && !assistance}>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Risks</Text>
+            <View style={styles.dspInputChipRow}>
+              {riskOptions.map((item) => (
+                <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedRisks)} style={[styles.dspInputChip, selectedRisks.includes(item) && styles.dspInputChipActive]}>
+                  <Text style={[styles.dspInputChipText, selectedRisks.includes(item) && styles.dspInputChipTextActive]}>{titleCase(item)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Protocols</Text>
+            <View style={styles.dspInputChipRow}>
+              {protocolOptions.map((item) => (
+                <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedProtocols)} style={[styles.dspInputChip, selectedProtocols.includes(item) && styles.dspInputChipActive]}>
+                  <Text style={[styles.dspInputChipText, selectedProtocols.includes(item) && styles.dspInputChipTextActive]}>{titleCase(item)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={6} title="Were any alerts present?" hint="Use only real follow-up items." locked={!categoryId}>
+          <View style={styles.dspInputChipRow}>
+            {alertOptions.map((item) => (
+              <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedAlerts)} style={[styles.dspInputChip, selectedAlerts.includes(item) && styles.dspInputChipAlertActive]}>
+                <Text style={[styles.dspInputChipText, selectedAlerts.includes(item) && styles.dspInputChipTextActive]}>{titleCase(item)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </StepCard>
+        <StepCard index={7} title="Add a community note" hint="Use this only for context that the structured choices do not already capture." locked={!categoryId}>
+          <TextInput value={note} onChangeText={setNote} placeholder="Community note" placeholderTextColor={colors.placeholder} multiline style={[styles.decisionRowInput, styles.dspInputNote]} />
+        </StepCard>
+      </View>
+      <View style={[styles.dspRuntimeSummaryCard, isPhone && styles.dspRuntimeSummaryCardPhone]}>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Runtime Summary</Text>
+          <Text style={styles.dspRuntimeSummaryText}>{categoryId ? `${categoryOptions.find((item) => item.value === categoryId)?.label || titleCase(categoryId)} community support flow is active.` : "Select a community task to begin."}</Text>
+        </View>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Active Modules</Text>
+          <View style={styles.dspInputChipRow}>
+            {activeCatalogModules.length ? activeCatalogModules.map((module) => (
+              <View key={module.moduleId} style={styles.dspRuntimeModulePill}>
+                <Text style={styles.dspRuntimeModulePillText}>{module.label}</Text>
+              </View>
+            )) : <Text style={styles.dspRuntimeMeta}>Select community inputs to activate modules.</Text>}
+          </View>
+        </View>
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Automatic Rules</Text>
+        {uniqueValues([
+          ...(communityRuntimeMap.moduleRules || []).filter((rule) => matchRuleExpression(rule.when, activeCommunityTokens)).map((rule) => `${rule.when} -> ${(rule.activate || []).join(", ")}`),
+          ...matchedRuleMappings.map((mapping) => `${mapping.when} -> ${(mapping.activate || []).join(", ")}`)
+        ]).length ? uniqueValues([
+          ...(communityRuntimeMap.moduleRules || []).filter((rule) => matchRuleExpression(rule.when, activeCommunityTokens)).map((rule) => `${rule.when} -> ${(rule.activate || []).join(", ")}`),
+          ...matchedRuleMappings.map((mapping) => `${mapping.when} -> ${(mapping.activate || []).join(", ")}`)
+        ]).map((rule) => <Text key={rule} style={styles.dspRuntimeMeta}>{rule}</Text>) : <Text style={styles.dspRuntimeMeta}>Choose community context to trigger rules.</Text>}
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Generated Note Output</Text>
+        <Text style={styles.dspRuntimeSummaryText}>{generatedPreview}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function HealthSafetyInputFlowScreen({ isPhone }) {
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [categoryId, setCategoryId] = useState(healthSafetyInputSection.tasks?.[0]?.value || "");
+  const [subtask, setSubtask] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [assistance, setAssistance] = useState("");
+  const [engagement, setEngagement] = useState("");
+  const [selectedRisks, setSelectedRisks] = useState([]);
+  const [selectedProtocols, setSelectedProtocols] = useState([]);
+  const [selectedAlerts, setSelectedAlerts] = useState([]);
+  const [note, setNote] = useState("");
+
+  const formatLabel = useCallback((value) => value.replace(/_/g, " "), []);
+  const titleCase = useCallback(
+    (value) => formatLabel(value).replace(/\b\w/g, (char) => char.toUpperCase()),
+    [formatLabel]
+  );
+
+  const categoryOptions = useMemo(() => healthSafetyInputSection.tasks || [], []);
+  const selectedTaskConfig = useMemo(() => healthSafetyInputSection.taskDetails?.[categoryId] || {}, [categoryId]);
+
+  useEffect(() => {
+    if (!categoryOptions.length) {
+      setCategoryId("");
+      return;
+    }
+    if (!categoryOptions.some((option) => option.value === categoryId)) {
+      setCategoryId(categoryOptions[0].value);
+    }
+  }, [categoryId, categoryOptions]);
+
+  const subtaskOptions = useMemo(() => selectedTaskConfig.subtasks || [], [selectedTaskConfig]);
+
+  useEffect(() => {
+    setSubtask("");
+    setOutcome("");
+    setAssistance("");
+    setEngagement("");
+    setSelectedRisks([]);
+    setSelectedProtocols([]);
+    setSelectedAlerts([]);
+    setNote("");
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (!subtaskOptions.some((option) => option.value === subtask)) {
+      setSubtask("");
+    }
+  }, [subtask, subtaskOptions]);
+
+  const outcomeOptions = useMemo(() => healthSafetyInputSection.genericOutcomeOptions || [], []);
+  const assistanceOptions = useMemo(() => healthSafetyInputSection.genericAssistanceOptions || [], []);
+  const engagementOptions = healthSafetyInputSection.engagementOptions || [];
+  const riskOptions = selectedTaskConfig.risks || [];
+  const protocolOptions = selectedTaskConfig.protocols || [];
+  const alertOptions = selectedTaskConfig.alerts || [];
+
+  const activeHealthTokens = useMemo(
+    () =>
+      uniqueValues([
+        categoryId,
+        outcome,
+        assistance,
+        engagement,
+        ...selectedRisks,
+        ...selectedProtocols,
+        ...selectedAlerts,
+      ]),
+    [assistance, categoryId, engagement, outcome, selectedAlerts, selectedProtocols, selectedRisks]
+  );
+
+  const matchedRuleMappings = useMemo(
+    () => (ruleMappingTable.mappings || []).filter((mapping) => matchRuleExpression(mapping.when, activeHealthTokens)),
+    [activeHealthTokens]
+  );
+
+  const activeCatalogModules = useMemo(() => {
+    const manualModules = [];
+    if (categoryId === "wellness_check") {
+      manualModules.push("wellness_observation");
+    }
+    if (categoryId === "incident_response") {
+      manualModules.push("incident_documentation");
+    }
+    const activatedModuleIds = collectActivatedModuleIds({
+      activeTokens: activeHealthTokens,
+      runtimeRuleMap: healthSafetyRuntimeMap,
+      extraRuleMappings: matchedRuleMappings,
+    });
+    return getModuleObjects([...manualModules, ...activatedModuleIds]);
+  }, [activeHealthTokens, categoryId, matchedRuleMappings]);
+
+  const generatedPreview = useMemo(() => {
+    const categoryLabel = categoryOptions.find((item) => item.value === categoryId)?.label || titleCase(categoryId || "task");
+    const subtaskLabel = subtaskOptions.find((item) => item.value === subtask)?.label || "";
+    if (!categoryId) {
+      return "Select a health and safety task to build the runtime note.";
+    }
+    const lines = [];
+    if (categoryId === "wellness_check") {
+      lines.push(`Staff completed ${subtaskLabel ? subtaskLabel.toLowerCase() : "a wellness check"}.`);
+      if (selectedAlerts.includes("pain_reported")) {
+        lines.push("Pain was reported during the wellness check.");
+      }
+      if (selectedAlerts.includes("change_in_baseline")) {
+        lines.push("A change in baseline was observed.");
+      }
+    } else if (categoryId === "fall_prevention") {
+      lines.push(`Staff provided ${subtaskLabel ? subtaskLabel.toLowerCase() : "fall prevention support"}.`);
+      if (selectedRisks.includes("fall_risk")) {
+        lines.push("Fall-risk precautions were maintained.");
+      }
+      if (selectedProtocols.includes("gait_belt_required")) {
+        lines.push("Gait belt protocol was followed.");
+      }
+    } else if (categoryId === "incident_response") {
+      lines.push(`Staff responded to ${subtaskLabel ? subtaskLabel.toLowerCase() : "a health or safety incident"}.`);
+      if (selectedAlerts.includes("incident_follow_up_needed")) {
+        lines.push("Incident follow-up was required.");
+      }
+    } else if (categoryId === "mobility_monitoring") {
+      lines.push(`Staff provided ${subtaskLabel ? subtaskLabel.toLowerCase() : "mobility monitoring"}.`);
+      if (selectedProtocols.includes("gait_belt_required")) {
+        lines.push("Gait belt protocol was followed.");
+      }
+    } else if (categoryId === "hydration_support") {
+      lines.push(`Staff provided ${subtaskLabel ? subtaskLabel.toLowerCase() : "hydration support"}.`);
+      if (selectedProtocols.includes("thickened_liquids_required")) {
+        lines.push("Required liquid-consistency precautions were followed.");
+      }
+    } else {
+      lines.push(`Health and safety task documented: ${categoryLabel}.`);
+    }
+    if (assistance) {
+      lines.push(`${titleCase(assistance)} was provided during the task.`);
+    }
+    if (engagement) {
+      lines.push(`Client was ${formatLabel(engagement)} during the task.`);
+    }
+    if (outcome) {
+      lines.push(`Health and safety outcome: ${formatLabel(outcome)}.`);
+    }
+    if (selectedAlerts.length) {
+      lines.push(`Alerts/follow-up: ${selectedAlerts.map((item) => titleCase(item)).join(", ")}.`);
+    }
+    if (note.trim()) {
+      lines.push(note.trim());
+    }
+    return lines.join(" ");
+  }, [assistance, categoryId, categoryOptions, engagement, formatLabel, note, outcome, selectedAlerts, selectedProtocols, selectedRisks, subtask, subtaskOptions, titleCase]);
+
+  const toggleMultiSelect = (value, setter) => {
+    setter((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  };
+
+  const activeRules = uniqueValues([
+    ...(healthSafetyRuntimeMap.moduleRules || []).filter((rule) => matchRuleExpression(rule.when, activeHealthTokens)).map((rule) => `${rule.when} -> ${(rule.activate || []).join(", ")}`),
+    ...matchedRuleMappings.map((mapping) => `${mapping.when} -> ${(mapping.activate || []).join(", ")}`)
+  ]);
+
+  const StepCard = ({ index, title, hint, locked, children }) => (
+    <View style={[styles.dspStepCard, locked && styles.dspStepCardLocked]}>
+      <View style={styles.dspStepHeader}>
+        <View style={styles.dspStepNumber}>
+          <Text style={styles.dspStepNumberText}>{index}</Text>
+        </View>
+        <View style={styles.dspStepHeaderCopy}>
+          <Text style={styles.dspStepTitle}>{title}</Text>
+          {hint ? <Text style={styles.dspStepHint}>{hint}</Text> : null}
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+
+  return (
+    <Card title={healthSafetyInputSection.title || "Health and Safety Input Section"} containerStyle={styles.dspInputCard} bodyStyle={styles.dspInputCardBody}>
+      <Text style={styles.dspInputLead}>{healthSafetyInputSection.description}</Text>
+      <View style={styles.dspQuestionFlowCard}>
+        {(healthSafetyInputSection.questionSteps || []).map((step, index) => (
+          <View key={step} style={styles.dspQuestionFlowRow}>
+            <View style={styles.dspQuestionFlowIndex}>
+              <Text style={styles.dspQuestionFlowIndexText}>{index + 1}</Text>
+            </View>
+            <Text style={styles.dspQuestionFlowText}>{step}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.dspBathingExampleCard}>
+        <Text style={styles.dspRuntimeHeading}>Build order</Text>
+        <Text style={styles.dspRuntimeMeta}>{healthSafetyInputSection.buildOrderMessage}</Text>
+      </View>
+      <View style={styles.dspStepStack}>
+        <StepCard index={1} title="What health and safety task was supported?" hint="Select the task, then narrow to an optional subtask.">
+          <View style={[styles.dspInputGrid, isPhone && styles.dspInputGridPhone]}>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Task</Text>
+              <DecisionDropdown value={categoryOptions.find((item) => item.value === categoryId)?.label || ""} options={categoryOptions} placeholder="Select task" dropdownId="health-task" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setCategoryId} fieldStyle={styles.dspInputDropdown} />
+            </View>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Subtask</Text>
+              <DecisionDropdown value={subtaskOptions.find((item) => item.value === subtask)?.label || ""} options={subtaskOptions} placeholder={subtaskOptions.length ? "Optional subtask" : "No subtasks for this task yet"} dropdownId="health-subtask" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setSubtask} fieldStyle={styles.dspInputDropdown} />
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={2} title="What was the outcome?" hint="Outcome sets the note direction and follow-up." locked={!categoryId}>
+          <DecisionDropdown value={outcomeOptions.find((item) => item.value === outcome)?.label || ""} options={outcomeOptions} placeholder="Select outcome" dropdownId="health-outcome" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setOutcome} fieldStyle={styles.dspInputDropdown} />
+        </StepCard>
+        <StepCard index={3} title="What assistance was provided?" hint="Use the health and safety assistance states before rules fire." locked={!outcome}>
+          <DecisionDropdown value={assistanceOptions.find((item) => item.value === assistance)?.label || ""} options={assistanceOptions} placeholder="Select assistance" dropdownId="health-assistance" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setAssistance} fieldStyle={styles.dspInputDropdown} />
+        </StepCard>
+        <StepCard index={4} title="How did the person present during the health and safety task?" hint="Use presentation to support observation quality and escalation logic." locked={!assistance}>
+          <DecisionDropdown value={engagementOptions.find((item) => item.value === engagement)?.label || ""} options={engagementOptions} placeholder="Select presentation" dropdownId="health-engagement" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setEngagement} fieldStyle={styles.dspInputDropdown} />
+        </StepCard>
+        <StepCard index={5} title="Were any health or safety risks or protocols active?" hint="Leave unselected if none were active." locked={!engagement && !assistance}>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Risks</Text>
+            <View style={styles.dspInputChipRow}>
+              {riskOptions.map((item) => (
+                <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedRisks)} style={[styles.dspInputChip, selectedRisks.includes(item) && styles.dspInputChipActive]}>
+                  <Text style={[styles.dspInputChipText, selectedRisks.includes(item) && styles.dspInputChipTextActive]}>{titleCase(item)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Protocols</Text>
+            <View style={styles.dspInputChipRow}>
+              {protocolOptions.map((item) => (
+                <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedProtocols)} style={[styles.dspInputChip, selectedProtocols.includes(item) && styles.dspInputChipActive]}>
+                  <Text style={[styles.dspInputChipText, selectedProtocols.includes(item) && styles.dspInputChipTextActive]}>{titleCase(item)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={6} title="Were any alerts present?" hint="Use only real follow-up items." locked={!categoryId}>
+          <View style={styles.dspInputChipRow}>
+            {alertOptions.map((item) => (
+              <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedAlerts)} style={[styles.dspInputChip, selectedAlerts.includes(item) && styles.dspInputChipAlertActive]}>
+                <Text style={[styles.dspInputChipText, selectedAlerts.includes(item) && styles.dspInputChipTextActive]}>{titleCase(item)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </StepCard>
+        <StepCard index={7} title="Add a health and safety note" hint="Use this only for context that the structured choices do not already capture." locked={!categoryId}>
+          <TextInput value={note} onChangeText={setNote} placeholder="Health and safety note" placeholderTextColor={colors.placeholder} multiline style={[styles.decisionRowInput, styles.dspInputNote]} />
+        </StepCard>
+      </View>
+      <View style={[styles.dspRuntimeSummaryCard, isPhone && styles.dspRuntimeSummaryCardPhone]}>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Runtime Summary</Text>
+          <Text style={styles.dspRuntimeSummaryText}>{categoryId ? `${categoryOptions.find((item) => item.value === categoryId)?.label || titleCase(categoryId)} health and safety flow is active.` : "Select a health and safety task to begin."}</Text>
+        </View>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Active Modules</Text>
+          <View style={styles.dspInputChipRow}>
+            {activeCatalogModules.length ? activeCatalogModules.map((module) => (
+              <View key={module.moduleId} style={styles.dspRuntimeModulePill}>
+                <Text style={styles.dspRuntimeModulePillText}>{module.label}</Text>
+              </View>
+            )) : <Text style={styles.dspRuntimeMeta}>Select health and safety inputs to activate modules.</Text>}
+          </View>
+        </View>
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Automatic Rules</Text>
+        {activeRules.length ? activeRules.map((rule) => <Text key={rule} style={styles.dspRuntimeMeta}>{rule}</Text>) : <Text style={styles.dspRuntimeMeta}>Choose health and safety context to trigger rules.</Text>}
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Generated Note Output</Text>
+        <Text style={styles.dspRuntimeSummaryText}>{generatedPreview}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function DocumentationCoordinationInputFlowScreen({ isPhone }) {
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [categoryId, setCategoryId] = useState(documentationCoordinationInputSection.tasks?.[0]?.value || "");
+  const [subtask, setSubtask] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [assistance, setAssistance] = useState("");
+  const [engagement, setEngagement] = useState("");
+  const [selectedRisks, setSelectedRisks] = useState([]);
+  const [selectedProtocols, setSelectedProtocols] = useState([]);
+  const [selectedAlerts, setSelectedAlerts] = useState([]);
+  const [note, setNote] = useState("");
+
+  const formatLabel = useCallback((value) => value.replace(/_/g, " "), []);
+  const titleCase = useCallback(
+    (value) => formatLabel(value).replace(/\b\w/g, (char) => char.toUpperCase()),
+    [formatLabel]
+  );
+
+  const categoryOptions = useMemo(() => documentationCoordinationInputSection.tasks || [], []);
+  const selectedTaskConfig = useMemo(() => documentationCoordinationInputSection.taskDetails?.[categoryId] || {}, [categoryId]);
+
+  useEffect(() => {
+    if (!categoryOptions.length) {
+      setCategoryId("");
+      return;
+    }
+    if (!categoryOptions.some((option) => option.value === categoryId)) {
+      setCategoryId(categoryOptions[0].value);
+    }
+  }, [categoryId, categoryOptions]);
+
+  const subtaskOptions = useMemo(() => selectedTaskConfig.subtasks || [], [selectedTaskConfig]);
+
+  useEffect(() => {
+    setSubtask("");
+    setOutcome("");
+    setAssistance("");
+    setEngagement("");
+    setSelectedRisks([]);
+    setSelectedProtocols([]);
+    setSelectedAlerts([]);
+    setNote("");
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (!subtaskOptions.some((option) => option.value === subtask)) {
+      setSubtask("");
+    }
+  }, [subtask, subtaskOptions]);
+
+  const outcomeOptions = useMemo(() => documentationCoordinationInputSection.genericOutcomeOptions || [], []);
+  const assistanceOptions = useMemo(() => documentationCoordinationInputSection.genericAssistanceOptions || [], []);
+  const engagementOptions = documentationCoordinationInputSection.engagementOptions || [];
+  const riskOptions = selectedTaskConfig.risks || [];
+  const protocolOptions = selectedTaskConfig.protocols || [];
+  const alertOptions = selectedTaskConfig.alerts || [];
+
+  const activeTokens = useMemo(
+    () =>
+      uniqueValues([
+        categoryId,
+        outcome,
+        assistance,
+        engagement,
+        ...selectedRisks,
+        ...selectedProtocols,
+        ...selectedAlerts,
+      ]),
+    [assistance, categoryId, engagement, outcome, selectedAlerts, selectedProtocols, selectedRisks]
+  );
+
+  const matchedRuleMappings = useMemo(
+    () => (ruleMappingTable.mappings || []).filter((mapping) => matchRuleExpression(mapping.when, activeTokens)),
+    [activeTokens]
+  );
+
+  const activeCatalogModules = useMemo(() => {
+    const manualModules = [];
+    if (categoryId === "shift_handoff") {
+      manualModules.push("handoff_documentation");
+    }
+    if (categoryId === "family_communication") {
+      manualModules.push("family_update_support");
+    }
+    if (categoryId === "care_team_communication") {
+      manualModules.push("care_team_update_support");
+    }
+    if (categoryId === "progress_documentation") {
+      manualModules.push("progress_summary_support");
+    }
+    const activatedModuleIds = collectActivatedModuleIds({
+      activeTokens,
+      runtimeRuleMap: documentationCoordinationRuntimeMap,
+      extraRuleMappings: matchedRuleMappings,
+    });
+    return getModuleObjects([...manualModules, ...activatedModuleIds]);
+  }, [activeTokens, categoryId, matchedRuleMappings]);
+
+  const activeRules = uniqueValues([
+    ...(documentationCoordinationRuntimeMap.moduleRules || []).filter((rule) => matchRuleExpression(rule.when, activeTokens)).map((rule) => `${rule.when} -> ${(rule.activate || []).join(", ")}`),
+    ...matchedRuleMappings.map((mapping) => `${mapping.when} -> ${(mapping.activate || []).join(", ")}`)
+  ]);
+
+  const generatedPreview = useMemo(() => {
+    const categoryLabel = categoryOptions.find((item) => item.value === categoryId)?.label || titleCase(categoryId || "task");
+    const subtaskLabel = subtaskOptions.find((item) => item.value === subtask)?.label || "";
+    if (!categoryId) {
+      return "Select a documentation and coordination task to build the note.";
+    }
+    const lines = [];
+    if (categoryId === "shift_handoff") {
+      lines.push(`Staff completed ${subtaskLabel ? subtaskLabel.toLowerCase() : "shift handoff communication"}.`);
+      if (selectedProtocols.includes("handoff_required")) {
+        lines.push("Required handoff communication was completed.");
+      }
+    } else if (categoryId === "family_communication") {
+      lines.push(`Staff completed ${subtaskLabel ? subtaskLabel.toLowerCase() : "family communication"}.`);
+      if (selectedProtocols.includes("approved_update_only")) {
+        lines.push("Only approved update content was communicated.");
+      }
+    } else if (categoryId === "care_team_communication") {
+      lines.push(`Staff completed ${subtaskLabel ? subtaskLabel.toLowerCase() : "care team communication"}.`);
+      if (selectedProtocols.includes("time_sensitive_update")) {
+        lines.push("A time-sensitive update was communicated.");
+      }
+    } else if (categoryId === "progress_documentation") {
+      lines.push(`Staff completed ${subtaskLabel ? subtaskLabel.toLowerCase() : "progress documentation"}.`);
+    } else {
+      lines.push(`Documentation and coordination task completed: ${categoryLabel}.`);
+    }
+    if (assistance) {
+      lines.push(`${titleCase(assistance)} was used during the coordination task.`);
+    }
+    if (engagement) {
+      lines.push(`Task context was ${formatLabel(engagement)}.`);
+    }
+    if (outcome) {
+      lines.push(`Documentation outcome: ${formatLabel(outcome)}.`);
+    }
+    if (selectedAlerts.length) {
+      lines.push(`Alerts/follow-up: ${selectedAlerts.map((item) => titleCase(item)).join(", ")}.`);
+    }
+    if (note.trim()) {
+      lines.push(note.trim());
+    }
+    return lines.join(" ");
+  }, [assistance, categoryId, categoryOptions, engagement, formatLabel, note, outcome, selectedAlerts, subtask, subtaskOptions, titleCase, selectedProtocols]);
+
+  const toggleMultiSelect = (value, setter) => {
+    setter((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  };
+
+  const StepCard = ({ index, title, hint, locked, children }) => (
+    <View style={[styles.dspStepCard, locked && styles.dspStepCardLocked]}>
+      <View style={styles.dspStepHeader}>
+        <View style={styles.dspStepNumber}>
+          <Text style={styles.dspStepNumberText}>{index}</Text>
+        </View>
+        <View style={styles.dspStepHeaderCopy}>
+          <Text style={styles.dspStepTitle}>{title}</Text>
+          {hint ? <Text style={styles.dspStepHint}>{hint}</Text> : null}
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+
+  return (
+    <Card title={documentationCoordinationInputSection.title || "Documentation and Coordination Input Section"} containerStyle={styles.dspInputCard} bodyStyle={styles.dspInputCardBody}>
+      <Text style={styles.dspInputLead}>{documentationCoordinationInputSection.description}</Text>
+      <View style={styles.dspQuestionFlowCard}>
+        {(documentationCoordinationInputSection.questionSteps || []).map((step, index) => (
+          <View key={step} style={styles.dspQuestionFlowRow}>
+            <View style={styles.dspQuestionFlowIndex}>
+              <Text style={styles.dspQuestionFlowIndexText}>{index + 1}</Text>
+            </View>
+            <Text style={styles.dspQuestionFlowText}>{step}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.dspBathingExampleCard}>
+        <Text style={styles.dspRuntimeHeading}>Build order</Text>
+        <Text style={styles.dspRuntimeMeta}>{documentationCoordinationInputSection.buildOrderMessage}</Text>
+      </View>
+      <View style={styles.dspStepStack}>
+        <StepCard index={1} title="What documentation or coordination task was completed?" hint="Select the task, then narrow to an optional subtask.">
+          <View style={[styles.dspInputGrid, isPhone && styles.dspInputGridPhone]}>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Task</Text>
+              <DecisionDropdown value={categoryOptions.find((item) => item.value === categoryId)?.label || ""} options={categoryOptions} placeholder="Select task" dropdownId="doccoord-task" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setCategoryId} fieldStyle={styles.dspInputDropdown} />
+            </View>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Subtask</Text>
+              <DecisionDropdown value={subtaskOptions.find((item) => item.value === subtask)?.label || ""} options={subtaskOptions} placeholder={subtaskOptions.length ? "Optional subtask" : "No subtasks for this task yet"} dropdownId="doccoord-subtask" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setSubtask} fieldStyle={styles.dspInputDropdown} />
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={2} title="What was the outcome?" hint="Outcome sets the note direction and follow-up." locked={!categoryId}>
+          <DecisionDropdown value={outcomeOptions.find((item) => item.value === outcome)?.label || ""} options={outcomeOptions} placeholder="Select outcome" dropdownId="doccoord-outcome" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setOutcome} fieldStyle={styles.dspInputDropdown} />
+        </StepCard>
+        <StepCard index={3} title="What level of support or coordination was provided?" hint="Use the coordination support states before rules fire." locked={!outcome}>
+          <DecisionDropdown value={assistanceOptions.find((item) => item.value === assistance)?.label || ""} options={assistanceOptions} placeholder="Select support" dropdownId="doccoord-assistance" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setAssistance} fieldStyle={styles.dspInputDropdown} />
+        </StepCard>
+        <StepCard index={4} title="How did the person or team context present during this task?" hint="Use this to capture clarity, urgency, and escalation context." locked={!assistance}>
+          <DecisionDropdown value={engagementOptions.find((item) => item.value === engagement)?.label || ""} options={engagementOptions} placeholder="Select context" dropdownId="doccoord-engagement" activeDropdown={activeDropdown} onToggleDropdown={setActiveDropdown} onChange={setEngagement} fieldStyle={styles.dspInputDropdown} />
+        </StepCard>
+        <StepCard index={5} title="Were any communication risks, requirements, or protocols active?" hint="Leave unselected if none were active." locked={!engagement && !assistance}>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Risks</Text>
+            <View style={styles.dspInputChipRow}>
+              {riskOptions.map((item) => (
+                <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedRisks)} style={[styles.dspInputChip, selectedRisks.includes(item) && styles.dspInputChipActive]}>
+                  <Text style={[styles.dspInputChipText, selectedRisks.includes(item) && styles.dspInputChipTextActive]}>{titleCase(item)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Protocols</Text>
+            <View style={styles.dspInputChipRow}>
+              {protocolOptions.map((item) => (
+                <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedProtocols)} style={[styles.dspInputChip, selectedProtocols.includes(item) && styles.dspInputChipActive]}>
+                  <Text style={[styles.dspInputChipText, selectedProtocols.includes(item) && styles.dspInputChipTextActive]}>{titleCase(item)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={6} title="Were any alerts or follow-up needs present?" hint="Use only real follow-up items." locked={!categoryId}>
+          <View style={styles.dspInputChipRow}>
+            {alertOptions.map((item) => (
+              <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedAlerts)} style={[styles.dspInputChip, selectedAlerts.includes(item) && styles.dspInputChipAlertActive]}>
+                <Text style={[styles.dspInputChipText, selectedAlerts.includes(item) && styles.dspInputChipTextActive]}>{titleCase(item)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </StepCard>
+        <StepCard index={7} title="Add a documentation and coordination note" hint="Use this only for context that the structured choices do not already capture." locked={!categoryId}>
+          <TextInput value={note} onChangeText={setNote} placeholder="Documentation and coordination note" placeholderTextColor={colors.placeholder} multiline style={[styles.decisionRowInput, styles.dspInputNote]} />
+        </StepCard>
+      </View>
+      <View style={[styles.dspRuntimeSummaryCard, isPhone && styles.dspRuntimeSummaryCardPhone]}>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Runtime Summary</Text>
+          <Text style={styles.dspRuntimeSummaryText}>{categoryId ? `${categoryOptions.find((item) => item.value === categoryId)?.label || titleCase(categoryId)} documentation flow is active.` : "Select a documentation task to begin."}</Text>
+        </View>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Active Modules</Text>
+          <View style={styles.dspInputChipRow}>
+            {activeCatalogModules.length ? activeCatalogModules.map((module) => (
+              <View key={module.moduleId} style={styles.dspRuntimeModulePill}>
+                <Text style={styles.dspRuntimeModulePillText}>{module.label}</Text>
+              </View>
+            )) : <Text style={styles.dspRuntimeMeta}>Select documentation inputs to activate modules.</Text>}
+          </View>
+        </View>
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Automatic Rules</Text>
+        {activeRules.length ? activeRules.map((rule) => <Text key={rule} style={styles.dspRuntimeMeta}>{rule}</Text>) : <Text style={styles.dspRuntimeMeta}>Choose documentation context to trigger rules.</Text>}
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Generated Note Output</Text>
+        <Text style={styles.dspRuntimeSummaryText}>{generatedPreview}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function BehavioralInputFlowScreen({ isPhone }) {
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [behaviorObserved, setBehaviorObserved] = useState(
+    behavioralInputSection.behaviorOptions?.[0]?.value || ""
+  );
+  const [interventionUsed, setInterventionUsed] = useState("");
+  const [response, setResponse] = useState("");
+  const [engagement, setEngagement] = useState("");
+  const [selectedRisks, setSelectedRisks] = useState([]);
+  const [selectedPlans, setSelectedPlans] = useState([]);
+  const [selectedAlerts, setSelectedAlerts] = useState([]);
+  const [note, setNote] = useState("");
+
+  const formatLabel = useCallback((value) => value.replace(/_/g, " "), []);
+  const titleCase = useCallback(
+    (value) => formatLabel(value).replace(/\b\w/g, (char) => char.toUpperCase()),
+    [formatLabel]
+  );
+
+  const toggleMultiSelect = (value, setter) => {
+    setter((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  };
+
+  const activeBehaviorTokens = useMemo(
+    () =>
+      uniqueValues([
+        behaviorObserved,
+        interventionUsed,
+        response,
+        engagement,
+        ...selectedRisks,
+        ...selectedPlans,
+        ...selectedAlerts,
+      ]),
+    [behaviorObserved, engagement, interventionUsed, response, selectedAlerts, selectedPlans, selectedRisks]
+  );
+
+  const behavioralMatchedRuleMappings = useMemo(
+    () => (ruleMappingTable.mappings || []).filter((mapping) => matchRuleExpression(mapping.when, activeBehaviorTokens)),
+    [activeBehaviorTokens]
+  );
+
+  const activeModules = useMemo(() => {
+    const manualModules = ["behavioral_observation_support"];
+    const activatedModuleIds = collectActivatedModuleIds({
+      activeTokens: activeBehaviorTokens,
+      runtimeRuleMap: behavioralRuntimeMap,
+      extraRuleMappings: behavioralMatchedRuleMappings,
+    });
+    return getModuleObjects([...manualModules, ...activatedModuleIds]);
+  }, [activeBehaviorTokens, behavioralMatchedRuleMappings]);
+
+  const automaticRules = useMemo(
+    () =>
+      uniqueValues([
+        ...(behavioralRuntimeMap.moduleRules || [])
+          .filter((rule) => matchRuleExpression(rule.when, activeBehaviorTokens))
+          .map((rule) => `${rule.when} -> ${(rule.activate || []).join(", ")}`),
+        ...behavioralMatchedRuleMappings.map((mapping) => `${mapping.when} -> ${(mapping.activate || []).join(", ")}`),
+      ]),
+    [activeBehaviorTokens, behavioralMatchedRuleMappings]
+  );
+
+  const generatedPreview = useMemo(() => {
+    const behaviorLabel =
+      behavioralInputSection.behaviorOptions?.find((item) => item.value === behaviorObserved)?.label || titleCase(behaviorObserved || "behavior");
+    const interventionLabel =
+      behavioralInputSection.interventionOptions?.find((item) => item.value === interventionUsed)?.label || titleCase(interventionUsed || "");
+    const responseLabel =
+      behavioralInputSection.responseOptions?.find((item) => item.value === response)?.label || titleCase(response || "");
+
+    const lines = [];
+    if (behaviorObserved) {
+      if (behaviorObserved === "no_target_behavior_observed") {
+        lines.push("No target behavior was observed during this support period.");
+      } else if (behaviorObserved === "needed_redirection") {
+        lines.push("Staff provided behavior support after redirection was needed.");
+      } else if (behaviorObserved === "boundary_seeking_behavior") {
+        lines.push("Staff observed boundary-seeking behavior during the support period.");
+      } else if (behaviorObserved === "verbal_escalation") {
+        lines.push("Staff observed verbal escalation and responded with behavioral support.");
+      } else {
+        lines.push(`Staff observed ${behaviorLabel.toLowerCase()}.`);
+      }
+    }
+    if (interventionUsed) {
+      if (interventionUsed === "verbal_redirection") {
+        lines.push("Verbal redirection was provided.");
+      } else if (interventionUsed === "cueing_and_reassurance") {
+        lines.push("Cueing and reassurance were provided.");
+      } else if (interventionUsed === "de_escalation_support") {
+        lines.push("De-escalation support was implemented.");
+      } else if (interventionUsed === "behavior_plan_followed") {
+        lines.push("The active behavior support plan was followed.");
+      } else {
+        lines.push(`${interventionLabel} was used.`);
+      }
+    }
+    if (response) {
+      if (response === "accepted_redirection") {
+        lines.push("Client accepted redirection.");
+      } else if (response === "calmed_with_support") {
+        lines.push("Client calmed with support.");
+      } else if (response === "needed_repeated_prompts") {
+        lines.push("Client required repeated prompts.");
+      } else if (response === "behavior_continued") {
+        lines.push("Behavior continued despite intervention.");
+      } else if (response === "partial_improvement") {
+        lines.push("Client showed partial improvement with support.");
+      } else {
+        lines.push(`Client ${responseLabel.toLowerCase()}.`);
+      }
+    }
+    if (engagement) {
+      lines.push(`Client presentation was ${formatLabel(engagement)} during behavioral support.`);
+    }
+    if (selectedRisks.includes("behavioral_escalation_risk")) {
+      lines.push("Behavioral escalation risk was monitored.");
+    }
+    if (selectedPlans.includes("line_of_sight_required")) {
+      lines.push("Line-of-sight supervision was maintained.");
+    }
+    if (selectedPlans.includes("behavior_support_plan_active")) {
+      lines.push("Behavior support plan interventions remained active during support.");
+    }
+    if (selectedAlerts.length) {
+      lines.push(`Alerts/follow-up: ${selectedAlerts.map((item) => titleCase(item)).join(", ")}.`);
+    }
+    if (note.trim()) {
+      lines.push(note.trim());
+    }
+    return lines.join(" ") || "Select behavioral inputs to build the note preview.";
+  }, [behaviorObserved, engagement, formatLabel, interventionUsed, note, response, selectedAlerts, selectedPlans, selectedRisks, titleCase]);
+
+  const StepCard = ({ index, title, hint, locked, children }) => (
+    <View style={[styles.dspStepCard, locked && styles.dspStepCardLocked]}>
+      <View style={styles.dspStepHeader}>
+        <View style={styles.dspStepNumber}>
+          <Text style={styles.dspStepNumberText}>{index}</Text>
+        </View>
+        <View style={styles.dspStepHeaderCopy}>
+          <Text style={styles.dspStepTitle}>{title}</Text>
+          {hint ? <Text style={styles.dspStepHint}>{hint}</Text> : null}
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+
+  return (
+    <Card title={behavioralInputSection.title || "Behavioral Input Section"} containerStyle={styles.dspInputCard} bodyStyle={styles.dspInputCardBody}>
+      <Text style={styles.dspInputLead}>{behavioralInputSection.description}</Text>
+      <View style={styles.dspQuestionFlowCard}>
+        {(behavioralInputSection.questionSteps || []).map((step, index) => (
+          <View key={step} style={styles.dspQuestionFlowRow}>
+            <View style={styles.dspQuestionFlowIndex}>
+              <Text style={styles.dspQuestionFlowIndexText}>{index + 1}</Text>
+            </View>
+            <Text style={styles.dspQuestionFlowText}>{step}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.dspBathingExampleCard}>
+        <Text style={styles.dspRuntimeHeading}>Build order</Text>
+        <Text style={styles.dspRuntimeMeta}>{behavioralInputSection.buildOrderMessage}</Text>
+      </View>
+      <View style={styles.dspStepStack}>
+        <StepCard index={1} title="What behavior or support need was observed?" hint="Start with the target behavior or support concern.">
+          <DecisionDropdown
+            value={behavioralInputSection.behaviorOptions?.find((item) => item.value === behaviorObserved)?.label || ""}
+            options={behavioralInputSection.behaviorOptions || []}
+            placeholder="Select behavior"
+            dropdownId="behavioral-observed"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setBehaviorObserved}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={2} title="What intervention was used?" hint="Choose the least restrictive support used." locked={!behaviorObserved}>
+          <DecisionDropdown
+            value={behavioralInputSection.interventionOptions?.find((item) => item.value === interventionUsed)?.label || ""}
+            options={behavioralInputSection.interventionOptions || []}
+            placeholder="Select intervention"
+            dropdownId="behavioral-intervention"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setInterventionUsed}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={3} title="How did the person respond?" hint="Observed response is required for defensible behavior documentation." locked={!interventionUsed}>
+          <DecisionDropdown
+            value={behavioralInputSection.responseOptions?.find((item) => item.value === response)?.label || ""}
+            options={behavioralInputSection.responseOptions || []}
+            placeholder="Select response"
+            dropdownId="behavioral-response"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setResponse}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={4} title="How did the person engage during the behavioral support?" hint="Engagement helps explain participation and re-engagement needs." locked={!response}>
+          <DecisionDropdown
+            value={behavioralInputSection.engagementOptions?.find((item) => item.value === engagement)?.label || ""}
+            options={behavioralInputSection.engagementOptions || []}
+            placeholder="Select engagement"
+            dropdownId="behavioral-engagement"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setEngagement}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={5} title="Were any behavioral risks or plans active?" hint="Leave unselected if none were active." locked={!engagement && !response}>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Risks</Text>
+            <View style={styles.dspInputChipRow}>
+              {(behavioralInputSection.riskOptions || []).map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => toggleMultiSelect(item, setSelectedRisks)}
+                  style={[styles.dspInputChip, selectedRisks.includes(item) && styles.dspInputChipActive]}
+                >
+                  <Text style={[styles.dspInputChipText, selectedRisks.includes(item) && styles.dspInputChipTextActive]}>
+                    {titleCase(item)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Plans / Protocols</Text>
+            <View style={styles.dspInputChipRow}>
+              {(behavioralInputSection.planOptions || []).map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => toggleMultiSelect(item, setSelectedPlans)}
+                  style={[styles.dspInputChip, selectedPlans.includes(item) && styles.dspInputChipActive]}
+                >
+                  <Text style={[styles.dspInputChipText, selectedPlans.includes(item) && styles.dspInputChipTextActive]}>
+                    {titleCase(item)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={6} title="Were any alerts or follow-up needs present?" hint="Use only real follow-up items." locked={!behaviorObserved}>
+          <View style={styles.dspInputChipRow}>
+            {(behavioralInputSection.alertOptions || []).map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => toggleMultiSelect(item, setSelectedAlerts)}
+                style={[styles.dspInputChip, selectedAlerts.includes(item) && styles.dspInputChipAlertActive]}
+              >
+                <Text style={[styles.dspInputChipText, selectedAlerts.includes(item) && styles.dspInputChipTextActive]}>
+                  {titleCase(item)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </StepCard>
+        <StepCard index={7} title="Add a behavioral note" hint="Use this for context not already captured by the structured choices." locked={!behaviorObserved}>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="Behavioral note"
+            placeholderTextColor={colors.placeholder}
+            multiline
+            style={[styles.decisionRowInput, styles.dspInputNote]}
+          />
+        </StepCard>
+      </View>
+      <View style={[styles.dspRuntimeSummaryCard, isPhone && styles.dspRuntimeSummaryCardPhone]}>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Behavior Summary</Text>
+          <Text style={styles.dspRuntimeSummaryText}>
+            {behaviorObserved
+              ? `Behavior selected: ${behavioralInputSection.behaviorOptions?.find((item) => item.value === behaviorObserved)?.label || titleCase(behaviorObserved)}.`
+              : "Select the target behavior to start the behavioral runtime."}
+          </Text>
+          <Text style={styles.dspRuntimeMeta}>{`Interventions: ${(behavioralInputSection.interventionOptions || []).map((item) => item.label).join(", ")}`}</Text>
+        </View>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Active Modules</Text>
+          <View style={styles.dspInputChipRow}>
+            {activeModules.length ? (
+              activeModules.map((module) => (
+                <View key={module.moduleId} style={styles.dspRuntimeModulePill}>
+                  <Text style={styles.dspRuntimeModulePillText}>{module.label}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.dspRuntimeMeta}>Select behavioral inputs to activate modules.</Text>
+            )}
+          </View>
+        </View>
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Automatic Rules</Text>
+        {automaticRules.length ? (
+          automaticRules.map((rule) => (
+            <Text key={rule} style={styles.dspRuntimeMeta}>{rule}</Text>
+          ))
+        ) : (
+          <Text style={styles.dspRuntimeMeta}>Choose behavior, response, or follow-up items to trigger rules.</Text>
+        )}
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Generated Note Output</Text>
+        <Text style={styles.dspRuntimeSummaryText}>{generatedPreview}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function IadlInputFlowScreen({ isPhone }) {
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [categoryId, setCategoryId] = useState(iadlInputSection.tasks?.[0]?.value || "");
+  const [subtask, setSubtask] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [assistance, setAssistance] = useState("");
+  const [engagement, setEngagement] = useState("");
+  const [selectedRisks, setSelectedRisks] = useState([]);
+  const [selectedProtocols, setSelectedProtocols] = useState([]);
+  const [selectedAlerts, setSelectedAlerts] = useState([]);
+  const [note, setNote] = useState("");
+
+  const formatLabel = useCallback((value) => value.replace(/_/g, " "), []);
+  const titleCase = useCallback(
+    (value) => formatLabel(value).replace(/\b\w/g, (char) => char.toUpperCase()),
+    [formatLabel]
+  );
+
+  const categoryOptions = useMemo(() => iadlInputSection.tasks || [], []);
+  const selectedTaskConfig = useMemo(
+    () => iadlInputSection.taskDetails?.[categoryId] || {},
+    [categoryId]
+  );
+
+  useEffect(() => {
+    if (!categoryOptions.length) {
+      setCategoryId("");
+      return;
+    }
+    if (!categoryOptions.some((option) => option.value === categoryId)) {
+      setCategoryId(categoryOptions[0].value);
+    }
+  }, [categoryId, categoryOptions]);
+
+  const subtaskOptions = useMemo(() => selectedTaskConfig.subtasks || [], [selectedTaskConfig]);
+
+  useEffect(() => {
+    setSubtask("");
+    setOutcome("");
+    setAssistance("");
+    setEngagement("");
+    setSelectedRisks([]);
+    setSelectedProtocols([]);
+    setSelectedAlerts([]);
+    setNote("");
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (!subtaskOptions.some((option) => option.value === subtask)) {
+      setSubtask("");
+    }
+  }, [subtask, subtaskOptions]);
+
+  const runtime = useMemo(
+    () =>
+      composeDecisionRuntime({
+        workflowId: "generic",
+        categoryId,
+        outcome,
+        assistance,
+      }),
+    [categoryId, outcome, assistance]
+  );
+
+  const outcomeOptions = useMemo(
+    () => iadlInputSection.genericOutcomeOptions || [],
+    []
+  );
+
+  const assistanceOptions = useMemo(() => {
+    if (iadlInputSection.assistanceOverrides?.[categoryId]) {
+      return iadlInputSection.assistanceOverrides[categoryId];
+    }
+    return iadlInputSection.genericAssistanceOptions || [];
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (!outcomeOptions.some((option) => option.value === outcome)) {
+      setOutcome("");
+    }
+  }, [outcome, outcomeOptions]);
+
+  useEffect(() => {
+    if (!assistanceOptions.some((option) => option.value === assistance)) {
+      setAssistance("");
+    }
+  }, [assistance, assistanceOptions]);
+
+  const engagementOptions = iadlInputSection.engagementOptions || [];
+  const riskOptions = selectedTaskConfig.risks || [];
+  const protocolOptions = selectedTaskConfig.protocols || [];
+  const alertOptions = selectedTaskConfig.alerts || [];
+  const medicationSupportActive = categoryId === "medication_support";
+  const mealPreparationActive = categoryId === "meal_preparation";
+
+  const activeIadlTokens = useMemo(
+    () =>
+      uniqueValues([
+        categoryId,
+        outcome,
+        assistance,
+        engagement,
+        ...selectedRisks,
+        ...selectedProtocols,
+        ...selectedAlerts,
+      ]),
+    [assistance, categoryId, engagement, outcome, selectedAlerts, selectedProtocols, selectedRisks]
+  );
+
+  const matchedRuleMappings = useMemo(
+    () => (ruleMappingTable.mappings || []).filter((mapping) => matchRuleExpression(mapping.when, activeIadlTokens)),
+    [activeIadlTokens]
+  );
+
+  const activeCatalogModules = useMemo(() => {
+    const manualTaskModules = [];
+    if (mealPreparationActive) {
+      manualTaskModules.push("meal_preparation_support");
+    }
+    if (medicationSupportActive) {
+      manualTaskModules.push("medication_reminder");
+    }
+    const activatedModuleIds = collectActivatedModuleIds({
+      activeTokens: activeIadlTokens,
+      runtimeRuleMap: iadlRuntimeMap,
+      extraRuleMappings: matchedRuleMappings,
+    });
+    return getModuleObjects([...runtime.activeModules, ...manualTaskModules, ...activatedModuleIds]);
+  }, [activeIadlTokens, matchedRuleMappings, mealPreparationActive, medicationSupportActive, runtime.activeModules]);
+
+  const generatedPreview = useMemo(() => {
+    const categoryLabel = categoryOptions.find((item) => item.value === categoryId)?.label || titleCase(categoryId || "task");
+    const subtaskLabel = subtaskOptions.find((item) => item.value === subtask)?.label || "";
+    if (!categoryId) {
+      return "Select an IADL task to build the runtime note.";
+    }
+
+    const lines = [];
+    if (medicationSupportActive) {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "medication support"}.`);
+      if (assistance) {
+        lines.push(`${titleCase(assistance)} was provided during medication support.`);
+      }
+      if (engagement) {
+        lines.push(`Client was ${formatLabel(engagement)} during the task.`);
+      }
+      if (selectedProtocols.includes("medication_prompt_only")) {
+        lines.push("Medication prompt-only protocol was followed.");
+      }
+      if (selectedRisks.includes("medication_risk")) {
+        lines.push("Medication risk precautions were maintained.");
+      }
+      if (selectedAlerts.includes("missed_medication_window")) {
+        lines.push("Medication timing follow-up was required.");
+      }
+      if (outcome) {
+        lines.push(`Medication support outcome: ${formatLabel(outcome)}.`);
+      }
+    } else if (mealPreparationActive) {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "meal preparation"}.`);
+      if (assistance) {
+        lines.push(`${titleCase(assistance)} was provided during meal preparation.`);
+      }
+      if (engagement) {
+        lines.push(`Client was ${formatLabel(engagement)} during the task.`);
+      }
+      if (selectedRisks.includes("choking_risk")) {
+        lines.push("Choking precautions were maintained.");
+      }
+      if (selectedProtocols.includes("dietary_restrictions_active")) {
+        lines.push("Dietary restrictions were followed.");
+      }
+      if (selectedProtocols.includes("thickened_liquids_required")) {
+        lines.push("Required liquid consistency precautions were followed.");
+      }
+      if (outcome) {
+        lines.push(`Meal preparation outcome: ${formatLabel(outcome)}.`);
+      }
+    } else if (categoryId === "shopping") {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "shopping"}.`);
+      if (assistance) {
+        lines.push(`${titleCase(assistance)} was provided during shopping support.`);
+      }
+      if (selectedRisks.includes("elopement_risk")) {
+        lines.push("Elopement risk precautions were maintained in the community.");
+      }
+      if (selectedProtocols.includes("line_of_sight_required")) {
+        lines.push("Line-of-sight supervision was maintained.");
+      }
+      if (outcome) {
+        lines.push(`Shopping outcome: ${formatLabel(outcome)}.`);
+      }
+    } else if (categoryId === "transportation_coordination") {
+      lines.push(`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : "transportation coordination"}.`);
+      if (assistance) {
+        lines.push(`${titleCase(assistance)} was provided during transportation coordination.`);
+      }
+      if (selectedAlerts.includes("missed_transport_window")) {
+        lines.push("Transport timing follow-up was required.");
+      }
+      if (outcome) {
+        lines.push(`Transportation coordination outcome: ${formatLabel(outcome)}.`);
+      }
+    } else {
+      lines.push(`IADL task documented: ${categoryLabel}.`);
+      if (subtaskLabel) {
+        lines.push(`Subtask: ${subtaskLabel}.`);
+      }
+      if (outcome) {
+        lines.push(`Outcome: ${titleCase(outcome)}.`);
+      }
+      if (assistance) {
+        lines.push(`Assistance: ${titleCase(assistance)}.`);
+      }
+      if (engagement) {
+        lines.push(`Engagement: ${titleCase(engagement)}.`);
+      }
+    }
+    if (!medicationSupportActive && !mealPreparationActive && engagement) {
+      lines.push(`Client was ${formatLabel(engagement)} during the task.`);
+    }
+    if (selectedAlerts.length) {
+      lines.push(`Alerts/follow-up: ${selectedAlerts.map((item) => titleCase(item)).join(", ")}.`);
+    }
+    if (note.trim()) {
+      lines.push(note.trim());
+    }
+    return lines.join(" ");
+  }, [
+    assistance,
+    categoryId,
+    categoryOptions,
+    engagement,
+    formatLabel,
+    mealPreparationActive,
+    medicationSupportActive,
+    note,
+    outcome,
+    selectedAlerts,
+    selectedProtocols,
+    selectedRisks,
+    subtask,
+    subtaskOptions,
+    titleCase,
+  ]);
+
+  const followUpFlags = useMemo(() => {
+    const flags = [];
+    if (selectedAlerts.includes("nurse_notification_needed")) {
+      flags.push("Nurse review");
+    }
+    if (selectedAlerts.includes("supervisor_notification_needed")) {
+      flags.push("Supervisor review");
+    }
+    if (selectedAlerts.includes("change_in_baseline")) {
+      flags.push("Change in baseline follow-up");
+    }
+    if (selectedAlerts.includes("missed_medication_window")) {
+      flags.push("Medication timing follow-up");
+    }
+    if (selectedAlerts.includes("missed_transport_window")) {
+      flags.push("Transport follow-up");
+    }
+    return [...new Set(flags)];
+  }, [selectedAlerts]);
+
+  const toggleMultiSelect = (value, setter) => {
+    setter((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  };
+
+  const questionSteps = iadlInputSection.questionSteps || [];
+
+  const StepCard = ({ index, title, hint, locked, children }) => (
+    <View style={[styles.dspStepCard, locked && styles.dspStepCardLocked]}>
+      <View style={styles.dspStepHeader}>
+        <View style={styles.dspStepNumber}>
+          <Text style={styles.dspStepNumberText}>{index}</Text>
+        </View>
+        <View style={styles.dspStepHeaderCopy}>
+          <Text style={styles.dspStepTitle}>{title}</Text>
+          {hint ? <Text style={styles.dspStepHint}>{hint}</Text> : null}
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+
+  return (
+    <Card title={iadlInputSection.title || "IADL Input Section"} containerStyle={styles.dspInputCard} bodyStyle={styles.dspInputCardBody}>
+      <Text style={styles.dspInputLead}>{iadlInputSection.description}</Text>
+      <View style={styles.dspQuestionFlowCard}>
+        {questionSteps.map((step, index) => (
+          <View key={step} style={styles.dspQuestionFlowRow}>
+            <View style={styles.dspQuestionFlowIndex}>
+              <Text style={styles.dspQuestionFlowIndexText}>{index + 1}</Text>
+            </View>
+            <Text style={styles.dspQuestionFlowText}>{step}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.dspBathingExampleCard}>
+        <Text style={styles.dspRuntimeHeading}>Build order</Text>
+        <Text style={styles.dspRuntimeMeta}>{iadlInputSection.buildOrderMessage}</Text>
+      </View>
+      <View style={styles.dspStepStack}>
+        <StepCard
+          index={1}
+          title="What IADL task was supported?"
+          hint={mealPreparationActive || medicationSupportActive ? "This task has IADL-specific prompts, overlays, and note output." : "Select the IADL task, then narrow to an optional subtask."}
+        >
+          <View style={[styles.dspInputGrid, isPhone && styles.dspInputGridPhone]}>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Task</Text>
+              <DecisionDropdown
+                value={categoryOptions.find((item) => item.value === categoryId)?.label || ""}
+                options={categoryOptions}
+                placeholder="Select task"
+                dropdownId="iadl-task"
+                activeDropdown={activeDropdown}
+                onToggleDropdown={setActiveDropdown}
+                onChange={setCategoryId}
+                fieldStyle={styles.dspInputDropdown}
+              />
+            </View>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Subtask</Text>
+              <DecisionDropdown
+                value={subtaskOptions.find((item) => item.value === subtask)?.label || ""}
+                options={subtaskOptions}
+                placeholder={subtaskOptions.length ? "Optional subtask" : "No subtasks for this task yet"}
+                dropdownId="iadl-subtask"
+                activeDropdown={activeDropdown}
+                onToggleDropdown={setActiveDropdown}
+                onChange={setSubtask}
+                fieldStyle={styles.dspInputDropdown}
+              />
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={2} title="What was the outcome?" hint="Outcome sets the note direction and follow-up." locked={!categoryId}>
+          <DecisionDropdown
+            value={outcomeOptions.find((item) => item.value === outcome)?.label || ""}
+            options={outcomeOptions}
+            placeholder="Select outcome"
+            dropdownId="iadl-outcome"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setOutcome}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={3} title="What assistance was provided?" hint="Use the IADL assistance states before rules fire." locked={!outcome}>
+          <DecisionDropdown
+            value={assistanceOptions.find((item) => item.value === assistance)?.label || ""}
+            options={assistanceOptions}
+            placeholder="Select assistance"
+            dropdownId="iadl-assistance"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setAssistance}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={4} title="How did the person engage during the IADL task?" hint="Engagement helps explain prompting, cueing, and follow-up." locked={!assistance}>
+          <DecisionDropdown
+            value={engagementOptions.find((item) => item.value === engagement)?.label || ""}
+            options={engagementOptions}
+            placeholder="Select engagement"
+            dropdownId="iadl-engagement"
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setEngagement}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard
+          index={5}
+          title="Were any IADL risks or protocols active?"
+          hint="Leave unselected if none were active."
+          locked={!engagement && !assistance}
+        >
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Risks</Text>
+            <View style={styles.dspInputChipRow}>
+              {riskOptions.length ? (
+                riskOptions.map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => toggleMultiSelect(item, setSelectedRisks)}
+                    style={[styles.dspInputChip, selectedRisks.includes(item) && styles.dspInputChipActive]}
+                  >
+                    <Text style={[styles.dspInputChipText, selectedRisks.includes(item) && styles.dspInputChipTextActive]}>
+                      {titleCase(item)}
+                    </Text>
+                  </Pressable>
+                ))
+              ) : (
+                <Text style={styles.dspRuntimeMeta}>No task-specific risks configured yet.</Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Protocols</Text>
+            <View style={styles.dspInputChipRow}>
+              {protocolOptions.length ? (
+                protocolOptions.map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => toggleMultiSelect(item, setSelectedProtocols)}
+                    style={[styles.dspInputChip, selectedProtocols.includes(item) && styles.dspInputChipActive]}
+                  >
+                    <Text style={[styles.dspInputChipText, selectedProtocols.includes(item) && styles.dspInputChipTextActive]}>
+                      {titleCase(item)}
+                    </Text>
+                  </Pressable>
+                ))
+              ) : (
+                <Text style={styles.dspRuntimeMeta}>No task-specific protocols configured yet.</Text>
+              )}
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={6} title="Were any alerts present?" hint="Use only real follow-up items." locked={!categoryId}>
+          <View style={styles.dspInputChipRow}>
+            {alertOptions.length ? (
+              alertOptions.map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => toggleMultiSelect(item, setSelectedAlerts)}
+                  style={[styles.dspInputChip, selectedAlerts.includes(item) && styles.dspInputChipAlertActive]}
+                >
+                  <Text style={[styles.dspInputChipText, selectedAlerts.includes(item) && styles.dspInputChipTextActive]}>
+                    {titleCase(item)}
+                  </Text>
+                </Pressable>
+              ))
+            ) : (
+              <Text style={styles.dspRuntimeMeta}>No task-specific alerts configured yet.</Text>
+            )}
+          </View>
+        </StepCard>
+        <StepCard index={7} title="Add an IADL note" hint="Use this only for context that the structured choices do not already capture." locked={!categoryId}>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="IADL note"
+            placeholderTextColor={colors.placeholder}
+            multiline
+            style={[styles.decisionRowInput, styles.dspInputNote]}
+          />
+        </StepCard>
+      </View>
+      <View style={[styles.dspRuntimeSummaryCard, isPhone && styles.dspRuntimeSummaryCardPhone]}>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Runtime Summary</Text>
+          <Text style={styles.dspRuntimeSummaryText}>
+            {categoryId
+              ? `${categoryOptions.find((item) => item.value === categoryId)?.label || titleCase(categoryId)} IADL support flow is active.`
+              : "Select an IADL task to begin."}
+          </Text>
+          <Text style={styles.dspRuntimeMeta}>{`Allowed outcomes: ${(outcomeOptions || []).map((item) => item.label).join(", ") || "None"}`}</Text>
+          <Text style={styles.dspRuntimeMeta}>{`Allowed assistance: ${(assistanceOptions || []).map((item) => item.label).join(", ") || "None"}`}</Text>
+        </View>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Active Modules</Text>
+          <View style={styles.dspInputChipRow}>
+            {activeCatalogModules.length ? (
+              activeCatalogModules.map((module) => (
+                <View key={module.moduleId} style={styles.dspRuntimeModulePill}>
+                  <Text style={styles.dspRuntimeModulePillText}>{module.label}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.dspRuntimeMeta}>Select outcome and assistance to activate modules.</Text>
+            )}
+          </View>
+        </View>
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Automatic Rules</Text>
+        {matchedRuleMappings.length || (iadlRuntimeMap.moduleRules || []).some((rule) => matchRuleExpression(rule.when, activeIadlTokens)) ? (
+          uniqueValues([
+            ...(iadlRuntimeMap.moduleRules || [])
+              .filter((rule) => matchRuleExpression(rule.when, activeIadlTokens))
+              .map((rule) => `${rule.when} -> ${(rule.activate || []).join(", ")}`),
+            ...matchedRuleMappings.map((mapping) => `${mapping.when} -> ${mapping.activate.join(", ")}`),
+          ]).map((rule) => (
+            <Text key={rule} style={styles.dspRuntimeMeta}>{rule}</Text>
+          ))
+        ) : (
+          <Text style={styles.dspRuntimeMeta}>Choose engagement or follow-up context to trigger rules.</Text>
+        )}
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Structured Output</Text>
+        <Text style={styles.dspRuntimeMeta}>{`Output sections: ${(noteOutputTemplate.sections || []).map((item) => item.label).join(" | ")}`}</Text>
+        <Text style={styles.dspRuntimeMeta}>{`Follow-up flags: ${followUpFlags.join(", ") || "None"}`}</Text>
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Generated Note Output</Text>
+        <Text style={styles.dspRuntimeSummaryText}>{generatedPreview}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function buildGenericWorkflowGeneratedPreview({
+  workflowLabel = "",
+  taskLabel = "",
+  subtaskLabel = "",
+  outcome = "",
+  assistance = "",
+  engagement = "",
+  selectedRisks = [],
+  selectedProtocols = [],
+  selectedAlerts = [],
+  note = "",
+  titleCaseValue,
+  formatValue,
+}) {
+  if (!taskLabel) {
+    return `Select a ${workflowLabel.toLowerCase()} task to build the runtime note.`;
+  }
+
+  const lines = [`Staff supported the client with ${subtaskLabel ? subtaskLabel.toLowerCase() : taskLabel.toLowerCase()}.`];
+
+  if (assistance) {
+    lines.push(`${titleCaseValue(assistance)} was provided during ${taskLabel.toLowerCase()}.`);
+  }
+  if (engagement) {
+    lines.push(`Client was ${formatValue(engagement)} during the task.`);
+  }
+  if (selectedRisks.length) {
+    lines.push(`Active risks included ${selectedRisks.map((item) => titleCaseValue(item)).join(", ")}.`);
+  }
+  if (selectedProtocols.length) {
+    lines.push(`Protocols followed: ${selectedProtocols.map((item) => titleCaseValue(item)).join(", ")}.`);
+  }
+  if (outcome) {
+    lines.push(`${workflowLabel} outcome: ${formatValue(outcome)}.`);
+  }
+  if (selectedAlerts.length) {
+    lines.push(`Alerts/follow-up: ${selectedAlerts.map((item) => titleCaseValue(item)).join(", ")}.`);
+  }
+  if (note.trim()) {
+    lines.push(note.trim());
+  }
+
+  return lines.join(" ");
+}
+
+function GenericTaskInputFlowScreen({ isPhone, workflowId = "", moduleKey = "" }) {
+  const config = getWorkflowInputSectionConfig(workflowId);
+  const runtimeMap = getWorkflowInputSectionRuntimeMap(workflowId);
+  const workflowLabel =
+    WORKFLOW_SCHEDULE_OPTIONS.find((item) => item.workflowId === workflowId)?.label ||
+    (config?.title || "Workflow").replace(/\s+Input Section$/, "");
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [categoryId, setCategoryId] = useState(config?.tasks?.[0]?.value || "");
+  const [subtask, setSubtask] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [assistance, setAssistance] = useState("");
+  const [engagement, setEngagement] = useState("");
+  const [selectedRisks, setSelectedRisks] = useState([]);
+  const [selectedProtocols, setSelectedProtocols] = useState([]);
+  const [selectedAlerts, setSelectedAlerts] = useState([]);
+  const [note, setNote] = useState("");
+
+  const formatValue = useCallback((value) => String(value || "").replace(/_/g, " "), []);
+  const titleCaseValue = useCallback(
+    (value) => formatValue(value).replace(/\b\w/g, (char) => char.toUpperCase()),
+    [formatValue]
+  );
+
+  const categoryOptions = useMemo(() => config?.tasks || [], [config]);
+  const selectedTaskConfig = useMemo(() => config?.taskDetails?.[categoryId] || {}, [categoryId, config]);
+  const subtaskOptions = useMemo(() => selectedTaskConfig.subtasks || [], [selectedTaskConfig]);
+  const outcomeOptions = useMemo(() => config?.genericOutcomeOptions || [], [config]);
+  const assistanceOptions = useMemo(() => {
+    if (config?.assistanceOverrides?.[categoryId]) {
+      return config.assistanceOverrides[categoryId];
+    }
+    return config?.genericAssistanceOptions || [];
+  }, [categoryId, config]);
+  const engagementOptions = config?.engagementOptions || [];
+  const riskOptions = selectedTaskConfig.risks || [];
+  const protocolOptions = selectedTaskConfig.protocols || [];
+  const alertOptions = selectedTaskConfig.alerts || [];
+
+  useEffect(() => {
+    if (!categoryOptions.length) {
+      setCategoryId("");
+      return;
+    }
+    if (!categoryOptions.some((option) => option.value === categoryId)) {
+      setCategoryId(categoryOptions[0].value);
+    }
+  }, [categoryId, categoryOptions]);
+
+  useEffect(() => {
+    setSubtask("");
+    setOutcome("");
+    setAssistance("");
+    setEngagement("");
+    setSelectedRisks([]);
+    setSelectedProtocols([]);
+    setSelectedAlerts([]);
+    setNote("");
+  }, [categoryId]);
+
+  useEffect(() => {
+    if (!subtaskOptions.some((option) => option.value === subtask)) {
+      setSubtask("");
+    }
+  }, [subtask, subtaskOptions]);
+
+  useEffect(() => {
+    if (!outcomeOptions.some((option) => option.value === outcome)) {
+      setOutcome("");
+    }
+  }, [outcome, outcomeOptions]);
+
+  useEffect(() => {
+    if (!assistanceOptions.some((option) => option.value === assistance)) {
+      setAssistance("");
+    }
+  }, [assistance, assistanceOptions]);
+
+  const activeTokens = useMemo(
+    () =>
+      uniqueValues([
+        categoryId,
+        outcome,
+        assistance,
+        engagement,
+        ...selectedRisks,
+        ...selectedProtocols,
+        ...selectedAlerts,
+      ]),
+    [assistance, categoryId, engagement, outcome, selectedAlerts, selectedProtocols, selectedRisks]
+  );
+
+  const matchedRuleMappings = useMemo(
+    () => (ruleMappingTable.mappings || []).filter((mapping) => matchRuleExpression(mapping.when, activeTokens)),
+    [activeTokens]
+  );
+
+  const activeCatalogModules = useMemo(() => {
+    const taskModules = runtimeMap?.taskModules?.[categoryId] || [];
+    const activatedModuleIds = collectActivatedModuleIds({
+      activeTokens,
+      runtimeRuleMap: runtimeMap,
+      extraRuleMappings: matchedRuleMappings,
+    });
+    return getModuleObjects([...taskModules, ...activatedModuleIds]);
+  }, [activeTokens, categoryId, matchedRuleMappings, runtimeMap]);
+
+  const activeRules = useMemo(
+    () =>
+      uniqueValues([
+        ...((runtimeMap?.moduleRules || [])
+          .filter((rule) => matchRuleExpression(rule.when, activeTokens))
+          .map((rule) => `${rule.when} -> ${(rule.activate || []).join(", ")}`)),
+        ...matchedRuleMappings.map((mapping) => `${mapping.when} -> ${(mapping.activate || []).join(", ")}`),
+      ]),
+    [activeTokens, matchedRuleMappings, runtimeMap]
+  );
+
+  const categoryLabel =
+    categoryOptions.find((item) => item.value === categoryId)?.label || titleCaseValue(categoryId || "task");
+  const subtaskLabel = subtaskOptions.find((item) => item.value === subtask)?.label || "";
+  const generatedPreview = useMemo(
+    () =>
+      buildGenericWorkflowGeneratedPreview({
+        workflowLabel,
+        taskLabel: categoryLabel,
+        subtaskLabel,
+        outcome,
+        assistance,
+        engagement,
+        selectedRisks,
+        selectedProtocols,
+        selectedAlerts,
+        note,
+        titleCaseValue,
+        formatValue,
+      }),
+    [
+      assistance,
+      categoryLabel,
+      engagement,
+      formatValue,
+      note,
+      outcome,
+      selectedAlerts,
+      selectedProtocols,
+      selectedRisks,
+      subtaskLabel,
+      titleCaseValue,
+      workflowLabel,
+    ]
+  );
+
+  const toggleMultiSelect = (value, setter) => {
+    setter((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  };
+
+  const StepCard = ({ index, title, hint, locked, children }) => (
+    <View style={[styles.dspStepCard, locked && styles.dspStepCardLocked]}>
+      <View style={styles.dspStepHeader}>
+        <View style={styles.dspStepNumber}>
+          <Text style={styles.dspStepNumberText}>{index}</Text>
+        </View>
+        <View style={styles.dspStepHeaderCopy}>
+          <Text style={styles.dspStepTitle}>{title}</Text>
+          {hint ? <Text style={styles.dspStepHint}>{hint}</Text> : null}
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+
+  if (!config) {
+    return (
+      <Card title={workflowLabel} containerStyle={styles.dspInputCard} bodyStyle={styles.dspInputCardBody}>
+        <Text style={styles.dspInputLead}>No workflow configuration is available yet.</Text>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title={config.title || `${workflowLabel} Input Section`} containerStyle={styles.dspInputCard} bodyStyle={styles.dspInputCardBody}>
+      <Text style={styles.dspInputLead}>{config.description}</Text>
+      <View style={styles.dspQuestionFlowCard}>
+        {(config.questionSteps || []).map((step, index) => (
+          <View key={step} style={styles.dspQuestionFlowRow}>
+            <View style={styles.dspQuestionFlowIndex}>
+              <Text style={styles.dspQuestionFlowIndexText}>{index + 1}</Text>
+            </View>
+            <Text style={styles.dspQuestionFlowText}>{step}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.dspBathingExampleCard}>
+        <Text style={styles.dspRuntimeHeading}>Build order</Text>
+        <Text style={styles.dspRuntimeMeta}>{config.buildOrderMessage}</Text>
+      </View>
+      <View style={styles.dspStepStack}>
+        <StepCard index={1} title={config.questionSteps?.[0] || `What ${workflowLabel.toLowerCase()} task was supported?`} hint="Select the task, then narrow to an optional subtask.">
+          <View style={[styles.dspInputGrid, isPhone && styles.dspInputGridPhone]}>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Task</Text>
+              <DecisionDropdown
+                value={categoryOptions.find((item) => item.value === categoryId)?.label || ""}
+                options={categoryOptions}
+                placeholder="Select task"
+                dropdownId={`${moduleKey}-task`}
+                activeDropdown={activeDropdown}
+                onToggleDropdown={setActiveDropdown}
+                onChange={setCategoryId}
+                fieldStyle={styles.dspInputDropdown}
+              />
+            </View>
+            <View style={styles.dspInputField}>
+              <Text style={styles.dspInputLabel}>Subtask</Text>
+              <DecisionDropdown
+                value={subtaskOptions.find((item) => item.value === subtask)?.label || ""}
+                options={subtaskOptions}
+                placeholder={subtaskOptions.length ? "Optional subtask" : "No subtasks for this task yet"}
+                dropdownId={`${moduleKey}-subtask`}
+                activeDropdown={activeDropdown}
+                onToggleDropdown={setActiveDropdown}
+                onChange={setSubtask}
+                fieldStyle={styles.dspInputDropdown}
+              />
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={2} title={config.questionSteps?.[1] || "What was the outcome?"} hint="Outcome sets the note direction and follow-up." locked={!categoryId}>
+          <DecisionDropdown
+            value={outcomeOptions.find((item) => item.value === outcome)?.label || ""}
+            options={outcomeOptions}
+            placeholder="Select outcome"
+            dropdownId={`${moduleKey}-outcome`}
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setOutcome}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={3} title={config.questionSteps?.[2] || "What assistance was provided?"} hint="Use the structured assistance states before rules fire." locked={!outcome}>
+          <DecisionDropdown
+            value={assistanceOptions.find((item) => item.value === assistance)?.label || ""}
+            options={assistanceOptions}
+            placeholder="Select assistance"
+            dropdownId={`${moduleKey}-assistance`}
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setAssistance}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={4} title={config.questionSteps?.[3] || "How did the person engage during the task?"} hint="Engagement helps explain cueing, re-engagement, and tolerance." locked={!assistance}>
+          <DecisionDropdown
+            value={engagementOptions.find((item) => item.value === engagement)?.label || ""}
+            options={engagementOptions}
+            placeholder="Select engagement"
+            dropdownId={`${moduleKey}-engagement`}
+            activeDropdown={activeDropdown}
+            onToggleDropdown={setActiveDropdown}
+            onChange={setEngagement}
+            fieldStyle={styles.dspInputDropdown}
+          />
+        </StepCard>
+        <StepCard index={5} title={config.questionSteps?.[4] || "Were any risks or protocols active?"} hint="Leave unselected if none were active." locked={!engagement && !assistance}>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Risks</Text>
+            <View style={styles.dspInputChipRow}>
+              {riskOptions.length ? riskOptions.map((item) => (
+                <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedRisks)} style={[styles.dspInputChip, selectedRisks.includes(item) && styles.dspInputChipActive]}>
+                  <Text style={[styles.dspInputChipText, selectedRisks.includes(item) && styles.dspInputChipTextActive]}>{titleCaseValue(item)}</Text>
+                </Pressable>
+              )) : <Text style={styles.dspRuntimeMeta}>No task-specific risks configured yet.</Text>}
+            </View>
+          </View>
+          <View style={styles.dspInputSection}>
+            <Text style={styles.dspInputLabel}>Protocols</Text>
+            <View style={styles.dspInputChipRow}>
+              {protocolOptions.length ? protocolOptions.map((item) => (
+                <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedProtocols)} style={[styles.dspInputChip, selectedProtocols.includes(item) && styles.dspInputChipActive]}>
+                  <Text style={[styles.dspInputChipText, selectedProtocols.includes(item) && styles.dspInputChipTextActive]}>{titleCaseValue(item)}</Text>
+                </Pressable>
+              )) : <Text style={styles.dspRuntimeMeta}>No task-specific protocols configured yet.</Text>}
+            </View>
+          </View>
+        </StepCard>
+        <StepCard index={6} title={config.questionSteps?.[5] || "Were any alerts present?"} hint="Use only real follow-up items." locked={!categoryId}>
+          <View style={styles.dspInputChipRow}>
+            {alertOptions.length ? alertOptions.map((item) => (
+              <Pressable key={item} onPress={() => toggleMultiSelect(item, setSelectedAlerts)} style={[styles.dspInputChip, selectedAlerts.includes(item) && styles.dspInputChipAlertActive]}>
+                <Text style={[styles.dspInputChipText, selectedAlerts.includes(item) && styles.dspInputChipTextActive]}>{titleCaseValue(item)}</Text>
+              </Pressable>
+            )) : <Text style={styles.dspRuntimeMeta}>No task-specific alerts configured yet.</Text>}
+          </View>
+        </StepCard>
+        <StepCard index={7} title={config.questionSteps?.[6] || `Add a ${workflowLabel.toLowerCase()} note.`} hint="Use this only for context that the structured choices do not already capture." locked={!categoryId}>
+          <TextInput value={note} onChangeText={setNote} placeholder={`${workflowLabel} note`} placeholderTextColor={colors.placeholder} multiline style={[styles.decisionRowInput, styles.dspInputNote]} />
+        </StepCard>
+      </View>
+      <View style={[styles.dspRuntimeSummaryCard, isPhone && styles.dspRuntimeSummaryCardPhone]}>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Runtime Summary</Text>
+          <Text style={styles.dspRuntimeSummaryText}>{categoryId ? `${categoryLabel} ${workflowLabel.toLowerCase()} flow is active.` : `Select a ${workflowLabel.toLowerCase()} task to begin.`}</Text>
+        </View>
+        <View style={styles.dspRuntimeColumn}>
+          <Text style={styles.dspRuntimeHeading}>Active Modules</Text>
+          <View style={styles.dspInputChipRow}>
+            {activeCatalogModules.length ? activeCatalogModules.map((module) => (
+              <View key={module.moduleId} style={styles.dspRuntimeModulePill}>
+                <Text style={styles.dspRuntimeModulePillText}>{module.label}</Text>
+              </View>
+            )) : <Text style={styles.dspRuntimeMeta}>Select {workflowLabel.toLowerCase()} inputs to activate modules.</Text>}
+          </View>
+        </View>
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Automatic Rules</Text>
+        {activeRules.length ? activeRules.map((rule) => <Text key={rule} style={styles.dspRuntimeMeta}>{rule}</Text>) : <Text style={styles.dspRuntimeMeta}>Choose {workflowLabel.toLowerCase()} context to trigger rules.</Text>}
+      </View>
+      <View style={styles.dspRuntimeSummaryCard}>
+        <Text style={styles.dspRuntimeHeading}>Generated Note Output</Text>
+        <Text style={styles.dspRuntimeSummaryText}>{generatedPreview}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function CommunicationInputFlowScreen({ isPhone }) {
+  return <GenericTaskInputFlowScreen isPhone={isPhone} workflowId="communication-support" moduleKey="communication" />;
+}
+
+function MedicationInputFlowScreen({ isPhone }) {
+  return <GenericTaskInputFlowScreen isPhone={isPhone} workflowId="medication-support" moduleKey="medication" />;
+}
+
+function MealSupportInputFlowScreen({ isPhone }) {
+  return <GenericTaskInputFlowScreen isPhone={isPhone} workflowId="feeding-support" moduleKey="meal-support" />;
+}
+
+function MobilityInputFlowScreen({ isPhone }) {
+  return <GenericTaskInputFlowScreen isPhone={isPhone} workflowId="mobility" moduleKey="mobility" />;
+}
+
+function SafetyMonitoringInputFlowScreen({ isPhone }) {
+  return <GenericTaskInputFlowScreen isPhone={isPhone} workflowId="in-home-leisure" moduleKey="safety-monitoring" />;
+}
+
+function SleepSupportInputFlowScreen({ isPhone }) {
+  return <GenericTaskInputFlowScreen isPhone={isPhone} workflowId="night-adl" moduleKey="sleep-support" />;
+}
+
 export default function App() {
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") {
@@ -10737,10 +15047,22 @@ export default function App() {
   const activeIspRows = activeClientProfile.ispRows ?? ispRows;
   const clientSuggestions = searchClients(individualQuery);
   const showCarePlan = selectedModule === "Care Plan";
-  const showDecisionEngine = selectedModule === "Decision Engine";
+  const showCommunicationInputFlow = selectedModule === "Communication Input Flow";
+  const showCommunityInputFlow = selectedModule === "Community Input Flow";
+  const showDocumentationCoordinationInputFlow = selectedModule === "Documentation and Coordination Input Flow";
+  const showDspInputFlow = selectedModule === "DSP Input Flow";
+  const showHealthSafetyInputFlow = selectedModule === "Health and Safety Input Flow";
+  const showBehavioralInputFlow = selectedModule === "Behavioral Input Flow";
+  const showIadlInputFlow = selectedModule === "IADL Input Flow";
+  const showMealSupportInputFlow = selectedModule === "Meal Support Input Flow";
+  const showMedicationInputFlow = selectedModule === "Medication Input Flow";
+  const showMobilityInputFlow = selectedModule === "Mobility Input Flow";
+  const showSafetyMonitoringInputFlow = selectedModule === "Safety Monitoring Input Flow";
+  const showSleepSupportInputFlow = selectedModule === "Sleep Support Input Flow";
+  const showDecisionEngine = selectedModule === "Supervisor Setup";
   const showDocumentationGuide = selectedModule === "Documentation Guide";
   const defaultCaseNoteTemplate = createDocumentationSession({
-    title: "Case Note (Decision Engine)",
+    title: "Case Note (Supervisor Setup)",
     program: "Case Note",
     sessionType: "case-note",
     clientProfile: activeClientProfile,
@@ -10779,8 +15101,32 @@ export default function App() {
       : "Documentation"
     : showCarePlan
       ? "Care Plan"
+      : showCommunicationInputFlow
+        ? "Communication Input Flow"
+      : showCommunityInputFlow
+        ? "Community Input Flow"
+      : showDocumentationCoordinationInputFlow
+        ? "Documentation and Coordination Input Flow"
+      : showDspInputFlow
+        ? "DSP Input Flow"
+      : showHealthSafetyInputFlow
+        ? "Health and Safety Input Flow"
+      : showBehavioralInputFlow
+        ? "Behavioral Input Flow"
+      : showIadlInputFlow
+        ? "IADL Input Flow"
+      : showMealSupportInputFlow
+        ? "Meal Support Input Flow"
+      : showMedicationInputFlow
+        ? "Medication Input Flow"
+      : showMobilityInputFlow
+        ? "Mobility Input Flow"
+      : showSafetyMonitoringInputFlow
+        ? "Safety Monitoring Input Flow"
+      : showSleepSupportInputFlow
+        ? "Sleep Support Input Flow"
       : showDecisionEngine
-        ? "Decision Engine"
+        ? "Supervisor Setup"
         : "Home";
   const topTabs = [
     ...(documentationSession?.sessionType === "case-note" ? ["Case Note"] : []),
@@ -10811,7 +15157,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     const defaultTemplate = createDocumentationSession({
-      title: "Case Note (Decision Engine)",
+      title: "Case Note (Supervisor Setup)",
       program: "Case Note",
       sessionType: "case-note",
       clientProfile: activeClientProfile,
@@ -11133,7 +15479,79 @@ export default function App() {
       return;
     }
 
-    if (item === "Decision Engine") {
+    if (item === "Communication Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Community Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Documentation and Coordination Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "DSP Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Health and Safety Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Behavioral Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "IADL Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Meal Support Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Medication Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Mobility Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Safety Monitoring Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Sleep Support Input Flow") {
+      setDocumentationSession(null);
+      setPendingDecisionAssignmentTarget(null);
+      return;
+    }
+
+    if (item === "Supervisor Setup") {
       setDocumentationSession(null);
       setPendingDecisionAssignmentTarget(null);
       return;
@@ -11154,9 +15572,12 @@ export default function App() {
     }
   };
 
-  const handleOpenDocumentationGuide = () => {
+  const handleOpenDocumentationGuide = (guideTitle = null) => {
     setSelectedModule("Documentation Guide");
     setDocumentationSession(null);
+    if (guideTitle) {
+      setExpandedDocumentationGuide(guideTitle);
+    }
   };
 
   const handleIspProgramPress = (row) => {
@@ -11479,7 +15900,15 @@ export default function App() {
               >
                 <View style={styles.pdfList}>
                   {pdfs.map((item) => (
-                    <Pressable key={item} style={styles.pdfRow} onPress={handleOpenDocumentationGuide}>
+                    <Pressable
+                      key={item}
+                      style={styles.pdfRow}
+                      onPress={() =>
+                        handleOpenDocumentationGuide(
+                          item === "Glossary" ? "Decision Algo Glossary" : null
+                        )
+                      }
+                    >
                       <Text style={styles.pdfItem}>{item}</Text>
                       <Icon name="externalLink" size={15} color={colors.link} style={styles.pdfLinkIcon} />
                     </Pressable>
@@ -11555,6 +15984,7 @@ export default function App() {
                 <DecisionEngineScreen
                   key={`decision-engine-${activeClientId}-${decisionEngineSelectionLoadToken}`}
                   isPhone={isPhone}
+                  clientProfile={activeClientProfile}
                   onStageAssignment={handleStageAssignment}
                   stagedAssignments={decisionEngineSelectionState.stagedAssignments || []}
                   finalizedAssignments={decisionEngineSelectionState.finalizedAssignments || []}
@@ -11579,6 +16009,66 @@ export default function App() {
                   onRowsChange={setDecisionEngineRows}
                   onSelectionStateChange={setDecisionEngineSelectionState}
                   externalAssignmentHint={decisionEngineHint}
+                />
+              ) : showCommunicationInputFlow ? (
+                <CommunicationInputFlowScreen
+                  key={`communication-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showCommunityInputFlow ? (
+                <CommunityInputFlowScreen
+                  key={`community-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showDocumentationCoordinationInputFlow ? (
+                <DocumentationCoordinationInputFlowScreen
+                  key={`doccoord-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showDspInputFlow ? (
+                <DspInputFlowScreen
+                  key={`dsp-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showHealthSafetyInputFlow ? (
+                <HealthSafetyInputFlowScreen
+                  key={`health-safety-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showBehavioralInputFlow ? (
+                <BehavioralInputFlowScreen
+                  key={`behavioral-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showIadlInputFlow ? (
+                <IadlInputFlowScreen
+                  key={`iadl-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showMealSupportInputFlow ? (
+                <MealSupportInputFlowScreen
+                  key={`meal-support-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showMedicationInputFlow ? (
+                <MedicationInputFlowScreen
+                  key={`medication-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showMobilityInputFlow ? (
+                <MobilityInputFlowScreen
+                  key={`mobility-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showSafetyMonitoringInputFlow ? (
+                <SafetyMonitoringInputFlowScreen
+                  key={`safety-monitoring-input-${activeClientId}`}
+                  isPhone={isPhone}
+                />
+              ) : showSleepSupportInputFlow ? (
+                <SleepSupportInputFlowScreen
+                  key={`sleep-support-input-${activeClientId}`}
+                  isPhone={isPhone}
                 />
               ) : showCarePlan ? (
                 <CarePlanDocument
@@ -12023,6 +16513,220 @@ const styles = StyleSheet.create({
     overflow: "visible",
     zIndex: 20,
   },
+  dspInputCard: {
+    borderColor: "#8fc1f4",
+    backgroundColor: "#f4f9ff",
+  },
+  dspInputCardBody: {
+    backgroundColor: "#f8fbff",
+  },
+  dspInputLead: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.muted,
+    marginBottom: 14,
+  },
+  dspQuestionFlowCard: {
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#c9def9",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    gap: 10,
+    marginBottom: 14,
+  },
+  dspQuestionFlowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  dspQuestionFlowIndex: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eaf3ff",
+    borderWidth: 1,
+    borderColor: "#bed4f4",
+  },
+  dspQuestionFlowIndexText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2459a6",
+  },
+  dspQuestionFlowText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text,
+  },
+  dspBathingExampleCard: {
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#cfe0fb",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    marginBottom: 14,
+    gap: 6,
+  },
+  dspStepStack: {
+    gap: 12,
+  },
+  dspStepCard: {
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#cfe0fb",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    gap: 12,
+  },
+  dspStepCardLocked: {
+    opacity: 0.72,
+  },
+  dspStepHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  dspStepNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4b6ee8",
+  },
+  dspStepNumberText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  dspStepHeaderCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  dspStepTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  dspStepHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.muted,
+  },
+  dspInputGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 14,
+  },
+  dspInputGridPhone: {
+    flexDirection: "column",
+  },
+  dspInputField: {
+    minWidth: 180,
+    flex: 1,
+    gap: 6,
+  },
+  dspInputLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: colors.muted,
+  },
+  dspInputDropdown: {
+    width: "100%",
+    alignSelf: "stretch",
+    minWidth: 0,
+  },
+  dspInputSection: {
+    marginBottom: 14,
+    gap: 8,
+  },
+  dspInputChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  dspInputChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#c9dbf7",
+    backgroundColor: "#ffffff",
+  },
+  dspInputChipActive: {
+    borderColor: "#3b82f6",
+    backgroundColor: "#eaf3ff",
+  },
+  dspInputChipAlertActive: {
+    borderColor: "#d9487a",
+    backgroundColor: "#fff0f5",
+  },
+  dspInputChipText: {
+    fontSize: 12,
+    color: colors.headerText,
+    fontWeight: "600",
+  },
+  dspInputChipTextActive: {
+    color: colors.headerText,
+  },
+  dspInputNote: {
+    minHeight: 92,
+    textAlignVertical: "top",
+    marginBottom: 0,
+  },
+  dspRuntimeSummaryCard: {
+    marginTop: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#d7e6fb",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    gap: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  dspRuntimeSummaryCardPhone: {
+    flexDirection: "column",
+  },
+  dspRuntimeColumn: {
+    flex: 1,
+    minWidth: 220,
+    gap: 8,
+  },
+  dspRuntimeHeading: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  dspRuntimeSummaryText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text,
+  },
+  dspRuntimeMeta: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.muted,
+  },
+  dspRuntimeModulePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "#edf5ff",
+    borderWidth: 1,
+    borderColor: "#c8dbf8",
+  },
+  dspRuntimeModulePillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#2459a6",
+  },
   decisionAssignForm: {
     width: "100%",
     marginBottom: 10,
@@ -12205,13 +16909,43 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#f9a8d4",
   },
+  decisionGuideNoteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
   decisionGuideNoteTitle: {
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.4,
     textTransform: "uppercase",
     color: "#9d174d",
-    marginBottom: 4,
+  },
+  decisionGuideNoteDismiss: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#9d174d",
+    textDecorationLine: "underline",
+  },
+  decisionGuideNoteLead: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#831843",
+    marginBottom: 8,
+  },
+  decisionGuideNoteStepPress: {
+    marginTop: 4,
+  },
+  decisionGuideNoteStep: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#831843",
+  },
+  decisionGuideNoteStepLink: {
+    fontWeight: "600",
+    textDecorationLine: "underline",
+    color: "#701a40",
   },
   decisionGuideNoteText: {
     fontSize: 12,
@@ -12278,7 +17012,90 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   rowPromptPopoverScroll: {
-    maxHeight: 260,
+    maxHeight: 420,
+  },
+  guidedPromptBuilderCard: {
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#d6ddfb",
+    borderRadius: 8,
+    backgroundColor: "#fcfbff",
+    gap: 10,
+    marginBottom: 10,
+  },
+  guidedPromptBuilderTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  guidedPromptBuilderLead: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.muted,
+  },
+  guidedPromptBuilderGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  guidedPromptBuilderField: {
+    minWidth: 150,
+    flex: 1,
+    gap: 5,
+  },
+  guidedPromptBuilderLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: colors.muted,
+  },
+  guidedPromptDropdown: {
+    width: "100%",
+    alignSelf: "stretch",
+    minWidth: 0,
+  },
+  guidedPromptBuilderChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  guidedPromptBuilderChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#d6ddfb",
+    backgroundColor: "#ffffff",
+  },
+  guidedPromptBuilderChipActive: {
+    borderColor: "#6c5ce7",
+    backgroundColor: "#efeaff",
+  },
+  guidedPromptBuilderChipText: {
+    fontSize: 11,
+    color: colors.headerText,
+    fontWeight: "600",
+  },
+  guidedPromptBuilderChipTextActive: {
+    color: "#4a3ec7",
+  },
+  guidedPromptBuilderPreview: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.text,
+  },
+  guidedPromptBuilderButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 4,
+    backgroundColor: "#5a50d6",
+  },
+  guidedPromptBuilderButtonText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#ffffff",
   },
   rowPromptSuggestionList: {
     gap: 8,
@@ -12331,8 +17148,8 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
   decisionScheduleChipText: {
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 13,
+    lineHeight: 19,
     color: colors.text,
     fontWeight: "400",
   },
@@ -12350,8 +17167,36 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 18,
   },
+  decisionScheduleSameTimeHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.muted,
+    marginBottom: 10,
+  },
   decisionTimelineBlockList: {
-    gap: 10,
+    gap: 14,
+  },
+  decisionTimelineGroup: {
+    gap: 8,
+  },
+  decisionTimelineGroupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  decisionTimelineGroupTime: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.headerText,
+  },
+  decisionTimelineGroupCount: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.topPurple,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   decisionTimelineBlockCard: {
     borderWidth: 1,
@@ -12361,6 +17206,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,
+  },
+  decisionTimelineBlockCardMultiAssigned: {
+    borderWidth: 2,
+    borderColor: colors.topPurple,
+    backgroundColor: "#f5f3ff",
+    shadowColor: colors.topPurple,
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  decisionTimelineBlockAssignedBadge: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    textTransform: "uppercase",
+    color: colors.topPurple,
+    backgroundColor: "#ede9fe",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
   },
   decisionTimelineBlockHeader: {
     flexDirection: "row",
@@ -12397,6 +17264,22 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: colors.text,
   },
+  decisionTimelineBlockActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 2,
+  },
+  decisionTimelineBlockLink: {
+    paddingVertical: 2,
+    ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
+  },
+  decisionTimelineBlockLinkText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.link,
+    textDecorationLine: "underline",
+  },
   decisionTimelineBlockDetailMuted: {
     fontSize: 13,
     lineHeight: 19,
@@ -12427,6 +17310,107 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: colors.text,
+  },
+  decisionWorkflowLinkRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 4,
+  },
+  decisionWorkflowLinkRowPhone: {
+    rowGap: 6,
+  },
+  decisionWorkflowLinkHit: {
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+    ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
+  },
+  decisionWorkflowLink: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.link,
+    textDecorationLine: "underline",
+  },
+  decisionWorkflowLinkActive: {
+    color: colors.topPurple,
+    fontWeight: "700",
+  },
+  decisionWorkflowLinkSep: {
+    fontSize: 12,
+    color: colors.muted,
+    marginHorizontal: 2,
+  },
+  decisionWorkflowLinkDetail: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.muted,
+  },
+  decisionScopeModeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
+  decisionScopeModeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.lightBorder,
+    borderRadius: 0,
+    backgroundColor: "#ffffff",
+  },
+  decisionScopeModeChipActive: {
+    borderColor: colors.topPurple,
+    backgroundColor: "rgba(124, 108, 240, 0.1)",
+  },
+  decisionScopeModeChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  decisionScopeModeChipTextActive: {
+    color: colors.topPurple,
+    fontWeight: "700",
+  },
+  decisionCategoryFilterBlock: {
+    marginBottom: 10,
+    gap: 6,
+  },
+  decisionCategoryFilterLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: colors.topPurple,
+  },
+  decisionCategoryFilterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  decisionCategoryChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#ffffff",
+  },
+  decisionCategoryChipActive: {
+    borderColor: colors.topPurple,
+    backgroundColor: "#ede9fe",
+  },
+  decisionCategoryChipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  decisionCategoryChipTextActive: {
+    color: colors.topPurple,
+  },
+  decisionInlineHintWarn: {
+    color: "#9a3412",
   },
   decisionToolbarPhone: {
     flexDirection: "column",
@@ -12886,18 +17870,25 @@ const styles = StyleSheet.create({
   },
   decisionSectionBulkRow: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 12,
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  decisionSectionBulkAction: {
-    paddingVertical: 4,
-    paddingHorizontal: 2,
-  },
-  decisionSectionBulkActionText: {
+  decisionSectionBulkLabel: {
     fontSize: 12,
-    fontWeight: "600",
-    color: colors.link,
+    fontWeight: "700",
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
+  },
+  decisionSectionBulkDropdown: {
+    minWidth: 168,
+    maxWidth: 220,
+  },
+  decisionSectionViewDropdown: {
+    minWidth: 96,
+    maxWidth: 120,
   },
   decisionSectionCard: {
     backgroundColor: "#ffffff",
@@ -12914,6 +17905,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 13,
     backgroundColor: "#f6f0ff",
+    gap: 10,
+  },
+  decisionSectionHeaderToggle: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+    minWidth: 0,
+    paddingRight: 8,
     ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
   },
   decisionSectionHeaderCollapsed: {
@@ -13267,65 +18267,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: colors.muted,
-  },
-  finalDraftChoiceRow: {
-    marginTop: 12,
-    marginBottom: 12,
-    paddingHorizontal: 14,
-  },
-  finalDraftChoiceLabel: {
-    fontSize: 13,
-    color: colors.muted,
-    marginBottom: 8,
-    fontWeight: "700",
-  },
-  finalDraftChoiceButtons: {
-    flexDirection: "row",
-    columnGap: 8,
-  },
-  finalDraftButton: {
-    backgroundColor: colors.topPurple,
-  },
-  finalDraftCancel: {
-    backgroundColor: colors.border,
-  },
-  finalDraftPreviewCard: {
-    backgroundColor: "#fffefc",
-    borderWidth: 1,
-    borderColor: "#e8d9c8",
-    borderRadius: 8,
-    padding: 14,
-    marginHorizontal: 14,
-    marginBottom: 14,
-  },
-  finalDraftPreviewTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.headerText,
-    marginBottom: 10,
-  },
-  finalDraftPreviewBody: {
-    maxHeight: 180,
-    marginBottom: 12,
-  },
-  finalDraftPreviewText: {
-    fontSize: 13,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  finalDraftPreviewActions: {
-    flexDirection: "row",
-    columnGap: 8,
-  },
-  finalDraftStatusText: {
-    marginTop: 10,
-    color: colors.link,
-    fontSize: 12,
-  },
-  finalDraftErrorText: {
-    marginTop: 10,
-    color: colors.red,
-    fontSize: 12,
   },
   carePlanShell: {
     rowGap: 10,

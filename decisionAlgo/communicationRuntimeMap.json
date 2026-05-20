@@ -1,0 +1,26 @@
+{
+  "workflowId": "communication-support",
+  "label": "Communication Runtime Map",
+  "runtimeStates": {
+    "tasks": ["expressive_support", "receptive_support", "device_support", "appointment_call_support", "social_communication_support"],
+    "outcomes": ["completed", "partially_completed", "refused", "not_completed", "interrupted", "not_needed", "alternative_completed"],
+    "assistance": ["independent", "supervision_only", "verbal_prompt", "visual_prompt", "modeling_required", "redirection_required"],
+    "engagement": ["engaged", "hesitant", "distracted", "withdrawn", "re_engaged", "cooperative", "resistant"],
+    "riskOverlays": ["communication_breakdown_risk", "frustration_escalation_risk", "social_isolation_risk", "device_barrier_risk"],
+    "protocolOverlays": ["simple_language_cues", "communication_device_required", "approved_contact_only", "approved_support_plan_active", "documentation_required"],
+    "alerts": ["communication_breakdown", "device_issue_observed", "missed_contact_attempt", "change_in_baseline", "supervisor_notification_needed"]
+  },
+  "reusableModules": ["communication_support_module", "follow_up_review", "supervisor_notification"],
+  "taskModules": {
+    "expressive_support": ["communication_support_module"],
+    "receptive_support": ["communication_support_module"],
+    "device_support": ["communication_support_module"],
+    "appointment_call_support": ["communication_support_module", "follow_up_review"],
+    "social_communication_support": ["communication_support_module"]
+  },
+  "moduleRules": [
+    { "when": "device_support + communication_device_required", "activate": ["communication_support_module", "follow_up_review"] },
+    { "when": "communication_breakdown", "activate": ["communication_support_module", "follow_up_review", "supervisor_notification"] },
+    { "when": "missed_contact_attempt", "activate": ["follow_up_review", "supervisor_notification"] }
+  ]
+}

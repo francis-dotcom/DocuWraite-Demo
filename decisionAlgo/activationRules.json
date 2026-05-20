@@ -1,0 +1,249 @@
+{
+  "ruleSetId": "adl-activation-rules",
+  "label": "ADL Activation Rules",
+  "description": "Category-aware activation rules evaluated after workflow, category, outcome, and assistance are known.",
+  "evaluationFlow": [
+    "workflow",
+    "category",
+    "outcome",
+    "assistance",
+    "activation_rules",
+    "active_modules",
+    "module_execution"
+  ],
+  "defaults": {
+    "alwaysActivate": [
+      "outcome",
+      "assistance"
+    ]
+  },
+  "rules": [
+    {
+      "ruleId": "completed-independent-minimal",
+      "priority": 10,
+      "when": {
+        "outcome": [
+          "completed"
+        ],
+        "assistance": [
+          "independent"
+        ]
+      },
+      "thenActivate": [
+        "outcome",
+        "assistance"
+      ],
+      "reason": "Completed independently should stay minimal unless another overlay is active."
+    },
+    {
+      "ruleId": "completed-verbal-prompt",
+      "priority": 20,
+      "when": {
+        "outcome": [
+          "completed"
+        ],
+        "assistance": [
+          "verbal_prompt"
+        ]
+      },
+      "thenActivate": [
+        "outcome",
+        "assistance",
+        "prompting",
+        "participation"
+      ],
+      "reason": "Prompted completion should capture cueing and engagement quality."
+    },
+    {
+      "ruleId": "completed-partial-assist",
+      "priority": 30,
+      "when": {
+        "outcome": [
+          "completed",
+          "partially_completed"
+        ],
+        "assistance": [
+          "partial_assist"
+        ]
+      },
+      "thenActivate": [
+        "outcome",
+        "assistance",
+        "safety",
+        "physical_observation"
+      ],
+      "reason": "Partial physical support needs safety and tolerance context."
+    },
+    {
+      "ruleId": "completed-full-assist",
+      "priority": 40,
+      "when": {
+        "outcome": [
+          "completed",
+          "partially_completed"
+        ],
+        "assistance": [
+          "full_assist"
+        ]
+      },
+      "thenActivate": [
+        "outcome",
+        "assistance",
+        "safety",
+        "physical_observation",
+        "follow_up"
+      ],
+      "reason": "Full assist requires stronger safety, observation, and follow-up coverage."
+    },
+    {
+      "ruleId": "outcome-refused",
+      "priority": 90,
+      "when": {
+        "outcome": [
+          "refused"
+        ]
+      },
+      "thenActivate": [
+        "outcome",
+        "refusal",
+        "behavioral_observation",
+        "follow_up",
+        "escalation"
+      ],
+      "reason": "Refusal should always activate refusal handling and escalation review."
+    },
+    {
+      "ruleId": "outcome-not-completed",
+      "priority": 70,
+      "when": {
+        "outcome": [
+          "not_completed"
+        ]
+      },
+      "thenActivate": [
+        "outcome",
+        "follow_up",
+        "escalation"
+      ],
+      "reason": "Not completed outcomes need next-step and accountability pathways."
+    },
+    {
+      "ruleId": "outcome-incident",
+      "priority": 100,
+      "when": {
+        "outcome": [
+          "incident_occurred"
+        ]
+      },
+      "thenActivate": [
+        "incident",
+        "safety",
+        "escalation",
+        "follow_up",
+        "physical_observation"
+      ],
+      "reason": "Incident outcomes must immediately shift into incident and safety logic."
+    },
+    {
+      "ruleId": "bathing-safety-stop",
+      "priority": 95,
+      "when": {
+        "category": [
+          "bathing"
+        ],
+        "outcome": [
+          "safety_prevented_completion"
+        ]
+      },
+      "thenActivate": [
+        "safety",
+        "physical_observation",
+        "escalation",
+        "follow_up"
+      ],
+      "reason": "Bathing blocked by safety risk should open safety, observation, and escalation modules."
+    },
+    {
+      "ruleId": "toileting-full-assist",
+      "priority": 50,
+      "when": {
+        "category": [
+          "toileting"
+        ],
+        "outcome": [
+          "completed",
+          "partially_completed"
+        ],
+        "assistance": [
+          "full_assist"
+        ]
+      },
+      "thenActivate": [
+        "assistance",
+        "safety",
+        "physical_observation"
+      ],
+      "reason": "Toileting with full assist should include support, safety, and skin/tolerance observation."
+    },
+    {
+      "ruleId": "oral-care-risk-stop",
+      "priority": 85,
+      "when": {
+        "category": [
+          "oral_care"
+        ],
+        "outcome": [
+          "choking_risk_prevented_completion"
+        ]
+      },
+      "thenActivate": [
+        "safety",
+        "protocol",
+        "escalation",
+        "follow_up"
+      ],
+      "reason": "Oral care blocked by choking risk should activate protocol-aware safety follow-up."
+    },
+    {
+      "ruleId": "feeding-aspiration-stop",
+      "priority": 96,
+      "when": {
+        "category": [
+          "feeding_assistance"
+        ],
+        "outcome": [
+          "aspiration_risk_prevented_completion"
+        ]
+      },
+      "thenActivate": [
+        "safety",
+        "protocol",
+        "incident",
+        "escalation",
+        "follow_up"
+      ],
+      "reason": "Feeding blocked by aspiration risk requires protocol and escalation handling."
+    },
+    {
+      "ruleId": "transfers-safety-stop",
+      "priority": 94,
+      "when": {
+        "category": [
+          "transfers",
+          "ambulation"
+        ],
+        "outcome": [
+          "safety_prevented_completion"
+        ]
+      },
+      "thenActivate": [
+        "safety",
+        "physical_observation",
+        "incident",
+        "escalation",
+        "follow_up"
+      ],
+      "reason": "Transfer or ambulation safety stops should trigger physical and incident review."
+    }
+  ]
+}

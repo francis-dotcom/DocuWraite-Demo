@@ -1,0 +1,23 @@
+{
+  "registryId": "assistance-registry",
+  "label": "Assistance Registry",
+  "description": "Canonical assistance levels for support documentation.",
+  "states": [
+    {
+      "id": "independent",
+      "label": "Independent"
+    },
+    {
+      "id": "verbal_prompt",
+      "label": "Verbal Prompt"
+    },
+    {
+      "id": "partial_assist",
+      "label": "Partial Assist"
+    },
+    {
+      "id": "full_assist",
+      "label": "Full Assist"
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "sectionId": "communication-input-section",
+  "title": "Communication Input Section",
+  "description": "Communication-focused intake fields for a case-row note modal. The DSP selects the communication task, support used, communication barriers or devices, and any follow-up needs for the documented block.",
+  "buildOrderMessage": "Expressive Support and Device Support are the first strong communication paths to validate. Keep this section focused on support provided, barriers, effectiveness, and follow-up.",
+  "questionSteps": [
+    "What communication task was supported?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person engage during communication support?",
+    "Were any communication barriers, risks, or protocols active?",
+    "Were any alerts present?",
+    "Add a communication note."
+  ],
+  "tasks": [
+    { "value": "expressive_support", "label": "Expressive support" },
+    { "value": "receptive_support", "label": "Receptive support" },
+    { "value": "device_support", "label": "Device support" },
+    { "value": "appointment_call_support", "label": "Appointment call support" },
+    { "value": "social_communication_support", "label": "Social communication support" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "re_engaged", "label": "Re-engaged" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "visual_prompt", "label": "Visual prompt" },
+    { "value": "modeling_required", "label": "Modeling required" },
+    { "value": "redirection_required", "label": "Redirection required" }
+  ],
+  "taskDetails": {
+    "expressive_support": {
+      "subtasks": [
+        { "value": "word_finding_support", "label": "Word-finding support" },
+        { "value": "choice_prompting", "label": "Choice prompting" },
+        { "value": "needs_expression_support", "label": "Needs expression support" }
+      ],
+      "risks": ["communication_breakdown_risk", "frustration_escalation_risk", "social_isolation_risk"],
+      "protocols": ["simple_language_cues", "approved_support_plan_active", "documentation_required"],
+      "alerts": ["communication_breakdown", "change_in_baseline", "supervisor_notification_needed"]
+    },
+    "receptive_support": {
+      "subtasks": [
+        { "value": "instruction_repetition", "label": "Instruction repetition" },
+        { "value": "visual_reinforcement", "label": "Visual reinforcement" },
+        { "value": "check_for_understanding", "label": "Check for understanding" }
+      ],
+      "risks": ["communication_breakdown_risk", "frustration_escalation_risk"],
+      "protocols": ["simple_language_cues", "documentation_required"],
+      "alerts": ["communication_breakdown", "change_in_baseline", "supervisor_notification_needed"]
+    },
+    "device_support": {
+      "subtasks": [
+        { "value": "hearing_aid_support", "label": "Hearing-aid support" },
+        { "value": "communication_device_setup", "label": "Communication device set-up" },
+        { "value": "device_prompting", "label": "Device prompting" }
+      ],
+      "risks": ["device_barrier_risk", "communication_breakdown_risk"],
+      "protocols": ["communication_device_required", "documentation_required"],
+      "alerts": ["device_issue_observed", "communication_breakdown", "supervisor_notification_needed"]
+    },
+    "appointment_call_support": {
+      "subtasks": [
+        { "value": "call_initiation", "label": "Call initiation" },
+        { "value": "message_relay", "label": "Message relay" },
+        { "value": "follow_up_call", "label": "Follow-up call" }
+      ],
+      "risks": ["communication_breakdown_risk", "device_barrier_risk"],
+      "protocols": ["approved_contact_only", "documentation_required"],
+      "alerts": ["missed_contact_attempt", "supervisor_notification_needed"]
+    },
+    "social_communication_support": {
+      "subtasks": [
+        { "value": "peer_interaction_support", "label": "Peer interaction support" },
+        { "value": "conversation_prompting", "label": "Conversation prompting" },
+        { "value": "boundary_reminder", "label": "Boundary reminder" }
+      ],
+      "risks": ["frustration_escalation_risk", "social_isolation_risk"],
+      "protocols": ["approved_support_plan_active", "documentation_required"],
+      "alerts": ["communication_breakdown", "supervisor_notification_needed"]
+    }
+  }
+}

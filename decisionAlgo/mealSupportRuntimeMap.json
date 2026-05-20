@@ -1,0 +1,27 @@
+{
+  "workflowId": "feeding-support",
+  "label": "Meal Support Runtime Map",
+  "runtimeStates": {
+    "tasks": ["meal_setup", "meal_support", "snack_support", "beverage_support", "intake_monitoring"],
+    "outcomes": ["completed", "partially_completed", "refused", "not_completed", "interrupted", "not_needed", "alternative_completed"],
+    "assistance": ["independent", "supervision_only", "verbal_prompt", "setup_assistance", "partial_assist", "full_assist"],
+    "engagement": ["engaged", "hesitant", "distracted", "withdrawn", "refused_initially", "re_engaged", "cooperative", "resistant"],
+    "riskOverlays": ["choking_risk", "aspiration_risk", "burn_risk", "dietary_noncompliance_risk", "change_in_baseline_risk", "environmental_hazard_present"],
+    "protocolOverlays": ["dietary_restrictions_active", "thickened_liquids_required", "aspiration_precautions_active", "supervision_required", "documentation_required"],
+    "alerts": ["poor_intake_observed", "choking_concern", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+  },
+  "reusableModules": ["meal_support_module", "meal_preparation_support", "dietary_compliance", "follow_up_review", "supervisor_notification"],
+  "taskModules": {
+    "meal_setup": ["meal_support_module"],
+    "meal_support": ["meal_support_module", "meal_preparation_support"],
+    "snack_support": ["meal_support_module"],
+    "beverage_support": ["meal_support_module", "dietary_compliance"],
+    "intake_monitoring": ["follow_up_review"]
+  },
+  "moduleRules": [
+    { "when": "meal_support + choking_risk", "activate": ["meal_support_module", "dietary_compliance", "follow_up_review"] },
+    { "when": "dietary_restrictions_active", "activate": ["dietary_compliance"] },
+    { "when": "thickened_liquids_required", "activate": ["dietary_compliance", "follow_up_review"] },
+    { "when": "poor_intake_observed", "activate": ["follow_up_review", "supervisor_notification"] }
+  ]
+}

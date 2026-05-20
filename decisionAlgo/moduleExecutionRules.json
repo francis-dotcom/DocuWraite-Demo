@@ -1,0 +1,239 @@
+{
+  "ruleSetId": "module-execution-rules",
+  "label": "Module Execution Rules",
+  "description": "Conditional rules that activate reusable modules and define the DSP-visible prompts those modules execute.",
+  "executionModel": {
+    "description": "When a condition matches, activate the listed modules and render their prompts in execution order.",
+    "steps": [
+      "Evaluate condition",
+      "Activate modules",
+      "Render module prompts",
+      "Collect DSP responses",
+      "Evaluate downstream escalation and follow-up conditions"
+    ],
+    "mergeStrategy": "union_with_order"
+  },
+  "rules": [
+    {
+      "ruleId": "assistance-full-assist-execution",
+      "if": {
+        "assistance": "full_assist"
+      },
+      "then": {
+        "activateModules": [
+          "assistance",
+          "safety"
+        ],
+        "executionOrder": [
+          "assistance",
+          "safety"
+        ],
+        "moduleExecutions": [
+          {
+            "moduleId": "assistance",
+            "moduleLabel": "Assistance Module",
+            "prompts": [
+              "What type of full assistance was required?",
+              "Was the support one-person or two-person assist?",
+              "Was hand-over-hand support used?",
+              "Did the client tolerate the assistance provided?"
+            ]
+          },
+          {
+            "moduleId": "safety",
+            "moduleLabel": "Safety Module",
+            "prompts": [
+              "Were all safety precautions followed?",
+              "Were mobility aids or transfer supports used correctly?",
+              "Were there any balance, fall, or positioning concerns?",
+              "Was any follow-up safety action required?"
+            ]
+          }
+        ]
+      },
+      "rationale": "Full assist should automatically expand both support-level and safety documentation."
+    },
+    {
+      "ruleId": "outcome-refused-execution",
+      "if": {
+        "outcome": "refused"
+      },
+      "then": {
+        "activateModules": [
+          "outcome",
+          "refusal",
+          "behavioral_observation",
+          "follow_up",
+          "escalation"
+        ],
+        "executionOrder": [
+          "outcome",
+          "refusal",
+          "behavioral_observation",
+          "follow_up",
+          "escalation"
+        ],
+        "moduleExecutions": [
+          {
+            "moduleId": "outcome",
+            "moduleLabel": "Outcome Module",
+            "prompts": [
+              "Was the task fully refused, partially refused, or deferred?",
+              "At what point in the activity did the refusal occur?"
+            ]
+          },
+          {
+            "moduleId": "refusal",
+            "moduleLabel": "Refusal Module",
+            "prompts": [
+              "What was the reason for refusal?",
+              "Was redirection attempted?",
+              "Was an alternative offered?",
+              "Was escalation required?"
+            ]
+          },
+          {
+            "moduleId": "behavioral_observation",
+            "moduleLabel": "Behavioral Observation Module",
+            "prompts": [
+              "What was the client's presentation during refusal?",
+              "Was the client calm, anxious, agitated, withdrawn, or distressed?",
+              "Were there any behavioral escalation signs?"
+            ]
+          },
+          {
+            "moduleId": "follow_up",
+            "moduleLabel": "Follow-Up Module",
+            "prompts": [
+              "Should staff monitor and retry later?",
+              "Does this need to be communicated at handoff?",
+              "Does this refusal show a pattern that should be tracked?"
+            ]
+          },
+          {
+            "moduleId": "escalation",
+            "moduleLabel": "Escalation Module",
+            "prompts": [
+              "Was supervisor notification required?",
+              "Did the refusal create a health or safety concern?",
+              "Was an incident report or urgent action needed?"
+            ]
+          }
+        ]
+      },
+      "rationale": "Refusal should consistently open structured refusal handling and downstream review."
+    },
+    {
+      "ruleId": "safety-fall-concern-execution",
+      "if": {
+        "safety": "fall_concern"
+      },
+      "then": {
+        "activateModules": [
+          "safety",
+          "risk_overlay",
+          "physical_observation",
+          "escalation"
+        ],
+        "executionOrder": [
+          "safety",
+          "physical_observation",
+          "risk_overlay",
+          "escalation"
+        ],
+        "moduleExecutions": [
+          {
+            "moduleId": "safety",
+            "moduleLabel": "Safety Module",
+            "prompts": [
+              "What fall concern was observed?",
+              "Did the client lose balance, stumble, or require urgent support?",
+              "Were immediate safety interventions provided?"
+            ]
+          },
+          {
+            "moduleId": "physical_observation",
+            "moduleLabel": "Physical Observation Module",
+            "prompts": [
+              "Were pain, weakness, abnormal gait, or fatigue observed?",
+              "Was any injury or discomfort reported or visible?"
+            ]
+          },
+          {
+            "moduleId": "risk_overlay",
+            "moduleLabel": "Risk Overlay Module",
+            "prompts": [
+              "Is this consistent with known fall risk?",
+              "Does this change future supervision or transfer needs?"
+            ]
+          },
+          {
+            "moduleId": "escalation",
+            "moduleLabel": "Escalation Module",
+            "prompts": [
+              "Was supervisor notification required?",
+              "Did this event require incident documentation or urgent follow-up?"
+            ]
+          }
+        ]
+      },
+      "rationale": "Fall-related safety concerns should broaden into observation, risk context, and escalation."
+    },
+    {
+      "ruleId": "risk-aspiration-execution",
+      "if": {
+        "riskOverlay": "aspiration_risk"
+      },
+      "then": {
+        "activateModules": [
+          "risk_overlay",
+          "feeding_and_swallowing",
+          "protocol",
+          "safety"
+        ],
+        "executionOrder": [
+          "risk_overlay",
+          "feeding_and_swallowing",
+          "protocol",
+          "safety"
+        ],
+        "moduleExecutions": [
+          {
+            "moduleId": "risk_overlay",
+            "moduleLabel": "Risk Overlay Module",
+            "prompts": [
+              "Was aspiration risk relevant during this support?",
+              "Did the activity require aspiration-aware support adjustments?"
+            ]
+          },
+          {
+            "moduleId": "feeding_and_swallowing",
+            "moduleLabel": "Feeding & Swallowing Module",
+            "prompts": [
+              "Were there any swallowing concerns?",
+              "Were food texture and liquid consistency requirements followed?",
+              "Were adaptive feeding supports used?"
+            ]
+          },
+          {
+            "moduleId": "protocol",
+            "moduleLabel": "Protocol Module",
+            "prompts": [
+              "Were aspiration precautions followed?",
+              "Was protocol compliance maintained throughout the activity?"
+            ]
+          },
+          {
+            "moduleId": "safety",
+            "moduleLabel": "Safety Module",
+            "prompts": [
+              "Were there any coughing, choking, or respiratory safety concerns?",
+              "Was follow-up action required?"
+            ]
+          }
+        ]
+      },
+      "rationale": "Aspiration risk should inject feeding, protocol, and safety logic automatically."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "templateId": "generated-note-output-template",
+  "label": "Generated Note Output Template",
+  "outputs": [
+    "structured_selections",
+    "generated_note",
+    "alerts_and_follow_up",
+    "supervisor_review_flags"
+  ],
+  "sections": [
+    {
+      "id": "header",
+      "label": "Task Header",
+      "fields": [
+        "workflow",
+        "category",
+        "outcome",
+        "assistance"
+      ]
+    },
+    {
+      "id": "support_rendered",
+      "label": "Support Rendered",
+      "fields": [
+        "active_modules",
+        "engagement",
+        "risks_protocols"
+      ]
+    },
+    {
+      "id": "narrative",
+      "label": "Generated Note",
+      "fields": [
+        "note"
+      ]
+    },
+    {
+      "id": "follow_up",
+      "label": "Follow-Up",
+      "fields": [
+        "alerts",
+        "supervisor_flags"
+      ]
+    }
+  ]
+}

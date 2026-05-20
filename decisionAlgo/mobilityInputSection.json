@@ -1,0 +1,100 @@
+{
+  "sectionId": "mobility-input-section",
+  "title": "Mobility Input Section",
+  "description": "Mobility-focused intake fields for a case-row note modal. The DSP selects the mobility task, support level, mobility precautions, and any follow-up needs for the documented block.",
+  "buildOrderMessage": "Transfers and Ambulation Support are the first strong mobility paths to validate. Keep this section focused on support provided, safe movement, tolerance, and follow-up.",
+  "questionSteps": [
+    "What mobility task was supported?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person engage during mobility support?",
+    "Were any mobility risks or protocols active?",
+    "Were any alerts present?",
+    "Add a mobility note."
+  ],
+  "tasks": [
+    { "value": "transfers", "label": "Transfers" },
+    { "value": "ambulation_support", "label": "Ambulation support" },
+    { "value": "wheelchair_support", "label": "Wheelchair support" },
+    { "value": "positioning_support", "label": "Positioning support" },
+    { "value": "gait_monitoring", "label": "Gait monitoring" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "standby_assist", "label": "Standby assist" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "partial_assist", "label": "Partial assist" },
+    { "value": "full_assist", "label": "Full assist" },
+    { "value": "two_person_assist", "label": "Two-person assist" }
+  ],
+  "taskDetails": {
+    "transfers": {
+      "subtasks": [
+        { "value": "bed_to_chair", "label": "Bed to chair" },
+        { "value": "chair_to_toilet", "label": "Chair to toilet" },
+        { "value": "sit_to_stand", "label": "Sit to stand" }
+      ],
+      "risks": ["fall_risk", "injury_risk", "environmental_hazard_present"],
+      "protocols": ["gait_belt_required", "two_person_transfer_required", "documentation_required"],
+      "alerts": ["near_fall_observed", "pain_reported", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    },
+    "ambulation_support": {
+      "subtasks": [
+        { "value": "hallway_walk", "label": "Hallway walk" },
+        { "value": "community_transition", "label": "Community transition" },
+        { "value": "rest_break_support", "label": "Rest-break support" }
+      ],
+      "risks": ["fall_risk", "fatigue_risk", "environmental_hazard_present"],
+      "protocols": ["walker_required", "line_of_sight_required", "documentation_required"],
+      "alerts": ["near_fall_observed", "change_in_baseline", "supervisor_notification_needed"]
+    },
+    "wheelchair_support": {
+      "subtasks": [
+        { "value": "wheelchair_positioning", "label": "Wheelchair positioning" },
+        { "value": "brake_check", "label": "Brake check" },
+        { "value": "transport_support", "label": "Transport support" }
+      ],
+      "risks": ["fall_risk", "environmental_hazard_present"],
+      "protocols": ["wheelchair_safety_checks_required", "documentation_required"],
+      "alerts": ["change_in_baseline", "supervisor_notification_needed"]
+    },
+    "positioning_support": {
+      "subtasks": [
+        { "value": "chair_positioning", "label": "Chair positioning" },
+        { "value": "bed_positioning", "label": "Bed positioning" },
+        { "value": "pressure_relief", "label": "Pressure relief" }
+      ],
+      "risks": ["skin_breakdown_risk", "fall_risk", "injury_risk"],
+      "protocols": ["q2_positioning_required", "documentation_required"],
+      "alerts": ["pain_reported", "change_in_baseline", "nurse_notification_needed"]
+    },
+    "gait_monitoring": {
+      "subtasks": [
+        { "value": "gait_observation", "label": "Gait observation" },
+        { "value": "fatigue_monitoring", "label": "Fatigue monitoring" },
+        { "value": "balance_check", "label": "Balance check" }
+      ],
+      "risks": ["fall_risk", "fatigue_risk", "injury_risk"],
+      "protocols": ["gait_belt_required", "line_of_sight_required", "documentation_required"],
+      "alerts": ["near_fall_observed", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    }
+  }
+}

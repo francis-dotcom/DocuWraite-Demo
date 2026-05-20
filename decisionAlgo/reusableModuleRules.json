@@ -1,0 +1,706 @@
+{
+  "ruleSetId": "reusable-module-activation-rules",
+  "label": "Reusable Module Activation Rules",
+  "description": "Rules that determine which reusable modules activate when specific states, risks, or workflow conditions are present.",
+  "evaluationModel": {
+    "description": "Evaluate rules from highest severity to lowest, then merge all activated modules.",
+    "order": [
+      "incident_and_emergency",
+      "protocol_and_risk",
+      "outcome_and_assistance",
+      "behavior_and_participation",
+      "clinical_and_observation",
+      "follow_up_and_quality"
+    ],
+    "mergeStrategy": "union",
+    "notes": [
+      "Multiple rules may activate at the same time.",
+      "Global overlays should remain active across categories when triggered.",
+      "Incident, protocol, and emergency rules should take precedence over routine workflow paths."
+    ]
+  },
+  "defaults": {
+    "alwaysActivate": [
+      "outcome",
+      "assistance"
+    ],
+    "conditionalDefaults": [
+      {
+        "if": {
+          "workflowFamily": [
+            "adl",
+            "mobility",
+            "feeding",
+            "bathing",
+            "community"
+          ]
+        },
+        "thenActivate": [
+          "safety"
+        ]
+      }
+    ]
+  },
+  "rules": [
+    {
+      "ruleId": "assistance-full-assist",
+      "priority": 90,
+      "when": {
+        "assistance": [
+          "full_assist"
+        ]
+      },
+      "thenActivate": [
+        "assistance",
+        "safety"
+      ],
+      "reason": "Full physical support increases immediate safety monitoring needs."
+    },
+    {
+      "ruleId": "assistance-hand-over-hand",
+      "priority": 88,
+      "when": {
+        "assistance": [
+          "hand_over_hand"
+        ]
+      },
+      "thenActivate": [
+        "assistance",
+        "prompting",
+        "participation",
+        "safety"
+      ],
+      "reason": "Hand-over-hand support usually implies both cueing and hands-on safety involvement."
+    },
+    {
+      "ruleId": "assistance-partial-assist",
+      "priority": 80,
+      "when": {
+        "assistance": [
+          "partial_assist"
+        ]
+      },
+      "thenActivate": [
+        "assistance",
+        "safety"
+      ],
+      "reason": "Partial assistance still requires documentation of support level and safe execution."
+    },
+    {
+      "ruleId": "prompting-repeated",
+      "priority": 76,
+      "when": {
+        "prompting": [
+          "repeated_prompting"
+        ]
+      },
+      "thenActivate": [
+        "prompting",
+        "participation",
+        "behavioral_observation"
+      ],
+      "reason": "Repeated prompting often signals reduced engagement, resistance, or regulation issues."
+    },
+    {
+      "ruleId": "prompting-redirection",
+      "priority": 75,
+      "when": {
+        "prompting": [
+          "redirection"
+        ]
+      },
+      "thenActivate": [
+        "prompting",
+        "behavioral_observation",
+        "participation"
+      ],
+      "reason": "Redirection implies behavioral or attentional context that should be captured."
+    },
+    {
+      "ruleId": "outcome-partial",
+      "priority": 78,
+      "when": {
+        "outcome": [
+          "partial"
+        ]
+      },
+      "thenActivate": [
+        "outcome",
+        "follow_up",
+        "participation"
+      ],
+      "reason": "Partial completion should trigger follow-up and clarify engagement quality."
+    },
+    {
+      "ruleId": "outcome-refused",
+      "priority": 92,
+      "when": {
+        "outcome": [
+          "refused"
+        ]
+      },
+      "thenActivate": [
+        "outcome",
+        "refusal",
+        "behavioral_observation",
+        "follow_up",
+        "escalation"
+      ],
+      "reason": "Refusal should consistently open refusal handling, response documentation, and escalation review."
+    },
+    {
+      "ruleId": "outcome-not-completed",
+      "priority": 82,
+      "when": {
+        "outcome": [
+          "not_completed"
+        ]
+      },
+      "thenActivate": [
+        "outcome",
+        "follow_up",
+        "escalation"
+      ],
+      "reason": "Not-completed outcomes need clear next-step and accountability pathways."
+    },
+    {
+      "ruleId": "outcome-incident",
+      "priority": 100,
+      "when": {
+        "outcome": [
+          "incident_occurred"
+        ]
+      },
+      "thenActivate": [
+        "incident",
+        "safety",
+        "escalation",
+        "follow_up",
+        "compliance"
+      ],
+      "reason": "Incident outcomes must immediately shift into incident, safety, and reporting logic."
+    },
+    {
+      "ruleId": "participation-resistant",
+      "priority": 79,
+      "when": {
+        "participation": [
+          "resistant"
+        ]
+      },
+      "thenActivate": [
+        "participation",
+        "behavioral_observation",
+        "refusal",
+        "follow_up"
+      ],
+      "reason": "Resistance may represent early refusal or behavioral difficulty."
+    },
+    {
+      "ruleId": "participation-minimal",
+      "priority": 70,
+      "when": {
+        "participation": [
+          "minimally_engaged",
+          "inconsistent_engagement"
+        ]
+      },
+      "thenActivate": [
+        "participation",
+        "prompting",
+        "behavioral_observation"
+      ],
+      "reason": "Low or inconsistent engagement should deepen prompting and observation context."
+    },
+    {
+      "ruleId": "behavior-agitated",
+      "priority": 89,
+      "when": {
+        "behavioralObservation": [
+          "agitated",
+          "aggressive",
+          "emotional_distress"
+        ]
+      },
+      "thenActivate": [
+        "behavioral_observation",
+        "emotional_regulation",
+        "safety",
+        "escalation"
+      ],
+      "reason": "Escalated behavioral presentation increases safety and regulation needs."
+    },
+    {
+      "ruleId": "behavior-anxious-withdrawn",
+      "priority": 72,
+      "when": {
+        "behavioralObservation": [
+          "anxious",
+          "withdrawn"
+        ]
+      },
+      "thenActivate": [
+        "behavioral_observation",
+        "emotional_regulation",
+        "participation"
+      ],
+      "reason": "Anxiety or withdrawal often changes participation and support approach."
+    },
+    {
+      "ruleId": "emotion-trigger-observed",
+      "priority": 73,
+      "when": {
+        "emotionalRegulation": [
+          "emotional_trigger_observed",
+          "de_escalation_needed"
+        ]
+      },
+      "thenActivate": [
+        "emotional_regulation",
+        "behavioral_observation",
+        "follow_up"
+      ],
+      "reason": "Observed triggers or de-escalation needs should carry into later support planning."
+    },
+    {
+      "ruleId": "safety-concern-basic",
+      "priority": 91,
+      "when": {
+        "safety": [
+          "fall_concern",
+          "unsafe_environment",
+          "balance_issue",
+          "supervision_concern"
+        ]
+      },
+      "thenActivate": [
+        "safety",
+        "risk_overlay",
+        "escalation"
+      ],
+      "reason": "Safety signals should open both immediate safety review and risk-aware branching."
+    },
+    {
+      "ruleId": "risk-overlay-active",
+      "priority": 95,
+      "when": {
+        "riskOverlay": [
+          "fall_risk",
+          "aspiration_risk",
+          "seizure_risk",
+          "elopement_risk",
+          "choking_risk"
+        ]
+      },
+      "thenActivate": [
+        "risk_overlay",
+        "safety",
+        "compliance"
+      ],
+      "reason": "Known risks require safety reinforcement and protocol/compliance awareness."
+    },
+    {
+      "ruleId": "risk-fall",
+      "priority": 96,
+      "when": {
+        "riskOverlay": [
+          "fall_risk"
+        ]
+      },
+      "thenActivate": [
+        "mobility_support",
+        "physical_observation",
+        "supervision"
+      ],
+      "reason": "Fall risk should deepen mobility, observation, and supervision checks."
+    },
+    {
+      "ruleId": "risk-aspiration-or-choking",
+      "priority": 96,
+      "when": {
+        "riskOverlay": [
+          "aspiration_risk",
+          "choking_risk"
+        ]
+      },
+      "thenActivate": [
+        "feeding_and_swallowing",
+        "protocol",
+        "physical_observation"
+      ],
+      "reason": "Aspiration-related risks require feeding protocol overlays and clinical observation."
+    },
+    {
+      "ruleId": "risk-seizure",
+      "priority": 96,
+      "when": {
+        "riskOverlay": [
+          "seizure_risk"
+        ]
+      },
+      "thenActivate": [
+        "protocol",
+        "safety",
+        "follow_up"
+      ],
+      "reason": "Seizure risk requires protocol awareness even when no event occurred."
+    },
+    {
+      "ruleId": "risk-elopement",
+      "priority": 96,
+      "when": {
+        "riskOverlay": [
+          "elopement_risk"
+        ]
+      },
+      "thenActivate": [
+        "supervision",
+        "safety",
+        "behavioral_observation"
+      ],
+      "reason": "Elopement risk changes supervision and environmental safety needs."
+    },
+    {
+      "ruleId": "physical-observation-mild",
+      "priority": 68,
+      "when": {
+        "physicalObservation": [
+          "fatigue",
+          "discomfort"
+        ]
+      },
+      "thenActivate": [
+        "physical_observation",
+        "follow_up"
+      ],
+      "reason": "Fatigue and discomfort should be recorded and monitored."
+    },
+    {
+      "ruleId": "physical-observation-significant",
+      "priority": 87,
+      "when": {
+        "physicalObservation": [
+          "pain",
+          "swelling",
+          "skin_issue",
+          "abnormal_gait"
+        ]
+      },
+      "thenActivate": [
+        "physical_observation",
+        "safety",
+        "escalation",
+        "follow_up"
+      ],
+      "reason": "Clinically significant findings require both documentation and response planning."
+    },
+    {
+      "ruleId": "incident-any",
+      "priority": 99,
+      "when": {
+        "incident": [
+          "near_fall",
+          "injury",
+          "choking_event",
+          "aggressive_incident",
+          "medication_error"
+        ]
+      },
+      "thenActivate": [
+        "incident",
+        "safety",
+        "escalation",
+        "follow_up",
+        "compliance"
+      ],
+      "reason": "Any incident should shift the runtime into incident-response mode."
+    },
+    {
+      "ruleId": "incident-medication-error",
+      "priority": 100,
+      "when": {
+        "incident": [
+          "medication_error"
+        ]
+      },
+      "thenActivate": [
+        "medication_support",
+        "protocol",
+        "compliance"
+      ],
+      "reason": "Medication errors require medication-specific and protocol-specific handling."
+    },
+    {
+      "ruleId": "escalation-supervisor",
+      "priority": 85,
+      "when": {
+        "escalation": [
+          "supervisor_notified"
+        ]
+      },
+      "thenActivate": [
+        "escalation",
+        "follow_up"
+      ],
+      "reason": "Supervisor notification should create downstream follow-up requirements."
+    },
+    {
+      "ruleId": "escalation-incident-report",
+      "priority": 94,
+      "when": {
+        "escalation": [
+          "incident_report_needed"
+        ]
+      },
+      "thenActivate": [
+        "incident",
+        "compliance",
+        "follow_up"
+      ],
+      "reason": "Incident reports imply formal review and compliance steps."
+    },
+    {
+      "ruleId": "escalation-emergency",
+      "priority": 100,
+      "when": {
+        "escalation": [
+          "emergency_response_activated"
+        ]
+      },
+      "thenActivate": [
+        "incident",
+        "protocol",
+        "compliance",
+        "follow_up"
+      ],
+      "reason": "Emergency activation should force protocol, incident, and compliance overlays."
+    },
+    {
+      "ruleId": "medication-refused-or-side-effects",
+      "priority": 90,
+      "when": {
+        "workflowFamily": [
+          "medication"
+        ],
+        "medicationSupport": [
+          "medication_refused",
+          "side_effects_observed",
+          "adherence_concern"
+        ]
+      },
+      "thenActivate": [
+        "medication_support",
+        "refusal",
+        "physical_observation",
+        "escalation",
+        "follow_up"
+      ],
+      "reason": "Medication concerns frequently combine refusal, observation, and escalation needs."
+    },
+    {
+      "ruleId": "feeding-swallowing-concern",
+      "priority": 93,
+      "when": {
+        "workflowFamily": [
+          "feeding"
+        ],
+        "feedingAndSwallowing": [
+          "swallowing_concern",
+          "aspiration_signs"
+        ]
+      },
+      "thenActivate": [
+        "feeding_and_swallowing",
+        "safety",
+        "protocol",
+        "escalation"
+      ],
+      "reason": "Swallowing or aspiration concerns must open safety and protocol handling immediately."
+    },
+    {
+      "ruleId": "hygiene-concern",
+      "priority": 67,
+      "when": {
+        "hygieneObservation": [
+          "body_odor",
+          "poor_hygiene",
+          "skin_irritation",
+          "grooming_concern"
+        ]
+      },
+      "thenActivate": [
+        "hygiene_observation",
+        "follow_up"
+      ],
+      "reason": "Observed hygiene concerns usually require documenting trends or follow-up plans."
+    },
+    {
+      "ruleId": "supervision-concern",
+      "priority": 88,
+      "when": {
+        "supervision": [
+          "wandering_concern"
+        ]
+      },
+      "thenActivate": [
+        "supervision",
+        "safety",
+        "risk_overlay",
+        "escalation"
+      ],
+      "reason": "Wandering concern raises both safety and elopement-style review needs."
+    },
+    {
+      "ruleId": "mobility-support-intensive",
+      "priority": 84,
+      "when": {
+        "mobilitySupport": [
+          "gait_belt_used",
+          "wheelchair_support",
+          "transfer_support"
+        ]
+      },
+      "thenActivate": [
+        "mobility_support",
+        "assistance",
+        "safety"
+      ],
+      "reason": "Mobility support methods indicate hands-on assistance and safety involvement."
+    },
+    {
+      "ruleId": "communication-device-or-understanding",
+      "priority": 66,
+      "when": {
+        "communication": [
+          "receptive_understanding",
+          "communication_device_usage"
+        ]
+      },
+      "thenActivate": [
+        "communication",
+        "prompting",
+        "participation"
+      ],
+      "reason": "Communication support often intersects with cueing and engagement."
+    },
+    {
+      "ruleId": "sensory-triggered",
+      "priority": 74,
+      "when": {
+        "sensory": [
+          "sensory_sensitivity",
+          "overstimulation",
+          "calming_supports_needed",
+          "environmental_triggers"
+        ]
+      },
+      "thenActivate": [
+        "sensory",
+        "behavioral_observation",
+        "emotional_regulation"
+      ],
+      "reason": "Sensory disruption often drives behavioral and regulation responses."
+    },
+    {
+      "ruleId": "independence-skill-focus",
+      "priority": 60,
+      "when": {
+        "workflowFamily": [
+          "skill_building",
+          "adl_training"
+        ]
+      },
+      "thenActivate": [
+        "independence_skill",
+        "participation",
+        "prompting"
+      ],
+      "reason": "Skill-building workflows should consistently track cues, engagement, and independence."
+    },
+    {
+      "ruleId": "adl-training-specific",
+      "priority": 62,
+      "when": {
+        "workflowFamily": [
+          "adl_training"
+        ]
+      },
+      "thenActivate": [
+        "adl_training",
+        "independence_skill",
+        "assistance"
+      ],
+      "reason": "ADL training needs both skill-building and support-level documentation."
+    },
+    {
+      "ruleId": "protocol-active",
+      "priority": 97,
+      "when": {
+        "protocol": [
+          "seizure_protocol",
+          "diabetic_protocol",
+          "oxygen_protocol",
+          "aspiration_precautions"
+        ]
+      },
+      "thenActivate": [
+        "protocol",
+        "compliance",
+        "follow_up"
+      ],
+      "reason": "Active protocols require documentation of compliance and any necessary follow-up."
+    },
+    {
+      "ruleId": "compliance-gap",
+      "priority": 93,
+      "when": {
+        "compliance": [
+          "protocol_followed",
+          "ppe_used",
+          "safety_steps_followed",
+          "required_monitoring_completed"
+        ],
+        "expectation": "missing_or_failed"
+      },
+      "thenActivate": [
+        "compliance",
+        "escalation",
+        "follow_up"
+      ],
+      "reason": "Missed compliance steps should immediately open corrective and escalation logic."
+    },
+    {
+      "ruleId": "quality-review-assigned-nodes",
+      "priority": 50,
+      "when": {
+        "workflowFamily": [
+          "assigned_nodes",
+          "final_note",
+          "handover"
+        ]
+      },
+      "thenActivate": [
+        "ai_qa"
+      ],
+      "reason": "Draft and summary layers benefit from contradiction and omission checks."
+    },
+    {
+      "ruleId": "trend-repeated-refusal",
+      "priority": 65,
+      "when": {
+        "trendMonitoring": [
+          "repeated_refusal",
+          "recurring_falls",
+          "hydration_decline",
+          "behavioral_trend_escalation"
+        ]
+      },
+      "thenActivate": [
+        "trend_monitoring",
+        "follow_up",
+        "escalation"
+      ],
+      "reason": "Documented patterns should push trend-aware follow-up and review."
+    }
+  ]
+}

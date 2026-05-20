@@ -1,0 +1,118 @@
+{
+  "sectionId": "community-input-section",
+  "title": "Community Input Section",
+  "description": "Task-focused community support intake fields for a case-row note modal. The DSP selects the community activity, support provided, safety context, and follow-up needs for the documented block.",
+  "buildOrderMessage": "Community Outing and Appointment Support are the first strong community paths to validate. Keep the community section focused on participation, supervision, redirection, safety, and return outcomes.",
+  "questionSteps": [
+    "What community task was supported?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person engage during the community task?",
+    "Were any community risks or protocols active?",
+    "Were any alerts present?",
+    "Add a community note."
+  ],
+  "tasks": [
+    { "value": "community_outing", "label": "Community outing" },
+    { "value": "appointment_support", "label": "Appointment support" },
+    { "value": "social_participation", "label": "Social participation" },
+    { "value": "recreational_activity", "label": "Recreational activity" },
+    { "value": "faith_based_activity", "label": "Faith-based activity" },
+    { "value": "errands", "label": "Errands" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "refused_initially", "label": "Refused initially" },
+    { "value": "re_engaged", "label": "Re-engaged" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "standby_assist", "label": "Standby assist" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "visual_prompt", "label": "Visual prompt" },
+    { "value": "redirection_required", "label": "Redirection required" },
+    { "value": "partial_assist", "label": "Partial assist" },
+    { "value": "full_assist", "label": "Full assist" },
+    { "value": "line_of_sight_support", "label": "Line-of-sight support" }
+  ],
+  "taskDetails": {
+    "community_outing": {
+      "subtasks": [
+        { "value": "store_trip", "label": "Store trip" },
+        { "value": "park_visit", "label": "Park visit" },
+        { "value": "walking_activity", "label": "Walking activity" }
+      ],
+      "risks": [
+        "elopement_risk",
+        "fall_risk",
+        "behavioral_escalation_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "line_of_sight_required",
+        "community_supervision_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "change_in_baseline",
+        "incident_follow_up_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "appointment_support": {
+      "subtasks": [
+        { "value": "transport_to_visit", "label": "Transport to visit" },
+        { "value": "check_in_support", "label": "Check-in support" },
+        { "value": "follow_up_scheduling", "label": "Follow-up scheduling" }
+      ],
+      "risks": [
+        "elopement_risk",
+        "fall_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "line_of_sight_required",
+        "appointment_supervision_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "change_in_baseline",
+        "missed_appointment_window",
+        "supervisor_notification_needed"
+      ]
+    },
+    "social_participation": {
+      "subtasks": [
+        { "value": "group_participation", "label": "Group participation" },
+        { "value": "peer_interaction", "label": "Peer interaction" }
+      ],
+      "risks": [
+        "behavioral_escalation_risk",
+        "environmental_hazard_present"
+      ],
+      "protocols": [
+        "community_supervision_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "change_in_baseline",
+        "supervisor_notification_needed"
+      ]
+    }
+  }
+}

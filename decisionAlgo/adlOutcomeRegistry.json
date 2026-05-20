@@ -1,0 +1,137 @@
+{
+  "registryId": "adl-outcome-registry",
+  "label": "ADL Outcome Registry",
+  "description": "Category-specific outcome classifications for ADL workflows.",
+  "defaultStates": [
+    "completed",
+    "partially_completed",
+    "refused",
+    "not_completed",
+    "not_needed",
+    "incident_occurred"
+  ],
+  "states": [
+    {
+      "id": "completed",
+      "label": "Completed"
+    },
+    {
+      "id": "partially_completed",
+      "label": "Partially Completed"
+    },
+    {
+      "id": "refused",
+      "label": "Refused"
+    },
+    {
+      "id": "not_completed",
+      "label": "Not Completed"
+    },
+    {
+      "id": "not_needed",
+      "label": "Not Needed"
+    },
+    {
+      "id": "incident_occurred",
+      "label": "Incident Occurred"
+    },
+    {
+      "id": "safety_prevented_completion",
+      "label": "Safety Prevented Completion"
+    },
+    {
+      "id": "aspiration_risk_prevented_completion",
+      "label": "Aspiration Risk Prevented Completion"
+    },
+    {
+      "id": "choking_risk_prevented_completion",
+      "label": "Choking Risk Prevented Completion"
+    },
+    {
+      "id": "skin_issue_prevented_completion",
+      "label": "Skin Issue Prevented Completion"
+    }
+  ],
+  "categoryOutcomes": {
+    "toileting": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_needed",
+      "incident_occurred"
+    ],
+    "transfers": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "safety_prevented_completion",
+      "incident_occurred"
+    ],
+    "grooming": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_needed"
+    ],
+    "dressing": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_completed",
+      "safety_prevented_completion"
+    ],
+    "bathing": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "safety_prevented_completion"
+    ],
+    "hygiene": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_completed",
+      "not_needed"
+    ],
+    "oral_care": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_needed",
+      "choking_risk_prevented_completion"
+    ],
+    "feeding_assistance": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "aspiration_risk_prevented_completion",
+      "incident_occurred"
+    ],
+    "hydration_support": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_needed"
+    ],
+    "ambulation": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "safety_prevented_completion",
+      "incident_occurred"
+    ],
+    "continence_care": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_needed",
+      "skin_issue_prevented_completion"
+    ],
+    "prompting_and_cueing": [
+      "completed",
+      "partially_completed",
+      "refused",
+      "not_needed"
+    ]
+  }
+}

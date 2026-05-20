@@ -1,0 +1,369 @@
+{
+  "client_id": "BPhagan",
+  "client_name": "Barbara C. Phagan",
+  "workflow_tag": "#toileting",
+  "workflow_label": "Toileting",
+  "source_documents": [
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan.pdf",
+      "label": "Individual Plan"
+    },
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan . monthly reviews.pdf",
+      "label": "Monthly Reviews"
+    }
+  ],
+  "required_context": {
+    "toileting_baseline": {
+      "value": "Barbara now needs total staff assistance with ADLs due to worsening hand tremors, poor body balance, and decreasing cognitive ability. During toileting, staff should use safety equipment and provide hands-on balance support.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "When showering and/or toileting, its important for Barbara to use the safety equipment such as the shower bench/chair, grab bars, raised toilet seat and staff's hand for balance... all performance of ADLs... requires total staff assistance."
+    },
+    "continence_support_level": {
+      "value": "Barbara uses briefs and staff are expected to change soiled briefs when needed, including during overnight checks.",
+      "confidence": "medium",
+      "source_pages": [2],
+      "evidence": "During Barbara's bedtime, staff must perform routine bed checks... and to change her soiled briefs when needed."
+    },
+    "toileting_assistance_level": {
+      "value": "Total staff assistance",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "Again, all performance of ADLs and household chores requires total staff assistance. She cannot perform these activities alone regardless of the circumstances."
+    },
+    "transfer_support_level": {
+      "value": "Use raised toilet seat, grab bars, and staff hand for balance; close hands-on support is needed for safe toileting-related movement.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "When showering and/or toileting, its important for Barbara to use the safety equipment such as the shower bench/chair, grab bars, raised toilet seat and staff's hand for balance."
+    },
+    "supervision_requirements": {
+      "value": "Close supervision with line-of-sight monitoring is needed because of fall risk, poor balance, and cognitive decline.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "It is important for staff have a line of sight of Barbara to assess for fall prevention... all performance of ADLs requires total staff assistance."
+    },
+    "fall_risk_status": {
+      "value": "High fall risk with increased falls, unsteady gait, worsening balance, and rapidly declining vision.",
+      "confidence": "high",
+      "source_pages": [2, 6],
+      "evidence": "Staff have witnessed a decline in Barbara's physical mobility and has had an increase in falls. Barbara's vision is rapidly declining which pose a greater fall risk."
+    },
+    "skin_integrity_risk": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "uti_history_or_risk": {
+      "value": "Recent history of UTI, including hospitalization for UTI and pneumonia in October 2024 and two UTIs diagnosed in September 2024, followed by PCP follow-up and urology referral.",
+      "confidence": "high",
+      "source_pages": [4],
+      "evidence": "In October 2024, Barbara had twisted her ankle and was hospitalize for a UTI and Pneumonia. In September 2024, she was diagnosed with two UTIs... referral to a Urologist."
+    },
+    "behavior_support_notes": {
+      "value": "No toileting-specific behavior note was found, but general behavior guidance says Barbara may display minor physical aggression or throw personal items and staff should redirect using prior BSP training.",
+      "confidence": "medium",
+      "source_pages": [4],
+      "evidence": "She may display negative behaviors such as throwing personal items and display minor physical acts of aggression towards staff, but staff has been trained to redirect her from these behaviors from the previous BSP."
+    }
+  },
+  "optional_context": {
+    "usual_toileting_schedule": {
+      "value": "Overnight support includes routine bed checks at 12:00 A.M., 4:00 A.M., and 7:00 A.M., including brief changes when needed.",
+      "confidence": "medium",
+      "source_pages": [2, 4],
+      "evidence": "Routine bed checks must be conducted at 12:00 A.M., 4:00 A.M., & 7:00 A.M.... and to change her soiled briefs when needed."
+    },
+    "toileting_prompt_level": {
+      "value": "Barbara generally requires verbal and physical prompts across daily activities.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "She requires both verbal and physical prompts to complete certain activities."
+    },
+    "clothing_management_support": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "perineal_care_support": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "brief_change_support": {
+      "value": "Staff change soiled briefs when needed.",
+      "confidence": "high",
+      "source_pages": [2],
+      "evidence": "Change her soiled briefs when needed."
+    },
+    "overnight_toileting_support": {
+      "value": "Routine overnight checks with brief change support when needed.",
+      "confidence": "high",
+      "source_pages": [2],
+      "evidence": "Bed checks... at 12:00 A.M., 4:00 A.M., & 7:00 A.M.... and change her soiled briefs when needed."
+    },
+    "mobility_status": {
+      "value": "Barbara has worsening mobility with unsteady gait, poor balance, and vision decline.",
+      "confidence": "high",
+      "source_pages": [2],
+      "evidence": "She has an unsteady gait... requires hand held assistance or close stand by assistance with ambulation in the home."
+    },
+    "mobility_precautions": {
+      "value": "Use safety equipment, maintain line of sight, and support balance during toileting-related mobility.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "Use safety equipment such as... grab bars, raised toilet seat and staff's hand for balance... line of sight... for fall prevention."
+    },
+    "ambulation_support_level": {
+      "value": "Hand-held assistance or close stand-by assistance with ambulation in the home.",
+      "confidence": "high",
+      "source_pages": [2],
+      "evidence": "She also requires hand held assistance or close stand by assistance with ambulation in the home."
+    },
+    "positioning_support": {
+      "value": "Raised toilet seat, grab bars, and staff hand support for balance.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "Raised toilet seat and staff's hand for balance."
+    },
+    "gait_belt_required": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "two_person_transfer_required": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "assistive_device_required": {
+      "value": "PT previously addressed gait training using a gait belt and assistive device.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "Addressing gait training utilizing a gait belt and assistive device."
+    },
+    "wheelchair_use": {
+      "value": "Barbara uses a wheelchair when tired from community participation and needs frequent rest breaks.",
+      "confidence": "medium",
+      "source_pages": [3],
+      "evidence": "When she is feeling tired from community participation, she needs the use of her wheelchair."
+    },
+    "line_of_sight_requirement": {
+      "value": true,
+      "confidence": "high",
+      "source_pages": [2],
+      "evidence": "It is important for staff have a line of sight of Barbara to assess for fall prevention."
+    },
+    "universal_precautions_required": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "toileting_safety_protocols": {
+      "value": "Use raised toilet seat, grab bars, and staff hand for balance; maintain close supervision due to fall risk.",
+      "confidence": "high",
+      "source_pages": [2, 3],
+      "evidence": "Use the safety equipment such as... grab bars, raised toilet seat and staff's hand for balance... line of sight... for fall prevention."
+    },
+    "infection_control_precautions": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "skin_check_required": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "injury_risk_during_toileting": {
+      "value": "High injury risk related to falls, poor balance, and declining vision during mobility and toileting.",
+      "confidence": "high",
+      "source_pages": [2, 6],
+      "evidence": "Increase in falls... rapidly declining vision... greater fall risk."
+    },
+    "bowel_pattern_baseline": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "bladder_pattern_baseline": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "constipation_history_or_risk": {
+      "value": "Chronic constipation is part of Barbara's documented clinical history.",
+      "confidence": "high",
+      "source_pages": [4, 21],
+      "evidence": "PKU, GERD, constipation, and high cholesterol."
+    },
+    "incontinence_pattern": {
+      "value": "Uses briefs and requires staff change when soiled.",
+      "confidence": "medium",
+      "source_pages": [2],
+      "evidence": "Change her soiled briefs when needed."
+    },
+    "frequency_or_urgency_pattern": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "pain_with_toileting_history": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "hemorrhoid_or_rectal_concern_history": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "catheter_or_ostomy_status_if_applicable": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "hydration_related_monitoring": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "behavior_support_plan_status": {
+      "value": "Behavior analyst services were discontinued, but staff still use redirection based on previous BSP training.",
+      "confidence": "high",
+      "source_pages": [4],
+      "evidence": "COS agreed to the discontinuation of behavioral analysis services... staff has been trained to redirect her from these behaviors from the previous BSP."
+    },
+    "refusal_pattern_during_toileting": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "known_toileting_triggers": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "preferred_redirection_approach": {
+      "value": "Staff should redirect inappropriate or aggressive behavior using previous BSP training.",
+      "confidence": "medium",
+      "source_pages": [4],
+      "evidence": "Staff has been trained to redirect her from these behaviors from the previous BSP."
+    },
+    "preferred_prompting_style": {
+      "value": "Barbara benefits from repeated verbal and physical prompts and one-step instruction support.",
+      "confidence": "medium",
+      "source_pages": [3, 4],
+      "evidence": "She requires both verbal and physical prompts... Barbara shown improvement in following one step instructions. Barbara's short term memory deficit requires staff to repeat instructions."
+    },
+    "sensory_or_privacy_sensitivities": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "trauma_informed_care_notes_if_applicable": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "privacy_preferences": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "gender_or_staffing_preference_if_applicable": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "preferred_toileting_routine": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "preferred_language_or_cues": {
+      "value": "One-step instructions with repeated cueing may be needed due to short-term memory deficits.",
+      "confidence": "medium",
+      "source_pages": [4],
+      "evidence": "Barbara shown improvement in following one step instructions. Barbara's short term memory deficit requires staff to repeat instructions."
+    },
+    "communication_support_needed": {
+      "value": "Barbara may have difficulty communicating pain or illness clearly and needs staff assistance to interpret and escalate concerns.",
+      "confidence": "high",
+      "source_pages": [6],
+      "evidence": "Barbara may have difficulty expressing pain or illness and the cause... Any claims of discomfort and pain by Barbara should be taken seriously."
+    },
+    "adaptive_equipment_preferences": {
+      "value": "Grab bars and raised toilet seat are part of her safety equipment for toileting.",
+      "confidence": "high",
+      "source_pages": [3],
+      "evidence": "Grab bars, raised toilet seat..."
+    },
+    "supervisor_notification_threshold": {
+      "value": "Claims of discomfort or pain should be taken seriously; confusion with basic tasks should trigger medical evaluation.",
+      "confidence": "medium",
+      "source_pages": [6],
+      "evidence": "Any claims of discomfort and pain by Barbara should be taken seriously. If Barbara exhibits confusion for doing basic tasks... she should be taken to be evaluated by a medical professional."
+    },
+    "nurse_notification_threshold": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "incident_reporting_threshold": {
+      "value": "Falls and unusual increase in fall claims are part of documented support risks.",
+      "confidence": "medium",
+      "source_pages": [6],
+      "evidence": "Barbara has had several falls and continues to at times say she is falling, even if she is seated."
+    },
+    "change_in_baseline_reporting_rule": {
+      "value": "If Barbara shows confusion with basic tasks, such as forgetting how to drink from her cup, she should be medically evaluated.",
+      "confidence": "high",
+      "source_pages": [6],
+      "evidence": "If Barbara exhibits confusion for doing basic tasks... she should be taken to be evaluated by a medical professional as this is a sign something is very wrong."
+    },
+    "skin_issue_escalation_rule": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "uti_sign_escalation_rule": {
+      "value": "Recent UTI history and urology referral make urinary changes clinically significant for escalation.",
+      "confidence": "medium",
+      "source_pages": [4],
+      "evidence": "Hospitalize for a UTI... diagnosed with two UTIs... referral to a Urologist."
+    }
+  },
+  "missing_required_keys": [
+    "skin_integrity_risk"
+  ],
+  "notes": [
+    "This file is a first-pass structured extraction from OCR text, not a clinician-approved abstraction.",
+    "Null values indicate the care plan did not clearly provide the requested item in the reviewed OCR text."
+  ]
+}

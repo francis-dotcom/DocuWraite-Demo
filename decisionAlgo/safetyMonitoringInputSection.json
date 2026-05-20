@@ -1,0 +1,98 @@
+{
+  "sectionId": "safety-monitoring-input-section",
+  "title": "Safety Monitoring Input Section",
+  "description": "Safety-monitoring intake fields for a case-row note modal. The DSP selects the monitoring task, precautions maintained, observations made, and any follow-up needs for the documented block.",
+  "buildOrderMessage": "General Safety Monitoring and Aspiration Precaution Monitoring are the first strong safety-monitoring paths to validate. Keep this section focused on observation, precautions, response, and follow-up.",
+  "questionSteps": [
+    "What safety monitoring task was provided?",
+    "What was the outcome?",
+    "What assistance was provided?",
+    "How did the person present during safety monitoring?",
+    "Were any safety risks or protocols active?",
+    "Were any alerts present?",
+    "Add a safety monitoring note."
+  ],
+  "tasks": [
+    { "value": "general_safety_monitoring", "label": "General safety monitoring" },
+    { "value": "fall_risk_monitoring", "label": "Fall-risk monitoring" },
+    { "value": "aspiration_precaution_monitoring", "label": "Aspiration precaution monitoring" },
+    { "value": "environmental_safety_check", "label": "Environmental safety check" },
+    { "value": "post_incident_observation", "label": "Post-incident observation" }
+  ],
+  "engagementOptions": [
+    { "value": "engaged", "label": "Engaged" },
+    { "value": "hesitant", "label": "Hesitant" },
+    { "value": "distracted", "label": "Distracted" },
+    { "value": "withdrawn", "label": "Withdrawn" },
+    { "value": "cooperative", "label": "Cooperative" },
+    { "value": "resistant", "label": "Resistant" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "refused", "label": "Refused" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "interrupted", "label": "Interrupted" },
+    { "value": "not_needed", "label": "Not needed" },
+    { "value": "alternative_completed", "label": "Alternative completed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "verbal_prompt", "label": "Verbal prompt" },
+    { "value": "partial_assist", "label": "Partial assist" },
+    { "value": "line_of_sight_support", "label": "Line-of-sight support" }
+  ],
+  "taskDetails": {
+    "general_safety_monitoring": {
+      "subtasks": [
+        { "value": "room_observation", "label": "Room observation" },
+        { "value": "routine_monitoring", "label": "Routine monitoring" },
+        { "value": "risk_check_in", "label": "Risk check-in" }
+      ],
+      "risks": ["fall_risk", "elopement_risk", "environmental_hazard_present"],
+      "protocols": ["line_of_sight_required", "documentation_required"],
+      "alerts": ["safety_concern_noted", "change_in_baseline", "supervisor_notification_needed"]
+    },
+    "fall_risk_monitoring": {
+      "subtasks": [
+        { "value": "transfer_watch", "label": "Transfer watch" },
+        { "value": "gait_observation", "label": "Gait observation" },
+        { "value": "hazard_check", "label": "Hazard check" }
+      ],
+      "risks": ["fall_risk", "injury_risk", "environmental_hazard_present"],
+      "protocols": ["gait_belt_required", "line_of_sight_required", "documentation_required"],
+      "alerts": ["near_fall_observed", "incident_follow_up_needed", "supervisor_notification_needed"]
+    },
+    "aspiration_precaution_monitoring": {
+      "subtasks": [
+        { "value": "meal_supervision", "label": "Meal supervision" },
+        { "value": "liquid_monitoring", "label": "Liquid monitoring" },
+        { "value": "positioning_check", "label": "Positioning check" }
+      ],
+      "risks": ["choking_risk", "aspiration_risk", "change_in_baseline_risk"],
+      "protocols": ["aspiration_precautions_active", "thickened_liquids_required", "documentation_required"],
+      "alerts": ["coughing_episode_observed", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    },
+    "environmental_safety_check": {
+      "subtasks": [
+        { "value": "pathway_clearance", "label": "Pathway clearance" },
+        { "value": "bathroom_safety_check", "label": "Bathroom safety check" },
+        { "value": "bedroom_safety_check", "label": "Bedroom safety check" }
+      ],
+      "risks": ["fall_risk", "environmental_hazard_present"],
+      "protocols": ["documentation_required"],
+      "alerts": ["safety_concern_noted", "supervisor_notification_needed"]
+    },
+    "post_incident_observation": {
+      "subtasks": [
+        { "value": "observation_after_event", "label": "Observation after event" },
+        { "value": "pain_check", "label": "Pain check" },
+        { "value": "status_follow_up", "label": "Status follow-up" }
+      ],
+      "risks": ["injury_risk", "change_in_baseline_risk"],
+      "protocols": ["incident_protocol_active", "documentation_required"],
+      "alerts": ["incident_follow_up_needed", "pain_reported", "change_in_baseline", "nurse_notification_needed", "supervisor_notification_needed"]
+    }
+  }
+}

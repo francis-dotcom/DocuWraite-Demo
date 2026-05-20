@@ -24,7 +24,17 @@ This folder contains the experimental decision-engine source files.
 
 - `decisionAlgo/nodes.json`
 
+## Enterprise platform layers
+
+Implementation lives in **`decisionAlgo/platform/`** (12 modules). Facades: `decisionAssignmentScope.js`, `smartSelection.js`.
+
+See **`enterpriseArchitecture.md`** for the full model (schedule vs workflow vs assignment vs cross-system overlays).
+
+Assignment follows **Workflow → Category → Depth → Branching**. Schedule (timeline blocks) is separate from the library.
+
+See also `documentationArchitecture.md` and `workflowCatalog.js`.
+
 ## Why this matters
 
 - Makes the decision flow parseable by a runtime engine
-- Keeps the current app logic untouched while building the experimental layer
+- Keeps schedule, catalog, and assignment as separate layers

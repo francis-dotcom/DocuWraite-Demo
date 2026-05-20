@@ -1,0 +1,113 @@
+{
+  "sectionId": "documentation-coordination-input-section",
+  "title": "Documentation and Coordination Input Section",
+  "description": "Task-focused documentation and coordination intake fields for a case-row note modal. The DSP selects the coordination task, what was communicated or documented, and any follow-up required before final case-note generation.",
+  "buildOrderMessage": "Shift Handoff and Care Team Communication are the first strong documentation and coordination paths to validate. Keep the section focused on what was communicated, to whom, why it mattered, and what follow-up remains.",
+  "questionSteps": [
+    "What documentation or coordination task was completed?",
+    "What was the outcome?",
+    "What level of support or coordination was provided?",
+    "How did the person or team context present during this task?",
+    "Were any communication risks, requirements, or protocols active?",
+    "Were any alerts or follow-up needs present?",
+    "Add a documentation and coordination note."
+  ],
+  "tasks": [
+    { "value": "shift_handoff", "label": "Shift handoff" },
+    { "value": "family_communication", "label": "Family communication" },
+    { "value": "care_team_communication", "label": "Care team communication" },
+    { "value": "progress_documentation", "label": "Progress documentation" },
+    { "value": "incident_documentation", "label": "Incident documentation" },
+    { "value": "supervisor_update", "label": "Supervisor update" }
+  ],
+  "engagementOptions": [
+    { "value": "clear", "label": "Clear" },
+    { "value": "needs_clarification", "label": "Needs clarification" },
+    { "value": "time_sensitive", "label": "Time-sensitive" },
+    { "value": "routine", "label": "Routine" },
+    { "value": "escalated", "label": "Escalated" }
+  ],
+  "genericOutcomeOptions": [
+    { "value": "completed", "label": "Completed" },
+    { "value": "partially_completed", "label": "Partially completed" },
+    { "value": "deferred", "label": "Deferred" },
+    { "value": "not_completed", "label": "Not completed" },
+    { "value": "not_needed", "label": "Not needed" }
+  ],
+  "genericAssistanceOptions": [
+    { "value": "independent", "label": "Independent" },
+    { "value": "supervision_only", "label": "Supervision only" },
+    { "value": "coordinated_follow_up", "label": "Coordinated follow-up" },
+    { "value": "supervisor_support", "label": "Supervisor support" }
+  ],
+  "taskDetails": {
+    "shift_handoff": {
+      "subtasks": [
+        { "value": "verbal_handoff", "label": "Verbal handoff" },
+        { "value": "written_handoff", "label": "Written handoff" },
+        { "value": "unresolved_items", "label": "Unresolved items review" }
+      ],
+      "risks": [
+        "unresolved_follow_up_risk",
+        "change_in_baseline_risk"
+      ],
+      "protocols": [
+        "handoff_required",
+        "documentation_required"
+      ],
+      "alerts": [
+        "change_in_baseline",
+        "supervisor_notification_needed"
+      ]
+    },
+    "family_communication": {
+      "subtasks": [
+        { "value": "update_call", "label": "Update call" },
+        { "value": "message_follow_up", "label": "Message follow-up" }
+      ],
+      "risks": [
+        "miscommunication_risk"
+      ],
+      "protocols": [
+        "approved_update_only",
+        "documentation_required"
+      ],
+      "alerts": [
+        "guardian_notification_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "care_team_communication": {
+      "subtasks": [
+        { "value": "nurse_update", "label": "Nurse update" },
+        { "value": "provider_update", "label": "Provider update" },
+        { "value": "team_follow_up", "label": "Team follow-up" }
+      ],
+      "risks": [
+        "change_in_baseline_risk",
+        "miscommunication_risk"
+      ],
+      "protocols": [
+        "documentation_required",
+        "time_sensitive_update"
+      ],
+      "alerts": [
+        "nurse_notification_needed",
+        "supervisor_notification_needed"
+      ]
+    },
+    "progress_documentation": {
+      "subtasks": [
+        { "value": "goal_progress", "label": "Goal progress" },
+        { "value": "service_summary", "label": "Service summary" }
+      ],
+      "risks": [
+        "missing_documentation_risk"
+      ],
+      "protocols": [
+        "documentation_required"
+      ],
+      "alerts": []
+    }
+  }
+}
