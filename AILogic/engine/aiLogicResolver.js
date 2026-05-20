@@ -2,6 +2,7 @@ const bathingLogic = require("../ADLai/Bathing/bathing.logic.json");
 const dressingLogic = require("../ADLai/Dressing/dressing.logic.json");
 const finalCaseNoteLogic = require("../FinalCaseNote/final-case-note.logic.json");
 const groomingLogic = require("../ADLai/Grooming/grooming.logic.json");
+const handoverNoteLogic = require("../HandoverNote/handover-note.logic.json");
 const hygieneLogic = require("../ADLai/Hygiene/hygiene.logic.json");
 const toiletingLogic = require("../ADLai/Toileting/toileting.logic.json");
 const transfersLogic = require("../ADLai/Transfers/transfers.logic.json");
@@ -10,12 +11,14 @@ const WORKFLOW_TASK_FILE_MAP = {
   "adl:bathing": "adl:bathing",
   "adl:dressing": "adl:dressing",
   "final case note:summary": "final-case-note:summary",
+  "handover note:shift handoff": "handover-note:shift-handoff",
   "adl:grooming": "adl:grooming",
   "adl:hygiene": "adl:hygiene",
   "adl:toileting": "adl:toileting",
   "adl:transfers": "adl:transfers",
   "case note final:summary": "final-case-note:summary",
   "case-note-final:summary": "final-case-note:summary",
+  "handover-note:shift handoff": "handover-note:shift-handoff",
 };
 
 const AI_LOGIC_REGISTRY = {
@@ -33,6 +36,11 @@ const AI_LOGIC_REGISTRY = {
     key: "final-case-note:summary",
     source: "AILogic/FinalCaseNote/final-case-note.logic.json",
     raw: finalCaseNoteLogic,
+  },
+  "handover-note:shift-handoff": {
+    key: "handover-note:shift-handoff",
+    source: "AILogic/HandoverNote/handover-note.logic.json",
+    raw: handoverNoteLogic,
   },
   "adl:grooming": {
     key: "adl:grooming",
@@ -71,6 +79,9 @@ function buildLookupKey(category = "", task = "") {
 function resolveAiLogicPath({ category = "", task = "", workflowId = "", fieldContext = {} } = {}) {
   if (normalizeKeyPart(workflowId) === "case note final") {
     return "final-case-note:summary";
+  }
+  if (normalizeKeyPart(workflowId) === "handover note") {
+    return "handover-note:shift-handoff";
   }
 
   const lookupKey = buildLookupKey(category, task);

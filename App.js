@@ -1429,6 +1429,13 @@ function inferAiLogicSelection(fieldContext = {}) {
     };
   }
 
+  if (workflowId === "handover-note") {
+    return {
+      category: "Handover Note",
+      task: "Shift Handoff",
+    };
+  }
+
   if (["adl", "morning-adl", "assigned-nodes", ""].includes(workflowId)) {
     const taskSignals = [
       {
@@ -1622,6 +1629,9 @@ function getAssignedWorkflowStepsForField(fieldContext = {}) {
   if (fieldContext.workflowId === "case-note-final") {
     return buildCaseNoteFinalWorkflowSteps();
   }
+  if (fieldContext.workflowId === "handover-note") {
+    return buildHandoverWorkflowSteps();
+  }
   if (fieldContext.workflowId) {
     const configDrivenSteps = buildConfigDrivenRowWorkflowSteps(fieldContext.workflowId);
     if (configDrivenSteps.length) {
@@ -1760,6 +1770,8 @@ function getWorkflowEyebrow(workflowId) {
       return "Sleep Support";
     case "case-note-final":
       return "Final case note";
+    case "handover-note":
+      return "Handover note";
     default:
       return "Guided workflow";
   }
@@ -2009,6 +2021,23 @@ function buildCaseNoteFinalWorkflowSteps() {
       stepKey: "final-note-affirm",
       kind: "affirm",
       question: "Review final case note",
+    },
+  ];
+}
+
+function buildHandoverWorkflowSteps() {
+  return [
+    ...(buildAiLogicWorkflowBundle({ workflowId: "handover-note" })?.steps || [
+      {
+        stepKey: "assigned-nodes-draft",
+        kind: "draft",
+        question: "Review and generate note",
+      },
+    ]),
+    {
+      stepKey: "handover-note-affirm",
+      kind: "affirm",
+      question: "Review handover note",
     },
   ];
 }
@@ -3241,6 +3270,129 @@ function generateAssignedWorkflowNote(answers = {}, workflowState = {}, fieldCon
       : "No row-level documentation was available to summarize into a final case note.";
   }
 
+  if (fieldContext.workflowId === "handover-note") {
+    const sourceEntries = fieldContext.sourceEntries || [];
+    const nonEmptyEntries = sourceEntries
+      .map((entry) => ({
+        entryType: entry.entryType,
+        comment: String(entry.comment || "").trim(),
+      }))
+      .filter((entry) => entry.comment);
+    const finalSummaryEntry =
+      nonEmptyEntries.find((entry) => entry.entryType === "final-summary")?.comment || "";
+    const supportingEntries = nonEmptyEntries
+      .filter((entry) => entry.entryType !== "final-summary")
+      .map((entry) => entry.comment);
+    const focus = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "handover_focus"));
+    const priority = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "handover_priority"));
+    const normalizedFocus = String(focus || "").trim().toLowerCase();
+    const normalizedPriority = String(priority || "").trim().toLowerCase();
+    const resolvedSupports = []
+      .concat(getWorkflowAnswer(answers, "resolved_supports") || [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    const carryForward = [
+      []
+        .concat(getWorkflowAnswer(answers, "carry_forward_items") || [])
+        .map((item) => String(item || "").trim())
+        .filter((item) => item && item !== "Other"),
+      String(getWorkflowAnswer(answers, "carry_forward_items_other") || "").trim(),
+    ]
+      .flat()
+      .filter(Boolean);
+    const notifications = []
+      .concat(getWorkflowAnswer(answers, "notifications_completed") || [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    const nextShiftActions = [
+      []
+        .concat(getWorkflowAnswer(answers, "next_shift_actions") || [])
+        .map((item) => String(item || "").trim())
+        .filter((item) => item && item !== "Other"),
+      String(getWorkflowAnswer(answers, "next_shift_actions_other") || "").trim(),
+    ]
+      .flat()
+      .filter(Boolean);
+    const vitals = [
+      []
+        .concat(getWorkflowAnswer(answers, "vitals_reviewed") || [])
+        .map((item) => String(item || "").trim())
+        .filter((item) => item && item !== "Other reading"),
+      String(getWorkflowAnswer(answers, "vitals_reviewed_other") || "").trim(),
+    ]
+      .flat()
+      .filter(Boolean);
+    const freeNote = String(getWorkflowAnswer(answers, "free_note") || "").trim();
+
+    const focusLeadByType = {
+      "routine shift transition":
+        "This handover reflects a routine shift transition with emphasis on continuity of supports and routine monitoring.",
+      "clinical monitoring":
+        "This handover is clinically focused and should guide the next shift toward close observation of health, symptoms, and follow-up needs.",
+      "behavioral follow-up":
+        "This handover centers behavioral presentation, intervention continuity, and what the next shift should continue monitoring.",
+      "medication follow-up":
+        "This handover emphasizes medication-related awareness, follow-up, and any related carry-forward monitoring.",
+      "safety concern carry-forward":
+        "This handover is safety-focused and should be treated as a carry-forward alert for the next shift.",
+      "mixed handoff":
+        "This handover includes multiple domains and should be reviewed as a mixed shift handoff with both routine and concern-based carry-forward items.",
+    };
+
+    const prioritySentenceByType = {
+      routine:
+        "Priority is routine, but the next shift should still review the summarized supports and ongoing expectations.",
+      "watch closely next shift":
+        "The next shift should watch the identified items closely and document any change from the current presentation.",
+      "supervisor review needed":
+        "Supervisor visibility is needed on the carry-forward items from this shift.",
+      "clinical follow-up needed":
+        "Clinical follow-up should remain explicit in handoff, and the next shift should maintain awareness of related observations or symptom changes.",
+      "immediate carry-forward priority":
+        "This handoff includes immediate carry-forward priorities that should be reviewed at the start of the next shift without delay.",
+    };
+
+    const parts = [];
+    if (focusLeadByType[normalizedFocus]) {
+      parts.push(focusLeadByType[normalizedFocus]);
+    } else if (focus) {
+      parts.push(`Handover focus: ${focus}.`);
+    }
+    if (prioritySentenceByType[normalizedPriority]) {
+      parts.push(prioritySentenceByType[normalizedPriority]);
+    } else if (priority) {
+      parts.push(`Priority level: ${priority}.`);
+    }
+    if (resolvedSupports.length) {
+      parts.push(`Completed supports acknowledged in handoff: ${resolvedSupports.join(", ")}.`);
+    }
+    if (finalSummaryEntry) {
+      parts.push(`Shift summary for handoff: ${finalSummaryEntry}`);
+    }
+    if (supportingEntries.length) {
+      parts.push(`Supporting note details: ${supportingEntries.join(" ")}`);
+    }
+    if (carryForward.length && !(carryForward.length === 1 && carryForward[0].toLowerCase() === "none")) {
+      parts.push(`Carry-forward items for the next shift: ${carryForward.join(", ")}.`);
+    }
+    if (notifications.length) {
+      parts.push(`Notifications already completed this shift: ${notifications.join(", ")}.`);
+    }
+    if (nextShiftActions.length) {
+      parts.push(`Next-shift actions should include: ${nextShiftActions.join(", ")}.`);
+    }
+    if (vitals.length && !(vitals.length === 1 && vitals[0].toLowerCase() === "no vitals reviewed")) {
+      parts.push(`Vitals or readings reviewed for handoff: ${vitals.join(", ")}.`);
+    }
+    if (freeNote) {
+      parts.push(`Additional handover guidance: ${freeNote}.`);
+    }
+
+    return parts.length
+      ? parts.join(" ")
+      : "No handover details were captured for this shift.";
+  }
+
   const answeredSteps = (workflowState.localSteps || [])
     .filter((step) => step.kind !== "draft")
     .map((step) => {
@@ -4421,6 +4573,7 @@ function createDocumentationSession({
     decisionEngineNote: null,
     caseNoteAttestationComplete: false,
     caseNoteAttestation: null,
+    dspValidationQuizPassed: false,
     review: {
       reviewedBy: "",
       signStatus: "Awaiting DSP Signature",
@@ -4430,6 +4583,7 @@ function createDocumentationSession({
     handover: {
       required: false,
       submitted: false,
+      generatedNote: "",
       additionalNotes: "",
       vitalSigns: handoverVitalFields.reduce(
         (accumulator, field) => ({
@@ -4492,6 +4646,106 @@ function buildValidationWarnings(session) {
   return warnings;
 }
 
+function shuffleArray(items = []) {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+  return next;
+}
+
+function buildValidationQuizQuestions(session, clientProfile = null) {
+  const questions = [];
+  const timeBlocks = session.timeBlocks || [];
+  const rows = session.rows || [];
+  const supportChoices = AI_ASSISTANCE_SCORE_OPTIONS.filter((item) => item !== "Refused" && item !== "Not needed");
+  const styleOptions = ["Technical", "Clinical summary", "Supervisor handoff", "Concise narrative", "Family-safe summary"];
+  const summaryText = String(session.shiftSummary || "").trim();
+  const finalStyle = String(session.caseNoteAttestation?.style || "").trim();
+
+  const scoredBlocks = timeBlocks.filter(
+    (block) => String(block.comment || "").trim() && String(block.score || "").trim()
+  );
+  const notedRows = rows.filter(
+    (row) => String(row.comment || "").trim() && String(row.description || "").trim()
+  );
+
+  scoredBlocks.forEach((block) => {
+    const distractors = shuffleArray(
+      [...new Set(scoredBlocks.map((block) => String(block.score || "").trim()).filter(Boolean).concat(supportChoices))]
+        .filter((item) => item && item !== block.score)
+    ).slice(0, 3);
+    questions.push({
+      id: `quiz-block-${block.id}`,
+      source: "Time block note",
+      prompt: `For the ${block.label} block, what support level or status was documented?`,
+      noteExcerpt: String(block.comment || "").trim(),
+      correctAnswer: String(block.score || "").trim(),
+      choices: shuffleArray([String(block.score || "").trim(), ...distractors]).slice(0, 4),
+    });
+  });
+
+  notedRows.forEach((row) => {
+    const rowLabel = getWorkflowEyebrow(String(row.baseWorkflowId || row.workflowId || "").trim());
+    const rowScore = String(row.score || "").trim();
+    if (rowScore) {
+      const distractors = shuffleArray(
+        [...new Set(notedRows.map((row) => String(row.score || "").trim()).filter(Boolean).concat(supportChoices))]
+          .filter((item) => item && item !== rowScore)
+      ).slice(0, 3);
+      questions.push({
+        id: `quiz-row-score-${row.id}`,
+        source: "Row note",
+        prompt: "What support level or status was documented for this row note?",
+        noteExcerpt: String(row.comment || "").trim(),
+        correctAnswer: rowScore,
+        choices: shuffleArray([rowScore, ...distractors]).slice(0, 4),
+      });
+      return;
+    }
+
+    const workflowChoices = shuffleArray(
+      [
+        ...new Set(
+          notedRows
+            .map((row) => getWorkflowEyebrow(String(row.baseWorkflowId || row.workflowId || "").trim()))
+            .filter(Boolean)
+            .concat(["ADL", "Behavior Support", "Meal Support", "Medication", "Communication"])
+        ),
+      ].filter((item) => item && item !== rowLabel)
+    ).slice(0, 3);
+    if (rowLabel) {
+      questions.push({
+        id: `quiz-row-${row.id}`,
+        source: "Row note",
+        prompt: `Which workflow area does this row note belong to?`,
+        noteExcerpt: String(row.comment || "").trim(),
+        correctAnswer: rowLabel,
+        choices: shuffleArray([rowLabel, ...workflowChoices]).slice(0, 4),
+      });
+    }
+  });
+
+  if (summaryText && finalStyle) {
+    const styleChoices = shuffleArray(
+      styleOptions.filter(
+        (item) => item !== finalStyle
+      )
+    ).slice(0, 3);
+    questions.push({
+      id: "quiz-summary-style",
+      source: "Final summary",
+      prompt: "What final note style was selected for this case note?",
+      noteExcerpt: summaryText,
+      correctAnswer: finalStyle,
+      choices: shuffleArray([finalStyle, ...styleChoices]).slice(0, 4),
+    });
+  }
+
+  return questions;
+}
+
 function escapeHtml(value = "") {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -4507,6 +4761,8 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
   }
 
   const finalNote = String(session.shiftSummary || "").trim() || "No final shift note entered.";
+  const generatedHandoverNote =
+    String(session.handover?.generatedNote || "").trim() || "No generated handover note entered.";
   const additionalNotes = String(session.handover?.additionalNotes || "").trim() || "No additional handover notes entered.";
   const selectedVitals = handoverVitalFields.filter((field) => session.handover?.vitalSigns?.[field.key]);
   const vitalValues = session.handover?.vitalValues || {};
@@ -4553,6 +4809,10 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
     <div class="panel">
       <h2>Shift Summary</h2>
       <p>${escapeHtml(finalNote).replace(/\n/g, "<br />")}</p>
+    </div>
+    <div class="panel">
+      <h2>Generated Handover Note</h2>
+      <p>${escapeHtml(generatedHandoverNote).replace(/\n/g, "<br />")}</p>
     </div>
     <div class="panel">
       <h2>Additional Handover Notes</h2>
@@ -5546,6 +5806,7 @@ function DocuWraiteGuidedWorkflowPanel({
         </Pressable>
       ) : null}
       {stepMeta.optionalNarration &&
+      !stepMeta.manualContinue &&
       ((answers[stepKey] && answers[stepKey] !== "Other...") || String(narrationValue).trim()) ? (
         <Pressable style={styles.docuWraiteWorkflowNext} onPress={() => onAnswer({}, { advance: true })}>
           <Text style={styles.docuWraiteWorkflowNextText}>Continue</Text>
@@ -6536,6 +6797,18 @@ function DocumentationEntryScreen({
   const [docuWraiteAssist, setDocuWraiteAssist] = useState(null);
   const [docuWraiteExpanded, setDocuWraiteExpanded] = useState(false);
   const [docuWraiteWorkflow, setDocuWraiteWorkflow] = useState(null);
+  const [submitHandoverPromptVisible, setSubmitHandoverPromptVisible] = useState(false);
+  const [validationQuizState, setValidationQuizState] = useState({
+    visible: false,
+    questions: [],
+    currentIndex: 0,
+    feedback: "",
+    requireCorrectRetry: false,
+    showCorrect: false,
+    trigger: "validate",
+  });
+  const validationQuizSuccessScale = useRef(new Animated.Value(0.88)).current;
+  const validationQuizAdvanceTimer = useRef(null);
   const docuWraitePauseTimers = useRef({});
   const docuWraiteDismissed = useRef(new Set());
   const docuWraiteWorkflowRequestId = useRef(0);
@@ -6567,9 +6840,27 @@ function DocumentationEntryScreen({
     docuWraitePauseTimers.current = {};
   }, [session.sessionType, session.title, session.serviceDate]);
 
+  useEffect(() => {
+    if (validationQuizState.showCorrect) {
+      validationQuizSuccessScale.setValue(0.88);
+      Animated.spring(validationQuizSuccessScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 7,
+        tension: 110,
+      }).start();
+      return;
+    }
+
+    validationQuizSuccessScale.setValue(0.88);
+  }, [validationQuizState.showCorrect, validationQuizSuccessScale]);
+
   const getWorkflowFieldNote = (fieldId) => {
     if (fieldId === "summary") {
       return session.shiftSummary || "";
+    }
+    if (fieldId === "handover") {
+      return session.handover?.generatedNote || "";
     }
     if (fieldId.startsWith("time-")) {
       const blockId = fieldId.replace("time-", "");
@@ -6607,6 +6898,43 @@ function DocumentationEntryScreen({
         workflowId: row.workflowId || null,
       })),
     ],
+  });
+
+  const buildHandoverFieldContext = () => ({
+    fieldKind: "handover",
+    workflowId: "handover-note",
+    description: "Handover Note",
+    source: "Shift Handoff",
+    shiftIntelligence: runtimeShiftIntelligence,
+    sourceEntries: [
+      ...session.timeBlocks.map((block) => ({
+        entryType: "time-block",
+        label: block.label,
+        description: getTimeBlockPrompt(block, clientProfile),
+        source: getTimeBlockSource(block, clientProfile),
+        score: block.score,
+        comment: block.comment,
+        workflowId: getTimeBlockWorkflowId(block, clientProfile),
+      })),
+      ...session.rows.map((row) => ({
+        entryType: "case-note-row",
+        description: row.description,
+        source: row.source,
+        score: row.score,
+        comment: row.comment,
+        workflowId: row.workflowId || null,
+      })),
+      {
+        entryType: "final-summary",
+        description: "Final Case Note",
+        source: "Case Note Final",
+        comment: session.shiftSummary,
+        workflowId: "case-note-final",
+      },
+    ],
+    finalSummary: session.shiftSummary,
+    generatedHandoverNote: session.handover?.generatedNote || "",
+    manualHandoverNotes: session.handover?.additionalNotes || "",
   });
 
   const withWorkflowSnapshot = (workflowSnapshot) => ({
@@ -6826,6 +7154,114 @@ function DocumentationEntryScreen({
     onUpdate(markDraftSaved({ ...session, statusMessage: "", validationWarnings: [], ...changes }));
   };
 
+  const closeValidationQuiz = () => {
+    if (validationQuizAdvanceTimer.current) {
+      clearTimeout(validationQuizAdvanceTimer.current);
+      validationQuizAdvanceTimer.current = null;
+    }
+    setValidationQuizState({
+      visible: false,
+      questions: [],
+      currentIndex: 0,
+      feedback: "",
+      requireCorrectRetry: false,
+      showCorrect: false,
+      trigger: "validate",
+    });
+  };
+
+  const openValidationQuiz = (trigger = "validate") => {
+    const questions = buildValidationQuizQuestions(session, clientProfile);
+    if (!questions.length) {
+      patchSession({
+        validationWarnings: [],
+        dspValidationQuizPassed: true,
+        statusMessage: "Validation complete. No DSP awareness quiz items were available, so validation was marked complete.",
+        review: {
+          ...session.review,
+          validationTimestamp: "05/14/2026 1:06 AM",
+        },
+      });
+      return;
+    }
+
+    setValidationQuizState({
+      visible: true,
+      questions,
+      currentIndex: 0,
+      feedback:
+        trigger === "submit"
+          ? "Answer all quiz questions before submission."
+          : "Answer all quiz questions to complete validation.",
+      requireCorrectRetry: false,
+      showCorrect: false,
+      trigger,
+    });
+  };
+
+  const handleValidationQuizAnswer = (choice) => {
+    const currentQuestion = validationQuizState.questions[validationQuizState.currentIndex];
+    if (!currentQuestion) {
+      return;
+    }
+
+    if (String(choice) !== String(currentQuestion.correctAnswer)) {
+      if (validationQuizAdvanceTimer.current) {
+        clearTimeout(validationQuizAdvanceTimer.current);
+        validationQuizAdvanceTimer.current = null;
+      }
+      setValidationQuizState((current) => ({
+        ...current,
+        feedback: `Incorrect. Correct answer: ${currentQuestion.correctAnswer}. Select the correct answer to continue.`,
+        requireCorrectRetry: true,
+        showCorrect: false,
+      }));
+      return;
+    }
+
+    if (validationQuizAdvanceTimer.current) {
+      clearTimeout(validationQuizAdvanceTimer.current);
+    }
+
+    setValidationQuizState((current) => ({
+      ...current,
+      feedback: "Correct",
+      requireCorrectRetry: false,
+      showCorrect: true,
+    }));
+
+    validationQuizAdvanceTimer.current = setTimeout(() => {
+      validationQuizAdvanceTimer.current = null;
+      if (validationQuizState.currentIndex >= validationQuizState.questions.length - 1) {
+        const submitAfterPass = validationQuizState.trigger === "submit";
+        patchSession({
+          validationWarnings: [],
+          dspValidationQuizPassed: true,
+          statusMessage: submitAfterPass
+            ? "DSP awareness quiz passed. Submitting documentation."
+            : "Validation complete. DSP awareness quiz passed.",
+          review: {
+            ...session.review,
+            validationTimestamp: "05/14/2026 1:06 AM",
+          },
+        });
+        closeValidationQuiz();
+        if (submitAfterPass) {
+          setSubmitHandoverPromptVisible(true);
+        }
+        return;
+      }
+
+      setValidationQuizState((current) => ({
+        ...current,
+        currentIndex: current.currentIndex + 1,
+        feedback: "",
+        requireCorrectRetry: false,
+        showCorrect: false,
+      }));
+    }, 700);
+  };
+
   const clearDocuWraitePause = (fieldId) => {
     if (docuWraitePauseTimers.current[fieldId]) {
       clearTimeout(docuWraitePauseTimers.current[fieldId]);
@@ -6981,6 +7417,20 @@ function DocumentationEntryScreen({
     });
   };
 
+  const openHandoverWorkflow = () => {
+    showDocuWraiteAssist({
+      fieldId: "handover",
+      id: "workflow-handover-note",
+      mode: "workflow",
+      workflowId: "assigned-nodes",
+      fieldContext: buildHandoverFieldContext(),
+      localWorkflowSteps: buildHandoverWorkflowSteps(),
+      title: getWorkflowEyebrow("handover-note"),
+      message: "DocuWraite will guide a detailed handover note for the next shift.",
+      trigger: "manual",
+    });
+  };
+
   const evaluateDocuWraiteAssist = (fieldId, fieldContext, value, trigger) => {
     const assist = resolveDocuWraiteAssist({
       fieldId,
@@ -7040,12 +7490,14 @@ function DocumentationEntryScreen({
   const updateRow = (id, changes) => {
     patchSession({
       rows: session.rows.map((row) => (row.id === id ? { ...row, ...changes } : row)),
+      dspValidationQuizPassed: false,
     });
   };
 
   const updateTimeBlock = (id, changes) => {
     patchSession({
       timeBlocks: session.timeBlocks.map((block) => (block.id === id ? { ...block, ...changes } : block)),
+      dspValidationQuizPassed: false,
     });
   };
 
@@ -7415,6 +7867,7 @@ function DocumentationEntryScreen({
         patchSession({
           shiftSummary: session.shiftSummary.trim() ? `${session.shiftSummary.trim()}\n${note}` : note,
           caseNoteAttestationComplete: isFinalCaseNoteWorkflow,
+          dspValidationQuizPassed: false,
           caseNoteAttestation: isFinalCaseNoteWorkflow
             ? {
                 style:
@@ -7439,6 +7892,17 @@ function DocumentationEntryScreen({
                   "",
               }
             : null,
+        });
+      } else if (fieldId === "handover") {
+        patchSession({
+          handover: {
+            ...(session.handover || {}),
+            required: true,
+            generatedNote: note,
+            generatedAt: "05/14/2026 1:06 AM",
+            submitted: false,
+          },
+          statusMessage: "Handover note generated. Review and open it when ready.",
         });
       } else {
         applyDocuWraiteNote(fieldId, note);
@@ -7513,6 +7977,15 @@ function DocumentationEntryScreen({
 
   const validateDocumentation = () => {
     const warnings = buildValidationWarnings(session);
+    const hasCaseNoteSummary = Boolean(String(session.shiftSummary || "").trim());
+    const hasCaseNoteSourceNotes = Boolean(
+      (session.timeBlocks || []).some((block) => String(block.comment || "").trim()) ||
+      (session.rows || []).some((row) => String(row.comment || "").trim())
+    );
+    if (isCaseNoteSession && warnings.length === 0 && hasCaseNoteSummary && hasCaseNoteSourceNotes) {
+      openValidationQuiz("validate");
+      return;
+    }
     patchSession({
       validationWarnings: warnings,
       statusMessage:
@@ -7589,6 +8062,26 @@ function DocumentationEntryScreen({
     });
   };
 
+  const finalizeDocumentationSubmission = ({ requireHandover = false } = {}) => {
+    patchSession({
+      validationWarnings: [],
+      statusMessage: requireHandover
+        ? "Documentation submitted. Complete the detailed handover note next."
+        : "Documentation submitted for compliance review.",
+      review: {
+        ...session.review,
+        signStatus: "Submitted for QA Review",
+        validationTimestamp: "05/14/2026 1:06 AM",
+      },
+      handover: {
+        ...(session.handover || {}),
+        required: requireHandover,
+        submitted: requireHandover ? session.handover?.submitted || false : false,
+      },
+    });
+    runDocuWraiteReview("submit");
+  };
+
   const submitDocumentation = () => {
     const warnings = buildValidationWarnings(session);
     if (isCaseNoteSession && warnings.length === 0 && !session.caseNoteAttestationComplete) {
@@ -7602,25 +8095,27 @@ function DocumentationEntryScreen({
       return;
     }
 
+    if (isCaseNoteSession && warnings.length === 0 && !session.dspValidationQuizPassed) {
+      openValidationQuiz("submit");
+      patchSession({
+        validationWarnings: warnings,
+        statusMessage: "Complete the DSP awareness quiz before submitting documentation.",
+      });
+      return;
+    }
+
+    if (isCaseNoteSession && warnings.length === 0) {
+      setSubmitHandoverPromptVisible(true);
+      return;
+    }
+
     patchSession({
       validationWarnings: warnings,
-      statusMessage:
-        warnings.length === 0
-          ? "Documentation submitted for compliance review. Complete the handover note next."
-          : "Submission blocked until validation warnings are resolved.",
+      statusMessage: "Submission blocked until validation warnings are resolved.",
       review: {
         ...session.review,
-        signStatus: warnings.length === 0 ? "Submitted for QA Review" : session.review.signStatus,
         validationTimestamp: "05/14/2026 1:06 AM",
       },
-      handover:
-        warnings.length === 0
-          ? {
-              ...(session.handover || {}),
-              required: true,
-              submitted: false,
-            }
-          : session.handover,
     });
     runDocuWraiteReview("submit");
   };
@@ -7870,7 +8365,7 @@ function DocumentationEntryScreen({
                 sourceEntries: isCaseNoteSession ? buildCaseNoteFinalFieldContext().sourceEntries : undefined,
               }}
               value={session.shiftSummary}
-              onChange={(shiftSummary) => patchSession({ shiftSummary })}
+              onChange={(shiftSummary) => patchSession({ shiftSummary, dspValidationQuizPassed: false })}
               expanded={!!expandedAreas.summary}
               onToggleExpanded={() => toggleExpanded("summary")}
               {...getCommentAssistProps("summary", {
@@ -7920,9 +8415,15 @@ function DocumentationEntryScreen({
             <Text style={styles.docSectionHeading}>Handover Note</Text>
             <View style={styles.docSectionBody}>
               <Text style={styles.docSectionSubtitle}>
-                Submit a short handover note after documentation. Add any final transition details and mark which
-                vital signs were addressed before opening the handover note.
+                Generate a detailed handover note for the next shift, then add any extra transition details and mark
+                which vital signs were addressed before opening the handover print view.
               </Text>
+              {session.handover?.generatedNote ? (
+                <>
+                  <Text style={styles.docReviewInputLabel}>Generated handover note</Text>
+                  <Text style={styles.docValidationQuizExcerpt}>{session.handover.generatedNote}</Text>
+                </>
+              ) : null}
               <Text style={styles.docReviewInputLabel}>Additional handover notes</Text>
               <TextInput
                 value={session.handover?.additionalNotes || ""}
@@ -7982,6 +8483,9 @@ function DocumentationEntryScreen({
                 style={styles.docHandoverOtherVitalsInput}
               />
               <View style={styles.docHandoverActions}>
+                <Pressable style={[styles.docActionButton, styles.docActionPrimary]} onPress={openHandoverWorkflow}>
+                  <Text style={styles.docActionPrimaryText}>Generate Handover Note</Text>
+                </Pressable>
                 <Pressable style={[styles.docActionButton, styles.docActionPrimary]} onPress={openHandoverNote}>
                   <Text style={styles.docActionPrimaryText}>Open Handover Note</Text>
                 </Pressable>
@@ -8009,7 +8513,7 @@ function DocumentationEntryScreen({
 
         {session.statusMessage ? <Text style={styles.docStatusMessage}>{session.statusMessage}</Text> : null}
 
-        <View style={[styles.docEntryActions, isPhone && styles.docEntryActionsStacked]}>
+      <View style={[styles.docEntryActions, isPhone && styles.docEntryActionsStacked]}>
           <Pressable style={[styles.docActionButton, styles.docActionSecondary]} onPress={saveDraft}>
             <Text style={styles.docActionSecondaryText}>Save Draft</Text>
           </Pressable>
@@ -8024,6 +8528,120 @@ function DocumentationEntryScreen({
           </Pressable>
         </View>
       </View>
+
+      <Modal transparent visible={submitHandoverPromptVisible} animationType="fade" onRequestClose={() => setSubmitHandoverPromptVisible(false)}>
+        <View style={styles.docValidationQuizRoot}>
+          <Pressable style={styles.docValidationQuizBackdrop} onPress={() => setSubmitHandoverPromptVisible(false)} />
+          <View style={styles.docValidationQuizCard}>
+            <Text style={styles.docValidationQuizEyebrow}>Generate Handover Note?</Text>
+            <Text style={styles.docValidationQuizPrompt}>
+              Do you want DocuWraite to generate a detailed handover note for the next shift?
+            </Text>
+            <Text style={styles.docValidationQuizExcerpt}>
+              Choosing Yes will submit the documentation, mark handover as required, and open the handover workflow next.
+            </Text>
+            <View style={styles.docCommentToolActions}>
+              <Pressable
+                style={styles.docCommentToolPrimary}
+                onPress={() => {
+                  setSubmitHandoverPromptVisible(false);
+                  finalizeDocumentationSubmission({ requireHandover: true });
+                  openHandoverWorkflow();
+                }}
+              >
+                <Text style={styles.docCommentToolPrimaryText}>Yes, generate it</Text>
+              </Pressable>
+              <Pressable
+                style={styles.docCommentToolSecondary}
+                onPress={() => {
+                  setSubmitHandoverPromptVisible(false);
+                  finalizeDocumentationSubmission({ requireHandover: false });
+                }}
+              >
+                <Text style={styles.docCommentToolSecondaryText}>No, submit only</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={validationQuizState.visible} animationType="fade" onRequestClose={closeValidationQuiz}>
+        <View style={styles.docValidationQuizRoot}>
+          <Pressable style={styles.docValidationQuizBackdrop} onPress={closeValidationQuiz} />
+          <View style={styles.docValidationQuizCard}>
+            <Text style={styles.docValidationQuizEyebrow}>DSP Awareness Check</Text>
+            <Text style={styles.docValidationQuizProgress}>
+              {`Question ${Math.min(validationQuizState.currentIndex + 1, validationQuizState.questions.length)} of ${validationQuizState.questions.length}`}
+            </Text>
+            {validationQuizState.questions[validationQuizState.currentIndex] ? (
+              <>
+                <Text style={styles.docValidationQuizSource}>
+                  {validationQuizState.questions[validationQuizState.currentIndex].source}
+                </Text>
+                <Text style={styles.docValidationQuizPrompt}>
+                  {validationQuizState.questions[validationQuizState.currentIndex].prompt}
+                </Text>
+                {validationQuizState.showCorrect ? (
+                  <Animated.View
+                    style={[
+                      styles.docValidationQuizSuccessBadge,
+                      { transform: [{ scale: validationQuizSuccessScale }] },
+                    ]}
+                  >
+                    <Text style={styles.docValidationQuizSuccessCheck}>✓</Text>
+                    <Text style={styles.docValidationQuizSuccessText}>Correct</Text>
+                  </Animated.View>
+                ) : null}
+                {validationQuizState.feedback ? (
+                  <Text
+                    style={[
+                      styles.docValidationQuizFeedback,
+                      validationQuizState.showCorrect ? styles.docValidationQuizFeedbackCorrect : null,
+                    ]}
+                  >
+                    {validationQuizState.feedback}
+                  </Text>
+                ) : null}
+                <View style={styles.docValidationQuizChoiceList}>
+                  {validationQuizState.questions[validationQuizState.currentIndex].choices.map((choice) => {
+                    const isCorrectChoice =
+                      String(choice) ===
+                      String(validationQuizState.questions[validationQuizState.currentIndex].correctAnswer);
+                    return (
+                      <Pressable
+                        key={`${validationQuizState.questions[validationQuizState.currentIndex].id}-${choice}`}
+                        style={[
+                          styles.docValidationQuizChoice,
+                          validationQuizState.requireCorrectRetry && isCorrectChoice
+                            ? styles.docValidationQuizChoiceCorrect
+                            : null,
+                        ]}
+                        onPress={() => handleValidationQuizAnswer(choice)}
+                      >
+                        <Text
+                          style={[
+                            styles.docValidationQuizChoiceText,
+                            validationQuizState.requireCorrectRetry && isCorrectChoice
+                              ? styles.docValidationQuizChoiceTextCorrect
+                              : null,
+                          ]}
+                        >
+                          {choice}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+            <View style={styles.docValidationQuizFooter}>
+              <Pressable onPress={closeValidationQuiz}>
+                <Text style={styles.docValidationQuizClose}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {docuWraiteWorkflow?.workflowId === "assigned-nodes" ? (
         <DocuWraiteDraftContextQuestionModal
@@ -21006,6 +21624,130 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 14,
     color: "#111111",
+  },
+  docValidationQuizRoot: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  docValidationQuizBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(18, 16, 33, 0.62)",
+  },
+  docValidationQuizCard: {
+    width: "100%",
+    maxWidth: 540,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#cbc2ff",
+    backgroundColor: "#fcfbff",
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    rowGap: 10,
+    shadowColor: "#000000",
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 12,
+  },
+  docValidationQuizEyebrow: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#3c45c8",
+    letterSpacing: -0.1,
+  },
+  docValidationQuizProgress: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#655dc0",
+  },
+  docValidationQuizSource: {
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    color: "#7f74dd",
+  },
+  docValidationQuizPrompt: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: "700",
+    color: "#17132f",
+    letterSpacing: -0.1,
+  },
+  docValidationQuizFeedback: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#a32353",
+    fontWeight: "700",
+  },
+  docValidationQuizFeedbackCorrect: {
+    color: "#1f7a4f",
+  },
+  docValidationQuizSuccessBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#eaf8f0",
+    borderWidth: 1,
+    borderColor: "#b9e7cb",
+  },
+  docValidationQuizSuccessCheck: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1f7a4f",
+  },
+  docValidationQuizSuccessText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1f7a4f",
+  },
+  docValidationQuizChoiceList: {
+    rowGap: 7,
+  },
+  docValidationQuizChoice: {
+    borderWidth: 1,
+    borderColor: "#d6cffd",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: "#1e1638",
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 0,
+  },
+  docValidationQuizChoiceCorrect: {
+    borderColor: "#4955da",
+    backgroundColor: "#eef1ff",
+  },
+  docValidationQuizChoiceText: {
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "400",
+    color: "#262145",
+  },
+  docValidationQuizChoiceTextCorrect: {
+    color: "#2f3dc8",
+  },
+  docValidationQuizFooter: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e6e0ff",
+  },
+  docValidationQuizClose: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#4d58d0",
   },
   docHandoverInput: {
     minHeight: 96,

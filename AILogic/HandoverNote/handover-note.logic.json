@@ -1,0 +1,250 @@
+{
+  "workflowId": "handover-note",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Handover Note",
+    "task": "Shift Handoff",
+    "audience": ["DSP", "Supervisor", "Next shift staff"],
+    "purpose": "Guide AI questioning and generate a detailed shift handover note that highlights carry-forward risks, completed supports, and next-shift actions.",
+    "documentationGoals": [
+      "Capture the primary handover focus",
+      "Capture urgency, unresolved issues, and who was notified",
+      "Capture next-shift monitoring and follow-up actions",
+      "Generate a detailed but readable handover note for the next staff member"
+    ],
+    "requiredCarePlanContext": [],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["carry-forward risk", "baseline change", "medication concern", "safety follow-up"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "handover_focus",
+      "handover_priority",
+      "resolved_supports",
+      "carry_forward_items",
+      "notifications_completed",
+      "next_shift_actions",
+      "vitals_reviewed",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "handover_focus",
+        "label": "What is the primary focus of this handover?",
+        "type": "single_select",
+        "required": true,
+        "options": [
+          "Routine shift transition",
+          "Clinical monitoring",
+          "Behavioral follow-up",
+          "Medication follow-up",
+          "Safety concern carry-forward",
+          "Mixed handoff"
+        ]
+      },
+      {
+        "id": "handover_priority",
+        "label": "How urgent is this handover?",
+        "type": "single_select",
+        "required": true,
+        "options": [
+          "Routine",
+          "Watch closely next shift",
+          "Supervisor review needed",
+          "Clinical follow-up needed",
+          "Immediate carry-forward priority"
+        ]
+      },
+      {
+        "id": "resolved_supports",
+        "label": "Which supports were completed and should be acknowledged in handoff?",
+        "type": "multi_select",
+        "required": true,
+        "options": [
+          "ADL supports completed",
+          "Meal supports completed",
+          "Medication supports completed",
+          "Behavioral supports completed",
+          "Community supports completed",
+          "Vitals reviewed",
+          "No major outstanding support"
+        ]
+      },
+      {
+        "id": "carry_forward_items",
+        "label": "What must the next shift keep watching or follow up on?",
+        "type": "multi_select",
+        "required": true,
+        "options": [
+          "Baseline change",
+          "Skin concern",
+          "Toileting or continence concern",
+          "Medication concern",
+          "Behavioral pattern",
+          "Poor intake or hydration concern",
+          "Safety monitoring",
+          "Appointment or scheduling follow-up",
+          "None",
+          "Other"
+        ],
+        "followUpRules": [
+          {
+            "whenIncludes": "Other",
+            "ask": "carry_forward_items_other"
+          }
+        ]
+      },
+      {
+        "id": "carry_forward_items_other",
+        "label": "Describe the carry-forward item.",
+        "type": "free_text",
+        "requiredWhenIncludes": {
+          "questionId": "carry_forward_items",
+          "value": "Other"
+        }
+      },
+      {
+        "id": "notifications_completed",
+        "label": "Who was already notified during this shift?",
+        "type": "multi_select",
+        "required": false,
+        "options": [
+          "No additional notification",
+          "Supervisor notified",
+          "Nurse notified",
+          "Care team updated",
+          "Family updated",
+          "Oncoming staff verbally updated"
+        ]
+      },
+      {
+        "id": "next_shift_actions",
+        "label": "What should the next shift do?",
+        "type": "multi_select",
+        "required": true,
+        "options": [
+          "Continue routine supports",
+          "Monitor condition closely",
+          "Recheck symptoms or concern",
+          "Follow behavior plan closely",
+          "Confirm medication follow-up",
+          "Review handoff with supervisor",
+          "Document any change from baseline",
+          "Other"
+        ],
+        "followUpRules": [
+          {
+            "whenIncludes": "Other",
+            "ask": "next_shift_actions_other"
+          }
+        ]
+      },
+      {
+        "id": "next_shift_actions_other",
+        "label": "Describe the next-shift action.",
+        "type": "free_text",
+        "requiredWhenIncludes": {
+          "questionId": "next_shift_actions",
+          "value": "Other"
+        }
+      },
+      {
+        "id": "vitals_reviewed",
+        "label": "Were vitals or readings part of the handoff?",
+        "type": "multi_select",
+        "required": false,
+        "options": [
+          "Temperature",
+          "Blood Pressure",
+          "Pulse",
+          "Respiration",
+          "O2 Saturation",
+          "Other reading",
+          "No vitals reviewed"
+        ],
+        "followUpRules": [
+          {
+            "whenIncludes": "Other reading",
+            "ask": "vitals_reviewed_other"
+          }
+        ]
+      },
+      {
+        "id": "vitals_reviewed_other",
+        "label": "Describe the other reading.",
+        "type": "free_text",
+        "requiredWhenIncludes": {
+          "questionId": "vitals_reviewed",
+          "value": "Other reading"
+        }
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra handover guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "handover_priority_trigger",
+        "whenAnySelected": [
+          "Supervisor review needed",
+          "Clinical follow-up needed",
+          "Immediate carry-forward priority"
+        ],
+        "sourceQuestionId": "handover_priority",
+        "flag": "urgent_handover",
+        "severity": "high",
+        "requiredEscalations": ["Oncoming staff verbally updated"],
+        "requiredNoteDirective": "The handover note must clearly state the urgent carry-forward item and make the next-shift action explicit."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": {
+      "structuredAnswers": true,
+      "carePlanRow": false,
+      "shiftContext": true,
+      "runtimeAlerts": true,
+      "supervisorInstructions": true
+    },
+    "compositionOrder": [
+      "handover focus and urgency",
+      "completed supports to acknowledge",
+      "carry-forward items",
+      "who was notified",
+      "next-shift actions",
+      "vitals or readings"
+    ],
+    "toneProfiles": {
+      "default": { "style": "professional, direct, next-shift oriented", "audience": "next shift staff", "verbosity": "detailed" },
+      "stable": { "style": "calm, operational, transition-ready", "audience": "next shift staff", "verbosity": "detailed" },
+      "concern_heavy": { "style": "urgent, carry-forward focused, supervisory", "audience": "next shift staff", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers and the completed shift documentation as facts.",
+      "Write the handover note for the next shift, not as a duplicate of the final case note.",
+      "Make carry-forward actions explicit and easy to scan.",
+      "Do not invent unresolved issues, symptoms, or escalations that were not provided."
+    ],
+    "safetyFlagDirectives": {
+      "urgent_handover": {
+        "mustMention": ["urgent carry-forward item", "who was notified", "next-shift action"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_handover_paragraph",
+      "mustIncludeSections": ["handover_focus", "carry_forward", "next_shift_action"],
+      "optionalSections": ["notifications", "vitals"]
+    }
+  }
+}
