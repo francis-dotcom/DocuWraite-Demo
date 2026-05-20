@@ -436,10 +436,6 @@ const handoverVitalFields = [
 ];
 
 const modules = [
-  "Assessment & Screening",
-  "Attendance",
-  "Behavior Data",
-  "Behavioral Input Flow",
   "Behavior Plan",
   "Care Plan",
   "Communication Input Flow",
@@ -913,6 +909,21 @@ const supportLevelOptions = [
   "Not Applicable",
 ];
 
+const AI_ASSISTANCE_SCORE_OPTIONS = [
+  "Independent",
+  "Standby assist",
+  "Supervision only",
+  "Verbal prompt",
+  "Visual prompt",
+  "Redirection required",
+  "Partial assist",
+  "Full assist",
+  "Two-person assist",
+  "Dependent",
+  "Refused",
+  "Not needed",
+];
+
 const ispFormDescriptions = [
   `Measurable outcome: ${patientDisplayName} participates in community integration activities of her choice such as church, park, and mall outings.`,
   `Target behavior: ${patientDisplayName} will reduce inappropriate behaviors in the home and in the community with staff support rendered.`,
@@ -1332,6 +1343,21 @@ function getWorkflowTagForFieldContext(fieldContext = {}) {
   }
 
   return "";
+}
+
+function getDocumentationScoreConfig(fieldContext = {}) {
+  const aiSelection = inferAiLogicSelection(fieldContext);
+  if (aiSelection?.category === "ADL") {
+    return {
+      placeholder: "Select Support Level",
+      options: AI_ASSISTANCE_SCORE_OPTIONS,
+    };
+  }
+
+  return {
+    placeholder: "Select Score",
+    options: supportLevelOptions,
+  };
 }
 
 function resolveClientCarePlanContext({ workflowTag = "", clientProfile = null, activePatientName = "" } = {}) {
@@ -2430,6 +2456,30 @@ function buildInitialLocalWorkflowAnswers(fieldContext = {}, localSteps = []) {
   }
 
   const aiLogicTask = String(localSteps.find((step) => step?.sourceAiLogicTask)?.sourceAiLogicTask || "").trim().toLowerCase();
+  const normalizedScore = String(fieldContext.score || "").trim();
+  const findMatchingSuggestion = (stepKey, value) =>
+    (localSteps.find((step) => step.stepKey === stepKey)?.suggestions || []).find(
+      (item) => normalizeInferenceText(item) === normalizeInferenceText(value)
+    ) || "";
+
+  if (aiLogicTask) {
+    const assistanceMatch = normalizedScore ? findMatchingSuggestion("assistance_level", normalizedScore) : "";
+    if (assistanceMatch) {
+      answers["assistance_level"] = assistanceMatch;
+    }
+
+    const outcomeOverrideMap = {
+      refused: "Refused",
+      "not needed": "Not needed",
+    };
+    const mappedOutcome = outcomeOverrideMap[normalizeInferenceText(normalizedScore)] || "";
+    if (mappedOutcome) {
+      const outcomeMatch = findMatchingSuggestion("outcome", mappedOutcome);
+      if (outcomeMatch) {
+        answers["outcome"] = outcomeMatch;
+      }
+    }
+  }
 
   if (aiLogicTask === "toileting") {
     const toiletingOptions = (localSteps.find((step) => step.stepKey === "toileting_task_type")?.suggestions || []).map(
@@ -6459,6 +6509,7 @@ function DocumentationFormTable({
           assignedWorkflowSteps: rowAssignedWorkflowSteps,
           localWorkflowEyebrow: rowConfig ? getWorkflowEyebrow(rowBaseWorkflowId) : "",
         };
+        const rowScoreConfig = getDocumentationScoreConfig(rowFieldContext);
 
         return (
           <View key={row.id} style={[styles.docTableRow, isPhone && styles.docTableRowStacked]}>
@@ -6469,8 +6520,8 @@ function DocumentationFormTable({
             <View style={[styles.docScoresColumn, styles.docScoresCell]}>
               <DocumentationDropdown
                 value={row.score}
-                options={supportLevelOptions}
-                placeholder={scorePlaceholder}
+                options={rowScoreConfig.options}
+                placeholder={rowScoreConfig.placeholder || scorePlaceholder}
                 onChange={(score) => onScoreChange(row.id, score)}
                 dropdownId={`row-${row.id}-score`}
                 activeDropdown={activeDropdown}
@@ -7751,6 +7802,7 @@ function DocumentationEntryScreen({
                       assignedWorkflowSteps,
                       localWorkflowEyebrow: blockConfig ? getWorkflowEyebrow(baseWorkflowId) : "",
                     };
+                    const blockScoreConfig = getDocumentationScoreConfig(fieldContext);
 
                     return (
                       <View
@@ -7763,8 +7815,8 @@ function DocumentationEntryScreen({
                         <Text style={styles.docWorkflowTag}>{getWorkflowEyebrow(workflowId)}</Text>
                         <DocumentationDropdown
                           value={block.score}
-                          options={supportLevelOptions}
-                          placeholder="Select Score"
+                          options={blockScoreConfig.options}
+                          placeholder={blockScoreConfig.placeholder || "Select Score"}
                           onChange={(score) => updateTimeBlock(block.id, { score })}
                           dropdownId={`time-${block.id}-score`}
                           activeDropdown={activeDropdown}
