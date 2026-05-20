@@ -518,6 +518,7 @@ const modules = [
   "Care Plan",
   "Supervisor Setup",
   "Case Note",
+  "Manage Notes",
   "Document Storage",
   "Drug Count",
   "General Event Reports (GER)",
@@ -5077,22 +5078,22 @@ function SubmittedNotesLibraryScreen({
                   <Text style={[styles.notesLibraryTableCell, styles.notesLibraryColStatus]}>{record.signStatus}</Text>
                   <View style={[styles.notesLibraryTableCell, styles.notesLibraryColActions, styles.notesLibraryActionRow]}>
                     <Pressable
-                      style={styles.notesLibraryInlineAction}
+                      style={styles.notesLibraryIconBtn}
                       onPress={() => onSelectRecord?.(record.id)}
                     >
-                      <Text style={styles.notesLibraryInlineActionText}>Open</Text>
+                      <Icon name="eye" size={15} color={colors.headerText} />
                     </Pressable>
                     <Pressable
-                      style={styles.notesLibraryInlineAction}
+                      style={styles.notesLibraryIconBtn}
                       onPress={() => onOpenPdf?.(record)}
                     >
-                      <Text style={styles.notesLibraryInlineActionText}>Download</Text>
+                      <Icon name="download" size={15} color={colors.headerText} />
                     </Pressable>
                     <Pressable
-                      style={[styles.notesLibraryInlineAction, styles.notesLibraryInlineActionDelete]}
+                      style={[styles.notesLibraryIconBtn, styles.notesLibraryIconBtnDelete]}
                       onPress={() => handleDeletePress(record.id)}
                     >
-                      <Text style={[styles.notesLibraryInlineActionText, styles.notesLibraryInlineActionDeleteText]}>Delete</Text>
+                      <Icon name="trash-2" size={15} color="#e53e3e" />
                     </Pressable>
                   </View>
                 </View>
@@ -16321,7 +16322,7 @@ export default function App() {
   const topRightSize = isPhone ? 14 : isTablet ? 16 : 20;
   const topTitleSize = isPhone ? 22 : isTablet ? 28 : 34;
   const homeLabelSize = isPhone ? 16 : isTablet ? 20 : 22;
-  const [selectedModule, setSelectedModule] = useState(null);
+  const [selectedModule, setSelectedModule] = useState("Care Plan");
   const [expandedDocumentationGuide, setExpandedDocumentationGuide] = useState(
     documentationHowToGuides[0]?.title ?? null
   );
@@ -16689,7 +16690,7 @@ export default function App() {
       formatClientNameLastFirstInitials(selectedClient?.displayName ?? "")
     );
     setShowIndividualSuggestions(false);
-    setSelectedModule(null);
+    setSelectedModule("Care Plan");
   };
 
   const handleGoToClient = () => {
@@ -16819,7 +16820,8 @@ export default function App() {
       return;
     }
 
-    if (item === "Notes Library") {
+    if (item === "Notes Library" || item === "Manage Notes") {
+      setSelectedModule("Notes Library");
       setDocumentationSession(null);
       setPendingDecisionAssignmentTarget(null);
       return;
@@ -17850,13 +17852,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.lightBorder,
   },
   notesLibraryTableHeaderCell: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
     color: colors.headerText,
     textTransform: "uppercase",
     letterSpacing: 0.35,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 9,
   },
   notesLibraryTableRow: {
     flexDirection: "row",
@@ -17872,50 +17874,44 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f5ff",
   },
   notesLibraryTableCell: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.text,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
   },
   notesLibraryColClient: {
-    flex: 1.2,
-  },
-  notesLibraryColCaregiver: {
-    flex: 1.2,
-  },
-  notesLibraryColDate: {
-    flex: 0.8,
-  },
-  notesLibraryColStatus: {
     flex: 1,
   },
-  notesLibraryColActions: {
+  notesLibraryColCaregiver: {
+    flex: 1,
+  },
+  notesLibraryColDate: {
+    flex: 0.85,
+  },
+  notesLibraryColStatus: {
     flex: 0.9,
+  },
+  notesLibraryColActions: {
+    flex: 0.45,
   },
   notesLibraryActionRow: {
     flexDirection: "row",
     alignItems: "center",
-    columnGap: 8,
+    columnGap: 6,
   },
-  notesLibraryInlineAction: {
+  notesLibraryIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.lightBorder,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
     backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  notesLibraryInlineActionText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.headerText,
-  },
-  notesLibraryInlineActionDelete: {
+  notesLibraryIconBtnDelete: {
     borderColor: "#e53e3e",
     backgroundColor: "#fff5f5",
-  },
-  notesLibraryInlineActionDeleteText: {
-    color: "#e53e3e",
   },
   deleteModalOverlay: {
     flex: 1,

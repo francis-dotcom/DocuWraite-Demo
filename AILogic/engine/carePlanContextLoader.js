@@ -1,7 +1,7 @@
 const path = require("path");
 
 const carePlanContextRegistry = require("../carePlanContextRegistry.json");
-const workflowContextRequirements = require("../workflowContextRequirements.json");
+const workflowContextRequirements = require("../context/adlworkflow.json");
 
 function ensure(condition, message) {
   if (!condition) {
@@ -42,7 +42,7 @@ function loadWorkflowContextRequirements() {
   );
 
   return {
-    path: path.resolve(__dirname, "..", "workflowContextRequirements.json"),
+    path: path.resolve(__dirname, "..", "context", "adlworkflow.json"),
     raw: workflowContextRequirements,
     workflows: workflowContextRequirements.workflows,
   };
