@@ -9717,6 +9717,10 @@ function DecisionEngineScreen({
     () => rankPromptTemplates(blockPromptSuggestions, newBlockDescription, blockPromptCategory),
     [blockPromptCategory, blockPromptSuggestions, newBlockDescription]
   );
+  const liveRowPromptSuggestions = useMemo(
+    () => rankPromptTemplates(rowPromptSuggestions, newRowDescription, rowPromptCategory),
+    [newRowDescription, rowPromptCategory, rowPromptSuggestions]
+  );
 
   useEffect(() => {
     if (initialTargetKey && assignmentTargets.some((target) => target.key === initialTargetKey)) {
@@ -10069,6 +10073,37 @@ function DecisionEngineScreen({
     loadRowPromptSuggestions(newRowWorkflowId);
     scheduleRowPromptIdleClose();
   };
+
+  useEffect(() => {
+    if (!String(newRowDescription).trim()) {
+      return;
+    }
+    if (rowPromptLoading || rowPromptSuggestions.length || rowPromptError) {
+      return;
+    }
+    loadRowPromptSuggestions(newRowWorkflowId);
+  }, [
+    loadRowPromptSuggestions,
+    newRowDescription,
+    newRowWorkflowId,
+    rowPromptError,
+    rowPromptLoading,
+    rowPromptSuggestions.length,
+  ]);
+
+  useEffect(() => {
+    const shouldShow =
+      String(newRowDescription).trim() &&
+      (rowPromptLoading || Boolean(rowPromptError) || liveRowPromptSuggestions.length > 0);
+    if (shouldShow) {
+      setRowPromptPopoverVisible(true);
+    }
+  }, [
+    liveRowPromptSuggestions.length,
+    newRowDescription,
+    rowPromptError,
+    rowPromptLoading,
+  ]);
 
   useEffect(() => {
     const libraryIsAvailable = availableDecisionLibraries.some((lib) => lib.library === selectedLibrary);
@@ -10758,6 +10793,11 @@ function DecisionEngineScreen({
   const handleBlockWorkflowOptionPress = (workflowId) => {
     suppressBlockPromptAutoOpenRef.current = false;
     blockPromptTypedRef.current = false;
+    const currentDraft = blockDraftsByWorkflow[newBlockWorkflowId] || "";
+    const targetDraft = blockDraftsByWorkflow[workflowId] || "";
+    if (!targetDraft.trim() && currentDraft.trim()) {
+      setBlockDraftsByWorkflow((prev) => ({ ...prev, [workflowId]: currentDraft }));
+    }
     setNewBlockWorkflowId(workflowId);
     if (workflowId !== "feeding-support") {
       setNewBlockMealSubworkflow("feeding-assistance");
@@ -10767,7 +10807,7 @@ function DecisionEngineScreen({
     setBlockPromptSuggestions([]);
     setBlockPromptError("");
     setBlockPromptLoading(false);
-    const nextDraft = blockDraftsByWorkflow[workflowId] || "";
+    const nextDraft = targetDraft.trim() ? targetDraft : currentDraft;
     if (!String(nextDraft).trim()) {
       setBlockBuilderHint("Tap the help bubble to load suggestions, or type your own block description.");
     } else {
@@ -10861,6 +10901,11 @@ function DecisionEngineScreen({
 
   const handleWorkflowOptionPress = (workflowId) => {
     rowWorkflowTouchedRef.current = true;
+    const currentDraft = rowDraftsByWorkflow[newRowWorkflowId] || "";
+    const targetDraft = rowDraftsByWorkflow[workflowId] || "";
+    if (!targetDraft.trim() && currentDraft.trim()) {
+      setRowDraftsByWorkflow((prev) => ({ ...prev, [workflowId]: currentDraft }));
+    }
     setNewRowWorkflowId(workflowId);
     if (workflowId !== "feeding-support") {
       setNewRowMealSubworkflow("feeding-assistance");
@@ -10870,7 +10915,7 @@ function DecisionEngineScreen({
     setRowPromptSuggestions([]);
     setRowPromptError("");
     setRowPromptLoading(false);
-    const nextDraft = rowDraftsByWorkflow[workflowId] || "";
+    const nextDraft = targetDraft.trim() ? targetDraft : currentDraft;
     if (!String(nextDraft).trim()) {
       setRowBuilderHint("Tap the help bubble to load suggestions, or type your own row description.");
     } else {
@@ -11393,12 +11438,58 @@ function DecisionEngineScreen({
                 }));
                 if (String(text).trim()) {
                   setRowBuilderHint("");
+                  markRowPromptEngaged();
+                } else {
+                  setRowPromptPopoverVisible(false);
                 }
+              }}
+              onFocus={() => {
+                rowPromptEngagedRef.current = false;
+              }}
+              onBlur={() => {
+                rowPromptEngagedRef.current = false;
+                scheduleRowPromptIdleClose();
               }}
               placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
               placeholderTextColor="#888888"
               style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap]}
             />
+            {rowPromptPopoverVisible ? (
+              <View style={styles.decisionPromptSuggestionCard}>
+                <View style={styles.decisionPromptSuggestionHeader}>
+                  <Text style={styles.decisionPromptSuggestionTitle}>Suggestions</Text>
+                  {rowPromptLoading ? (
+                    <Text style={styles.decisionPromptSuggestionMeta}>Loading...</Text>
+                  ) : rowPromptCategory ? (
+                    <Text style={styles.decisionPromptSuggestionMeta}>{rowPromptCategory.toUpperCase()}</Text>
+                  ) : null}
+                </View>
+                {rowPromptError ? (
+                  <Text style={styles.decisionPromptSuggestionError}>{rowPromptError}</Text>
+                ) : null}
+                {liveRowPromptSuggestions.length ? (
+                  <View style={styles.decisionPromptSuggestionList}>
+                    {liveRowPromptSuggestions.map((suggestion) => (
+                      <Pressable
+                        key={suggestion}
+                        accessibilityRole="button"
+                        onPressIn={() => {
+                          markRowPromptEngaged();
+                        }}
+                        onPress={() => applyRowPromptSuggestion(suggestion)}
+                        style={styles.decisionPromptSuggestionItem}
+                      >
+                        <Text style={styles.decisionPromptSuggestionText}>{suggestion}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : !rowPromptLoading && !rowPromptError ? (
+                  <Text style={styles.decisionPromptSuggestionEmpty}>
+                    Keep typing or switch categories to refine suggestions.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
           </View>
         </View>
         {rowBuilderHint ? <Text style={styles.decisionInlineHint}>{rowBuilderHint}</Text> : null}
