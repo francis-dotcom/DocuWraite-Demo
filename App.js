@@ -6929,6 +6929,8 @@ function DocumentationEntryScreen({
   clientProfile = null,
   onOpenDecisionAssignment,
   persistedClientWorkflowContexts = [],
+  onSubmittedNotesLibraryUpdate = () => {},
+  onSelectedSubmittedNoteIdChange = () => {},
 }) {
   const activePatientName = formatClientNameLastFirstInitials(
     clientProfile?.displayName ?? patientDisplayName
@@ -8444,11 +8446,11 @@ function DocumentationEntryScreen({
         caregiverName: loggedInUser,
         submittedAt: "05/14/2026 1:06 AM",
       });
-      setSubmittedNotesLibrary((current) => [
+      onSubmittedNotesLibraryUpdate((current) => [
         submittedRecord,
         ...(current || []).filter((record) => String(record.id) !== String(submittedRecord.id)),
       ]);
-      setSelectedSubmittedNoteId(submittedRecord.id);
+      onSelectedSubmittedNoteIdChange(submittedRecord.id);
 
       const nextSession = createDocumentationSession({
         title: session.title,
@@ -12818,6 +12820,8 @@ function CarePlanDocument({
   clientPhoto,
   persistedClientWorkflowContexts = [],
   onOpenDecisionAssignment,
+  onSubmittedNotesLibraryUpdate = () => {},
+  onSelectedSubmittedNoteIdChange = () => {},
 }) {
   const profile = clientProfile || getMaryBetProfile();
   const [isEditingCarePlan, setIsEditingCarePlan] = useState(false);
@@ -13206,6 +13210,8 @@ function CarePlanDocument({
           clientProfile={clientProfile}
           onOpenDecisionAssignment={onOpenDecisionAssignment}
           persistedClientWorkflowContexts={persistedClientWorkflowContexts}
+          onSubmittedNotesLibraryUpdate={onSubmittedNotesLibraryUpdate}
+          onSelectedSubmittedNoteIdChange={onSelectedSubmittedNoteIdChange}
         />
       ) : (
       <ScrollView
@@ -17720,6 +17726,8 @@ export default function App() {
                   clientPhoto={activeClientPhoto}
                   persistedClientWorkflowContexts={persistedClientWorkflowContexts}
                   onOpenDecisionAssignment={openDecisionAssignmentTarget}
+                  onSubmittedNotesLibraryUpdate={setSubmittedNotesLibrary}
+                  onSelectedSubmittedNoteIdChange={setSelectedSubmittedNoteId}
                 />
               ) : showDocumentationGuide ? (
                 <DocumentationGuideScreen
@@ -17753,6 +17761,8 @@ export default function App() {
                   isPhone={isPhone}
                   clientProfile={activeClientProfile}
                   persistedClientWorkflowContexts={persistedClientWorkflowContexts}
+                  onSubmittedNotesLibraryUpdate={setSubmittedNotesLibrary}
+                  onSelectedSubmittedNoteIdChange={setSelectedSubmittedNoteId}
                 />
               ) : (
                 <>
