@@ -6712,7 +6712,8 @@ function DocuWraiteGuidedWorkflowPanel({
                         .filter(Boolean)
                         .join(" ");
                       if (isFinalCaseNoteWorkflow) {
-                        onAnswer({ finalDraftNote: noteToInsert }, { advance: true });
+                        onAnswer({ finalDraftNote: noteToInsert });
+                        onJumpToStep?.("final-note-affirm");
                       } else {
                         onInsert(noteToInsert);
                       }

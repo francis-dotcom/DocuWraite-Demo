@@ -508,6 +508,16 @@ function renderAdaptiveStep(stepKey, workflowId, patientName, fieldContext, answ
     };
   }
 
+  if (stepKey === "final-note-affirm") {
+    return {
+      stepKey,
+      kind: "affirm",
+      question: "Review final case note",
+      rationale: "Review the generated final case note before inserting it.",
+      softCheck: true,
+    };
+  }
+
   if (stepKey === "branch-fatigue-recovery") {
     return {
       stepKey,
