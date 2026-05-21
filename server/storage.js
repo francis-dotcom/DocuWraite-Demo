@@ -8,6 +8,7 @@ const { getClientCarePlanSeed, listCarePlanSeededClientIds } = require("./client
 
 const dataDir = path.join(__dirname, "..", "data");
 const dbPath = path.join(dataDir, "docuwraite.sqlite");
+const clientWorkflowContextsDir = path.join(__dirname, "..", "AILogic", "contexts", "clientContexts");
 
 fs.mkdirSync(dataDir, { recursive: true });
 
@@ -294,6 +295,17 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS client_workflow_contexts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id TEXT NOT NULL,
+    workflow_tag TEXT NOT NULL,
+    workflow_label TEXT,
+    context_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (client_id, workflow_tag)
+  );
 `);
 
 if (!tableHasColumn("decision_workspace_states", "staged_assignments_json")) {
@@ -330,6 +342,22 @@ if (!tableHasColumn("decision_time_blocks", "workflow_id")) {
 
 if (!tableHasColumn("decision_time_blocks", "theme")) {
   db.exec("ALTER TABLE decision_time_blocks ADD COLUMN theme TEXT");
+}
+
+if (!tableHasColumn("decision_time_blocks", "subworkflow_id")) {
+  db.exec("ALTER TABLE decision_time_blocks ADD COLUMN subworkflow_id TEXT");
+}
+
+if (!tableHasColumn("decision_time_blocks", "task_label")) {
+  db.exec("ALTER TABLE decision_time_blocks ADD COLUMN task_label TEXT");
+}
+
+if (!tableHasColumn("decision_case_note_rows", "subworkflow_id")) {
+  db.exec("ALTER TABLE decision_case_note_rows ADD COLUMN subworkflow_id TEXT");
+}
+
+if (!tableHasColumn("decision_case_note_rows", "task_label")) {
+  db.exec("ALTER TABLE decision_case_note_rows ADD COLUMN task_label TEXT");
 }
 
 const upsertLibraryStatement = db.prepare(`
@@ -482,14 +510,16 @@ const insertTimeBlockStatement = db.prepare(`
     description,
     source,
     workflow_id,
+    subworkflow_id,
+    task_label,
     theme,
     sort_order,
     updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const getTimeBlocksByWorkspaceStatement = db.prepare(`
-  SELECT block_key, label, description, source, workflow_id, theme
+  SELECT block_key, label, description, source, workflow_id, subworkflow_id, task_label, theme
   FROM decision_time_blocks
   WHERE workspace_state_id = ?
   ORDER BY sort_order, id
@@ -507,17 +537,40 @@ const insertRowStatement = db.prepare(`
     description,
     source,
     workflow_id,
+    subworkflow_id,
+    task_label,
     theme,
     sort_order,
     updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const getRowsByWorkspaceStatement = db.prepare(`
-  SELECT row_key, description, source, workflow_id, theme
+  SELECT row_key, description, source, workflow_id, subworkflow_id, task_label, theme
   FROM decision_case_note_rows
   WHERE workspace_state_id = ?
   ORDER BY sort_order, id
+`);
+
+const upsertClientWorkflowContextStatement = db.prepare(`
+  INSERT INTO client_workflow_contexts (
+    client_id,
+    workflow_tag,
+    workflow_label,
+    context_json,
+    updated_at
+  ) VALUES (?, ?, ?, ?, ?)
+  ON CONFLICT(client_id, workflow_tag) DO UPDATE SET
+    workflow_label = excluded.workflow_label,
+    context_json = excluded.context_json,
+    updated_at = excluded.updated_at
+`);
+
+const getClientWorkflowContextsStatement = db.prepare(`
+  SELECT client_id, workflow_tag, workflow_label, context_json, updated_at
+  FROM client_workflow_contexts
+  WHERE client_id = ?
+  ORDER BY workflow_tag
 `);
 
 const getAssignmentRowStatement = db.prepare(`
@@ -1264,6 +1317,68 @@ function getClientCarePlanData(clientId) {
   return seedClientCarePlanData(normalizedClientId);
 }
 
+function listClientWorkflowContextSeedFiles() {
+  if (!fs.existsSync(clientWorkflowContextsDir)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(clientWorkflowContextsDir)
+    .filter((fileName) => fileName.endsWith(".json"))
+    .map((fileName) => path.join(clientWorkflowContextsDir, fileName));
+}
+
+function readClientWorkflowContextSeed(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (_error) {
+    return null;
+  }
+}
+
+function normalizeClientWorkflowContextPayload(payload = {}) {
+  return {
+    clientId: String(payload.client_id || payload.clientId || "").trim(),
+    workflowTag: String(payload.workflow_tag || payload.workflowTag || "").trim(),
+    workflowLabel: String(payload.workflow_label || payload.workflowLabel || "").trim(),
+    context: payload,
+  };
+}
+
+function seedAllClientWorkflowContexts() {
+  const now = new Date().toISOString();
+  listClientWorkflowContextSeedFiles().forEach((filePath) => {
+    const seed = normalizeClientWorkflowContextPayload(readClientWorkflowContextSeed(filePath) || {});
+    if (!seed.clientId || !seed.workflowTag) {
+      return;
+    }
+
+    upsertClientWorkflowContextStatement.run(
+      seed.clientId,
+      seed.workflowTag,
+      seed.workflowLabel || null,
+      JSON.stringify(seed.context),
+      now
+    );
+  });
+}
+
+function getClientWorkflowContexts(clientId) {
+  const normalizedClientId = String(clientId || "").trim();
+  if (!normalizedClientId) {
+    return [];
+  }
+
+  return getClientWorkflowContextsStatement.all(normalizedClientId).map((row) => ({
+    clientId: row.client_id,
+    workflowTag: row.workflow_tag,
+    workflowLabel: row.workflow_label || "",
+    context: parseJson(row.context_json, null),
+    updatedAt: row.updated_at,
+    source: "db",
+  }));
+}
+
 function saveClientCarePlanData({
   clientId,
   riskCards = [],
@@ -1346,6 +1461,8 @@ function getWorkspaceState(clientId) {
       description: item.description,
       source: item.source,
       workflowId: item.workflow_id,
+      subworkflowId: item.subworkflow_id,
+      taskLabel: item.task_label,
       theme: item.theme,
     })),
     rows: getRowsByWorkspaceStatement.all(row.id).map((item) => ({
@@ -1353,6 +1470,8 @@ function getWorkspaceState(clientId) {
       description: item.description,
       source: item.source,
       workflowId: item.workflow_id,
+      subworkflowId: item.subworkflow_id,
+      taskLabel: item.task_label,
       theme: item.theme,
     })),
     selectionState: {
@@ -1424,6 +1543,8 @@ function saveWorkspaceState({
         block.description || null,
         block.source || null,
         block.workflowId || null,
+        block.subworkflowId || null,
+        block.taskLabel || null,
         block.theme || null,
         index,
         updatedAt
@@ -1438,6 +1559,8 @@ function saveWorkspaceState({
         row.description || "",
         row.source || null,
         row.workflowId || null,
+        row.subworkflowId || null,
+        row.taskLabel || null,
         row.theme || null,
         index,
         updatedAt
@@ -1640,6 +1763,7 @@ seedDecisionCatalog();
 seedRowPromptCatalog();
 seedAllClientShiftSchedules();
 seedAllClientCarePlanData();
+seedAllClientWorkflowContexts();
 
 module.exports = {
   dbPath,
@@ -1650,10 +1774,12 @@ module.exports = {
   getClientShiftSchedule,
   saveClientShiftSchedule,
   getClientCarePlanData,
+  getClientWorkflowContexts,
   saveClientCarePlanData,
   getTodayShiftDate,
   seedAllClientShiftSchedules,
   seedAllClientCarePlanData,
+  seedAllClientWorkflowContexts,
   saveAssignment,
   saveWorkspaceState,
 };

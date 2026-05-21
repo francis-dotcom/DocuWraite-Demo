@@ -1,0 +1,116 @@
+{
+  "workflowId": "meal-setup",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Meal Support",
+    "task": "Meal Setup",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing meal-setup note.",
+    "documentationGoals": [
+      "Capture the setup support provided before eating",
+      "Capture diet-order, positioning, and equipment preparation",
+      "Capture whether setup supported safe meal participation"
+    ],
+    "requiredCarePlanContext": [
+      "meal_support_baseline",
+      "diet_order_or_meal_plan",
+      "aspiration_precautions",
+      "supervision_during_meals"
+    ],
+    "regulatoryRiskLevel": "medium",
+    "clinicalSensitivity": ["diet order compliance", "aspiration", "positioning"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": ["setup_task", "outcome", "engagement", "prepared_items", "risks_and_protocols", "alerts_and_escalations", "free_note"],
+    "questions": [
+      {
+        "id": "setup_task",
+        "label": "What meal setup support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Meal tray setup", "Adaptive utensils setup", "Positioning for meal", "Diet-order compliance setup", "Fluid setup", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "setup_task_other" }]
+      },
+      {
+        "id": "setup_task_other",
+        "label": "Describe the meal setup support.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "setup_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Setup completed", "Setup partially completed", "Setup refused", "Not needed"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage with the setup?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Hesitant", "Distracted", "Resistant"]
+      },
+      {
+        "id": "prepared_items",
+        "label": "What was prepared or confirmed?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Correct meal plan followed", "Fluids prepared", "Adaptive equipment prepared", "Positioning completed", "Aspiration precautions prepared", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "prepared_items_other" }]
+      },
+      {
+        "id": "prepared_items_other",
+        "label": "Describe what was prepared or confirmed.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "prepared_items", "value": "Other" }
+      },
+      {
+        "id": "risks_and_protocols",
+        "label": "Which risks or protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Aspiration precautions", "Special diet order", "Texture-modified diet", "Thickened liquids", "Positioning requirement", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Supervisor notification needed", "Diet follow-up needed", "Equipment issue noted"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra meal-setup note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": []
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["setup support rendered", "diet or equipment preparation", "engagement", "protocols followed", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style."
+    ],
+    "safetyFlagDirectives": {},
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["follow_up"]
+    }
+  }
+}

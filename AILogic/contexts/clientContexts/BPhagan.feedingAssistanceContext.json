@@ -1,0 +1,161 @@
+{
+  "client_id": "BPhagan",
+  "client_name": "Barbara C. Phagan",
+  "workflow_tag": "#feeding-assistance",
+  "workflow_label": "Feeding Assistance",
+  "source_documents": [
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan.pdf",
+      "label": "Individual Plan"
+    },
+    {
+      "file_path": "/Users/stfrancis/Downloads/BPhagan . monthly reviews.pdf",
+      "label": "Monthly Reviews"
+    }
+  ],
+  "required_context": {
+    "meal_support_baseline": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "meal_assistance_level": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "diet_order_or_meal_plan": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "aspiration_precautions": {
+      "value": "Staff must maintain choking-awareness supports tied to denture and lower-bridge care; direct meal-specific aspiration steps were not clearly stated in the reviewed Barbara source text.",
+      "confidence": "medium",
+      "source_pages": [
+        4
+      ],
+      "evidence": "In performing oral hygiene, staff must assist with the cleansing of her dentures and lower bridge to prevent choking."
+    },
+    "supervision_during_meals": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    }
+  },
+  "optional_context": {
+    "meal_prompt_level": {
+      "value": "Barbara may need repeated verbal and physical prompts and one-step instruction support, but the reviewed text does not clearly state that this is meal-specific.",
+      "confidence": "medium",
+      "source_pages": [
+        3,
+        4
+      ],
+      "evidence": "She requires both verbal and physical prompts... Barbara shown improvement in following one step instructions. Barbara's short term memory deficit requires staff to repeat instructions."
+    },
+    "meal_pacing_requirements": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "safe_swallow_protocol": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "fluid_intake_support": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "intake_monitoring_requirements": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "adaptive_utensils_or_equipment": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "positioning_during_meals": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "food_texture_requirements": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "liquid_consistency_requirements": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "supplement_or_special_nutrition_support": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "gerd_or_reflux_precautions": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "choking_risk_status": {
+      "value": "Barbara has an indirect choking-prevention concern documented through required denture and lower-bridge cleansing support.",
+      "confidence": "medium",
+      "source_pages": [
+        4
+      ],
+      "evidence": "In performing oral hygiene, staff must assist with the cleansing of her dentures and lower bridge to prevent choking."
+    },
+    "blood_glucose_meal_monitoring": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "meal_refusal_pattern": {
+      "value": null,
+      "confidence": "low",
+      "source_pages": [],
+      "evidence": ""
+    },
+    "meal_related_notification_threshold": {
+      "value": "Claims of discomfort or confusion with basic tasks should be taken seriously and medically evaluated, though the reviewed text does not state a meal-specific threshold.",
+      "confidence": "medium",
+      "source_pages": [
+        6
+      ],
+      "evidence": "Any claims of discomfort and pain by Barbara should be taken seriously. If Barbara exhibits confusion for doing basic tasks... she should be taken to be evaluated by a medical professional."
+    }
+  },
+  "missing_required_keys": [
+    "meal_support_baseline",
+    "meal_assistance_level",
+    "diet_order_or_meal_plan",
+    "supervision_during_meals"
+  ],
+  "notes": [
+    "This file is a conservative first-pass structured extraction for Barbara meal support.",
+    "Only limited Barbara-specific meal-support evidence was available in the reviewed source material.",
+    "Null values indicate the source text did not clearly provide the requested item.",
+    "This subworkflow file is scoped to Feeding Assistance."
+  ]
+}

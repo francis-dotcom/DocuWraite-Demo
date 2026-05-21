@@ -1,0 +1,115 @@
+{
+  "workflowId": "meal-snack-support",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Meal Support",
+    "task": "Snack Support",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a snack-support note.",
+    "documentationGoals": [
+      "Capture snack support provided",
+      "Capture snack acceptance, prompting, and response",
+      "Capture any safety or intake concerns during snack support"
+    ],
+    "requiredCarePlanContext": [
+      "meal_support_baseline",
+      "diet_order_or_meal_plan",
+      "aspiration_precautions"
+    ],
+    "regulatoryRiskLevel": "medium",
+    "clinicalSensitivity": ["diet compliance", "aspiration", "poor intake"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": ["snack_task", "outcome", "engagement", "snack_response", "risks_and_protocols", "alerts_and_escalations", "free_note"],
+    "questions": [
+      {
+        "id": "snack_task",
+        "label": "What snack support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Snack offered", "Snack setup", "Snack prompting", "Snack intake monitoring", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "snack_task_other" }]
+      },
+      {
+        "id": "snack_task_other",
+        "label": "Describe the snack support.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "snack_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Minimal intake", "Not needed"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during snack support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Needed prompting", "Hesitant", "Resistant"]
+      },
+      {
+        "id": "snack_response",
+        "label": "What was the observed snack response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Accepted snack", "Accepted fluids", "Required prompting", "Poor intake observed", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "snack_response_other" }]
+      },
+      {
+        "id": "snack_response_other",
+        "label": "Describe the snack response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "snack_response", "value": "Other" }
+      },
+      {
+        "id": "risks_and_protocols",
+        "label": "Which risks or protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Aspiration precautions", "Special diet order", "Texture-modified diet", "Close supervision during snack", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Supervisor notification needed", "Diet follow-up needed", "Nurse notification needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra snack-support note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": []
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["snack support rendered", "engagement and snack response", "risks and protocols followed", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style."
+    ],
+    "safetyFlagDirectives": {},
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["follow_up"]
+    }
+  }
+}

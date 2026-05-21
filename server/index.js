@@ -22,6 +22,7 @@ const {
   getClientShiftSchedule,
   saveClientShiftSchedule,
   getClientCarePlanData,
+  getClientWorkflowContexts,
   saveClientCarePlanData,
   getTodayShiftDate,
   saveAssignment,
@@ -83,12 +84,14 @@ app.get("/api/workspace-state/:clientId", async (req, res) => {
 
     const clientShift = getClientShiftSchedule(clientId, shiftDate);
     const clientCarePlan = getClientCarePlanData(clientId);
+    const clientWorkflowContexts = getClientWorkflowContexts(clientId);
 
     res.json({
       ok: true,
       state: getWorkspaceState(clientId),
       clientShift,
       clientCarePlan,
+      clientWorkflowContexts,
       therapSync: therapSyncResult,
       shiftDate,
       dbPath,

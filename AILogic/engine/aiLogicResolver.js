@@ -1,11 +1,17 @@
-const bathingLogic = require("../ADLai/Bathing/bathing.logic.json");
-const dressingLogic = require("../ADLai/Dressing/dressing.logic.json");
+const bathingLogic = require("../ADL/Bathing/bathing.logic.json");
+const dressingLogic = require("../ADL/Dressing/dressing.logic.json");
 const finalCaseNoteLogic = require("../FinalCaseNote/final-case-note.logic.json");
-const groomingLogic = require("../ADLai/Grooming/grooming.logic.json");
+const groomingLogic = require("../ADL/Grooming/grooming.logic.json");
 const handoverNoteLogic = require("../HandoverNote/handover-note.logic.json");
-const hygieneLogic = require("../ADLai/Hygiene/hygiene.logic.json");
-const toiletingLogic = require("../ADLai/Toileting/toileting.logic.json");
-const transfersLogic = require("../ADLai/Transfers/transfers.logic.json");
+const hygieneLogic = require("../ADL/Hygiene/hygiene.logic.json");
+const aspirationPrecautionsLogic = require("../MealSupport/AspirationPrecautions/aspiration-precautions.logic.json");
+const feedingAssistanceLogic = require("../MealSupport/FeedingAssistance/feeding-assistance.logic.json");
+const hydrationSupportLogic = require("../MealSupport/HydrationSupport/hydration-support.logic.json");
+const intakeMonitoringLogic = require("../MealSupport/IntakeMonitoring/intake-monitoring.logic.json");
+const mealSetupLogic = require("../MealSupport/MealSetup/meal-setup.logic.json");
+const snackSupportLogic = require("../MealSupport/SnackSupport/snack-support.logic.json");
+const toiletingLogic = require("../ADL/Toileting/toileting.logic.json");
+const transfersLogic = require("../ADL/Transfers/transfers.logic.json");
 
 const WORKFLOW_TASK_FILE_MAP = {
   "adl:bathing": "adl:bathing",
@@ -16,6 +22,12 @@ const WORKFLOW_TASK_FILE_MAP = {
   "adl:hygiene": "adl:hygiene",
   "adl:toileting": "adl:toileting",
   "adl:transfers": "adl:transfers",
+  "meal support:aspiration precautions": "meal-support:aspiration-precautions",
+  "meal support:feeding assistance": "meal-support:feeding-assistance",
+  "meal support:hydration support": "meal-support:hydration-support",
+  "meal support:intake monitoring": "meal-support:intake-monitoring",
+  "meal support:meal setup": "meal-support:meal-setup",
+  "meal support:snack support": "meal-support:snack-support",
   "case note final:summary": "final-case-note:summary",
   "case-note-final:summary": "final-case-note:summary",
   "handover-note:shift handoff": "handover-note:shift-handoff",
@@ -24,12 +36,12 @@ const WORKFLOW_TASK_FILE_MAP = {
 const AI_LOGIC_REGISTRY = {
   "adl:bathing": {
     key: "adl:bathing",
-    source: "AILogic/ADLai/Bathing/bathing.logic.json",
+    source: "AILogic/ADL/Bathing/bathing.logic.json",
     raw: bathingLogic,
   },
   "adl:dressing": {
     key: "adl:dressing",
-    source: "AILogic/ADLai/Dressing/dressing.logic.json",
+    source: "AILogic/ADL/Dressing/dressing.logic.json",
     raw: dressingLogic,
   },
   "final-case-note:summary": {
@@ -42,24 +54,54 @@ const AI_LOGIC_REGISTRY = {
     source: "AILogic/HandoverNote/handover-note.logic.json",
     raw: handoverNoteLogic,
   },
+  "meal-support:aspiration-precautions": {
+    key: "meal-support:aspiration-precautions",
+    source: "AILogic/MealSupport/AspirationPrecautions/aspiration-precautions.logic.json",
+    raw: aspirationPrecautionsLogic,
+  },
+  "meal-support:feeding-assistance": {
+    key: "meal-support:feeding-assistance",
+    source: "AILogic/MealSupport/FeedingAssistance/feeding-assistance.logic.json",
+    raw: feedingAssistanceLogic,
+  },
+  "meal-support:hydration-support": {
+    key: "meal-support:hydration-support",
+    source: "AILogic/MealSupport/HydrationSupport/hydration-support.logic.json",
+    raw: hydrationSupportLogic,
+  },
+  "meal-support:intake-monitoring": {
+    key: "meal-support:intake-monitoring",
+    source: "AILogic/MealSupport/IntakeMonitoring/intake-monitoring.logic.json",
+    raw: intakeMonitoringLogic,
+  },
+  "meal-support:meal-setup": {
+    key: "meal-support:meal-setup",
+    source: "AILogic/MealSupport/MealSetup/meal-setup.logic.json",
+    raw: mealSetupLogic,
+  },
+  "meal-support:snack-support": {
+    key: "meal-support:snack-support",
+    source: "AILogic/MealSupport/SnackSupport/snack-support.logic.json",
+    raw: snackSupportLogic,
+  },
   "adl:grooming": {
     key: "adl:grooming",
-    source: "AILogic/ADLai/Grooming/grooming.logic.json",
+    source: "AILogic/ADL/Grooming/grooming.logic.json",
     raw: groomingLogic,
   },
   "adl:hygiene": {
     key: "adl:hygiene",
-    source: "AILogic/ADLai/Hygiene/hygiene.logic.json",
+    source: "AILogic/ADL/Hygiene/hygiene.logic.json",
     raw: hygieneLogic,
   },
   "adl:toileting": {
     key: "adl:toileting",
-    source: "AILogic/ADLai/Toileting/toileting.logic.json",
+    source: "AILogic/ADL/Toileting/toileting.logic.json",
     raw: toiletingLogic,
   },
   "adl:transfers": {
     key: "adl:transfers",
-    source: "AILogic/ADLai/Transfers/transfers.logic.json",
+    source: "AILogic/ADL/Transfers/transfers.logic.json",
     raw: transfersLogic,
   },
 };

@@ -1,0 +1,138 @@
+{
+  "workflowId": "meal-intake-monitoring",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Meal Support",
+    "task": "Intake Monitoring",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing intake-monitoring note.",
+    "documentationGoals": [
+      "Capture intake observed during the meal",
+      "Capture any poor intake, refusal, or tolerance concerns",
+      "Capture follow-up when intake deviates from baseline"
+    ],
+    "requiredCarePlanContext": [
+      "meal_support_baseline",
+      "diet_order_or_meal_plan",
+      "supervision_during_meals"
+    ],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["poor intake", "fluid refusal", "glucose-sensitive meal support"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": ["monitoring_focus", "outcome", "intake_observed", "engagement", "clinical_observations", "alerts_and_escalations", "free_note"],
+    "questions": [
+      {
+        "id": "monitoring_focus",
+        "label": "What intake was monitored?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Food intake", "Fluid intake", "Food and fluids", "Meal completion percentage", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "monitoring_focus_other" }]
+      },
+      {
+        "id": "monitoring_focus_other",
+        "label": "Describe what intake was monitored.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "monitoring_focus", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Intake as expected", "Reduced intake", "Minimal intake", "Refused", "Interrupted"]
+      },
+      {
+        "id": "intake_observed",
+        "label": "What intake was observed?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Ate full meal", "Ate partial meal", "Accepted fluids", "Poor appetite observed", "Required prompting to continue", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "intake_observed_other" }]
+      },
+      {
+        "id": "intake_observed_other",
+        "label": "Describe the observed intake.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "intake_observed", "value": "Other" }
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during intake monitoring?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Needed prompting", "Hesitant", "Resistant"]
+      },
+      {
+        "id": "clinical_observations",
+        "label": "Were any clinical observations noted?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["No unusual finding", "Poor intake", "Refused fluids", "Nausea or GI discomfort", "Low blood sugar symptoms", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "clinical_observations_other" }]
+      },
+      {
+        "id": "clinical_observations_other",
+        "label": "Describe the clinical observation.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "clinical_observations", "value": "Other" }
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Supervisor notification needed", "Nurse notification needed", "Diet follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra intake-monitoring note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "intake_concern_trigger",
+        "whenAnySelected": ["Poor intake", "Refused fluids", "Low blood sugar symptoms"],
+        "sourceQuestionId": "clinical_observations",
+        "flag": "intake_concern",
+        "severity": "high",
+        "requiredEscalations": ["Nurse notification needed", "Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must explicitly mention the intake-related concern observed and state that nurse and supervisor follow-up is required when applicable."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["monitoring focus", "intake observed", "engagement", "clinical observations", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "follow_up_heavy": { "style": "clear, carry-forward focused, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style."
+    ],
+    "safetyFlagDirectives": {
+      "intake_concern": {
+        "mustMention": ["poor intake, fluid refusal, or glucose-related concern observed", "staff response", "nurse follow-up required"],
+        "toneOverride": "follow_up_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["clinical_observations", "follow_up"]
+    }
+  }
+}

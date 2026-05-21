@@ -1,9 +1,9 @@
 const path = require("path");
 
-const adlCarePlanContextRegistry = require("../carePlanContext/adl.json");
-const mealSupportCarePlanContextRegistry = require("../carePlanContext/mealSupport.json");
-const adlWorkflowContextRequirements = require("../context/adlworkflow.json");
-const mealWorkflowContextRequirements = require("../context/mealworkflow.json");
+const adlCarePlanContextRegistry = require("../contexts/carePlanContexts/adl.json");
+const mealSupportCarePlanContextRegistry = require("../contexts/carePlanContexts/mealSupport.json");
+const adlWorkflowContextRequirements = require("../contexts/workFlowContexts/adlworkflow.json");
+const mealWorkflowContextRequirements = require("../contexts/workFlowContexts/mealworkflow.json");
 
 function ensure(condition, message) {
   if (!condition) {
@@ -33,7 +33,7 @@ function loadCarePlanContextRegistry() {
   const entriesByKey = Object.fromEntries(entries.map((entry) => [entry.context_key, entry]));
 
   return {
-    path: path.resolve(__dirname, "..", "carePlanContext"),
+    path: path.resolve(__dirname, "..", "contexts", "carePlanContexts"),
     raw: registryFiles,
     entries,
     entriesByKey,
@@ -55,7 +55,7 @@ function loadWorkflowContextRequirements() {
   );
 
   return {
-    path: path.resolve(__dirname, "..", "context"),
+    path: path.resolve(__dirname, "..", "contexts", "workFlowContexts"),
     raw: workflowFiles,
     workflows,
   };

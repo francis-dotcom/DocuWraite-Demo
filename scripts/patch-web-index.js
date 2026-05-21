@@ -21,5 +21,9 @@ if (/<meta\s+name="viewport"/i.test(html)) {
   html = html.replace("<head>", `<head>\n    <meta name="viewport" content="${viewport}" />`);
 }
 
+// Make exported assets work when dist/index.html is opened outside a root-hosted web server.
+html = html.replace(/(["'])\/_expo\//g, '$1./_expo/');
+html = html.replace(/(["'])\/assets\//g, '$1./assets/');
+
 fs.writeFileSync(indexPath, html);
-console.log(`patch-web-index: viewport initial-scale=${scale}`);
+console.log(`patch-web-index: viewport initial-scale=${scale}; asset paths rewritten to relative URLs`);

@@ -9,7 +9,12 @@
       "description": "The person's usual mealtime presentation, eating pattern, and overall support needs during meals.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#baseline",
         "#nutrition"
       ]
@@ -20,7 +25,12 @@
       "description": "The expected hands-on or supervisory assistance level during meals or snack support.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#assistance",
         "#nutrition"
       ]
@@ -31,7 +41,12 @@
       "description": "The usual prompt intensity needed for safe eating, pacing, or meal participation.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#prompting",
         "#nutrition"
       ]
@@ -42,7 +57,12 @@
       "description": "The prescribed diet order, meal plan, or nutrition restrictions that staff should follow.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#diet",
         "#nutrition"
       ]
@@ -53,7 +73,12 @@
       "description": "Specific aspiration or choking precautions that apply during meals or drinks.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#aspiration",
         "#safety"
       ]
@@ -64,7 +89,12 @@
       "description": "The required supervision level or staff oversight expected during mealtime support.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#supervision",
         "#safety"
       ]
@@ -75,7 +105,12 @@
       "description": "Any required meal pacing instructions such as bite size, pauses, or staff cueing cadence.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#pacing",
         "#safety"
       ]
@@ -86,7 +121,12 @@
       "description": "Ordered safe-swallow steps or feeding procedures that staff should follow during meals.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#swallow",
         "#protocol"
       ]
@@ -97,7 +137,12 @@
       "description": "Support required for offering, pacing, cueing, or monitoring fluids with meals.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#hydration",
         "#support"
       ]
@@ -108,7 +153,12 @@
       "description": "Any requirement to document portions, calories, supplements, or percentage of meal consumed.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#intake",
         "#monitoring"
       ]
@@ -119,7 +169,12 @@
       "description": "Adaptive utensils, cups, plates, seating, or meal equipment needed for safe eating.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#equipment",
         "#adaptive"
       ]
@@ -130,7 +185,12 @@
       "description": "Required body positioning or seating setup before, during, or after meals.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#positioning",
         "#safety"
       ]
@@ -141,7 +201,12 @@
       "description": "Any texture modification requirements for food served during meal support.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#diet",
         "#texture"
       ]
@@ -152,7 +217,12 @@
       "description": "Any ordered liquid consistency such as thin, nectar, honey, or thickened liquids.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#diet",
         "#liquids"
       ]
@@ -163,7 +233,12 @@
       "description": "Any prescribed supplements, special formulas, or nutrition supports that should be given or tracked.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#nutrition",
         "#supplements"
       ]
@@ -174,7 +249,12 @@
       "description": "Any GERD, reflux, or post-meal positioning precautions tied to digestion and mealtime safety.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#gerd",
         "#precautions"
       ]
@@ -185,7 +265,12 @@
       "description": "The documented choking or aspiration risk level relevant to meal support.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#aspiration",
         "#risk"
       ]
@@ -196,7 +281,12 @@
       "description": "Meal-related blood glucose checks, snack corrections, or diabetic monitoring steps tied to meals.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#glucose",
         "#monitoring"
       ]
@@ -207,7 +297,12 @@
       "description": "Known refusal patterns, triggers, or support approaches related to meals or intake.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#refusal",
         "#behavior-support"
       ]
@@ -218,7 +313,12 @@
       "description": "What intake, choking, glucose, vomiting, or refusal findings should trigger staff notification or escalation.",
       "data_type": "string",
       "tags": [
-        "#meal-support",
+        "#feeding-assistance",
+        "#meal-setup",
+        "#intake-monitoring",
+        "#hydration-support",
+        "#aspiration-precautions",
+        "#snack-support",
         "#escalation",
         "#notification"
       ]

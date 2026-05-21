@@ -1,0 +1,137 @@
+{
+  "workflowId": "meal-aspiration-precautions",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Meal Support",
+    "task": "Aspiration Precautions",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate an aspiration-precautions meal-support note.",
+    "documentationGoals": [
+      "Capture aspiration precautions followed during meal support",
+      "Capture swallow-safety observations and staff response",
+      "Capture aspiration concerns and escalation language when needed"
+    ],
+    "requiredCarePlanContext": [
+      "aspiration_precautions",
+      "supervision_during_meals"
+    ],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["aspiration", "choking risk", "swallow safety"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": ["precaution_task", "outcome", "engagement", "meal_response", "clinical_observations", "alerts_and_escalations", "free_note"],
+    "questions": [
+      {
+        "id": "precaution_task",
+        "label": "What aspiration precaution support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Pacing support", "Cueing for safe swallowing", "Alternating food and fluids", "Positioning for swallow safety", "Close supervision during meal", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "precaution_task_other" }]
+      },
+      {
+        "id": "precaution_task_other",
+        "label": "Describe the aspiration precaution support.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "precaution_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed safely", "Completed with concern", "Interrupted", "Not needed"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during aspiration precaution support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Needed repeated cueing", "Hesitant", "Resistant"]
+      },
+      {
+        "id": "meal_response",
+        "label": "What was the observed meal response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Tolerated meal safely", "Required repeated cueing", "Accepted pacing", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "meal_response_other" }]
+      },
+      {
+        "id": "meal_response_other",
+        "label": "Describe the meal response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "meal_response", "value": "Other" }
+      },
+      {
+        "id": "clinical_observations",
+        "label": "Were any aspiration-related observations noted?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["No unusual finding", "Coughing during meal", "Choking concern", "Pocketing food", "Wet voice or swallow concern", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "clinical_observations_other" }]
+      },
+      {
+        "id": "clinical_observations_other",
+        "label": "Describe the aspiration-related observation.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "clinical_observations", "value": "Other" }
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Supervisor notification needed", "Nurse notification needed", "Incident follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra aspiration-precautions note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "aspiration_trigger",
+        "whenAnySelected": ["Coughing during meal", "Choking concern", "Pocketing food", "Wet voice or swallow concern"],
+        "sourceQuestionId": "clinical_observations",
+        "flag": "aspiration_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed", "Nurse notification needed"],
+        "requiredNoteDirective": "The generated note must explicitly mention the aspiration-related concern observed during meal support, the staff response, and that supervisor and nurse follow-up are required when applicable."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["precaution support rendered", "engagement and meal response", "aspiration-related observations", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style."
+    ],
+    "safetyFlagDirectives": {
+      "aspiration_concern": {
+        "mustMention": ["aspiration-related concern observed", "staff response", "supervisor or nurse follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["clinical_observations", "follow_up"]
+    }
+  }
+}

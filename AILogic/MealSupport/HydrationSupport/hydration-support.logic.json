@@ -1,0 +1,114 @@
+{
+  "workflowId": "meal-hydration-support",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Meal Support",
+    "task": "Hydration Support",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a hydration-support note related to meals or snacks.",
+    "documentationGoals": [
+      "Capture hydration support or fluid prompting provided",
+      "Capture fluid acceptance and tolerance",
+      "Capture fluid-related concerns or escalation needs"
+    ],
+    "requiredCarePlanContext": [
+      "meal_support_baseline",
+      "supervision_during_meals"
+    ],
+    "regulatoryRiskLevel": "medium",
+    "clinicalSensitivity": ["fluid refusal", "hydration tolerance", "swallow safety"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": ["hydration_task", "outcome", "engagement", "fluid_response", "risks_and_protocols", "alerts_and_escalations", "free_note"],
+    "questions": [
+      {
+        "id": "hydration_task",
+        "label": "What hydration support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Fluids offered", "Fluid prompting", "Fluid pacing", "Intake monitoring for fluids", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "hydration_task_other" }]
+      },
+      {
+        "id": "hydration_task_other",
+        "label": "Describe the hydration support.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "hydration_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Accepted fluids", "Accepted partial fluids", "Refused fluids", "Not needed"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during hydration support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Needed prompting", "Hesitant", "Resistant"]
+      },
+      {
+        "id": "fluid_response",
+        "label": "What was the observed fluid response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Accepted fluids", "Required prompting", "Required pacing", "Refused fluids", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "fluid_response_other" }]
+      },
+      {
+        "id": "fluid_response_other",
+        "label": "Describe the fluid response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "fluid_response", "value": "Other" }
+      },
+      {
+        "id": "risks_and_protocols",
+        "label": "Which risks or protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Aspiration precautions", "Thickened liquids", "Fluid pacing required", "Close supervision during meals", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Supervisor notification needed", "Nurse notification needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra hydration-support note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": []
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["hydration support rendered", "engagement and fluid response", "risks and protocols followed", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style."
+    ],
+    "safetyFlagDirectives": {},
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["follow_up"]
+    }
+  }
+}

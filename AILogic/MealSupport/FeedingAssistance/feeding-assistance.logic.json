@@ -1,0 +1,174 @@
+{
+  "workflowId": "meal-feeding-assistance",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Meal Support",
+    "task": "Feeding Assistance",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing feeding-assistance note using structured answers, care-plan context, and safety escalation rules.",
+    "documentationGoals": [
+      "Capture the exact feeding assistance provided",
+      "Capture assistance, prompting, and observed meal response",
+      "Capture aspiration-sensitive findings and escalation needs",
+      "Generate a concise but defensible feeding-assistance narrative"
+    ],
+    "requiredCarePlanContext": [
+      "meal_support_baseline",
+      "meal_assistance_level",
+      "diet_order_or_meal_plan",
+      "aspiration_precautions",
+      "supervision_during_meals"
+    ],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["aspiration", "choking risk", "diet order compliance", "poor intake"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "feeding_task",
+      "outcome",
+      "assistance_level",
+      "engagement",
+      "meal_response",
+      "risks_and_protocols",
+      "clinical_observations",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "feeding_task",
+        "label": "What feeding assistance was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": [
+          "Hand-over-hand feeding",
+          "Direct feeding assistance",
+          "Cueing to continue eating",
+          "Alternating food and fluids",
+          "Pacing support",
+          "Other"
+        ],
+        "followUpRules": [{ "when": "Other", "ask": "feeding_task_other" }]
+      },
+      {
+        "id": "feeding_task_other",
+        "label": "Describe the feeding assistance provided.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "feeding_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Minimal intake", "Interrupted", "Not needed"]
+      },
+      {
+        "id": "assistance_level",
+        "label": "What assistance level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Supervision only", "Verbal prompt", "Partial assist", "Full assist", "Total feeding assist", "Dependent"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during feeding assistance?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Hesitant", "Distracted", "Needed repeated cueing", "Resistant"]
+      },
+      {
+        "id": "meal_response",
+        "label": "What was the observed meal response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Ate as expected", "Accepted fluids", "Required pacing", "Required repeated prompting", "Poor intake observed", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "meal_response_other" }]
+      },
+      {
+        "id": "meal_response_other",
+        "label": "Describe the observed meal response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "meal_response", "value": "Other" }
+      },
+      {
+        "id": "risks_and_protocols",
+        "label": "Which risks or protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Aspiration precautions", "Meal pacing required", "Special diet order", "Texture-modified diet", "Thickened liquids", "Close supervision during meals", "None"]
+      },
+      {
+        "id": "clinical_observations",
+        "label": "Were any clinical observations noted?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["No unusual finding", "Coughing during meal", "Choking concern", "Pocketing food", "Poor intake", "Refused fluids", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "clinical_observations_other" }]
+      },
+      {
+        "id": "clinical_observations_other",
+        "label": "Describe the clinical observation.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "clinical_observations", "value": "Other" }
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Supervisor notification needed", "Nurse notification needed", "Diet follow-up needed", "Incident follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra feeding-assistance note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "feeding_aspiration_trigger",
+        "whenAnySelected": ["Coughing during meal", "Choking concern", "Pocketing food"],
+        "sourceQuestionId": "clinical_observations",
+        "flag": "aspiration_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must explicitly mention the aspiration-related concern observed during feeding assistance, the staff response, and that supervisor follow-up is required."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["feeding assistance rendered", "assistance and prompting", "engagement and meal response", "risks and protocols followed", "clinical observations", "alerts and follow-up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the feeding assistance rendered, prompt or assist level, observed meal response, and any relevant meal precautions.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "aspiration_concern": {
+        "mustMention": ["aspiration-related concern observed during feeding assistance", "staff response", "supervisor follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "assistance_level", "observed_response"],
+      "optionalSections": ["clinical_observations", "follow_up"]
+    }
+  }
+}

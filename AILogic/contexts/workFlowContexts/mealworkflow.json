@@ -1,0 +1,112 @@
+{
+  "registryName": "Meal Workflow Context Requirements",
+  "version": "1.0.0",
+  "format": "workflow-context-requirements",
+  "workflows": {
+    "#feeding-assistance": {
+      "label": "Feeding Assistance",
+      "required_keys": [
+        "meal_support_baseline",
+        "meal_assistance_level",
+        "diet_order_or_meal_plan",
+        "aspiration_precautions",
+        "supervision_during_meals"
+      ],
+      "optional_keys": [
+        "meal_prompt_level",
+        "meal_pacing_requirements",
+        "safe_swallow_protocol",
+        "fluid_intake_support",
+        "intake_monitoring_requirements",
+        "adaptive_utensils_or_equipment",
+        "positioning_during_meals",
+        "food_texture_requirements",
+        "liquid_consistency_requirements",
+        "supplement_or_special_nutrition_support",
+        "gerd_or_reflux_precautions",
+        "choking_risk_status",
+        "blood_glucose_meal_monitoring",
+        "meal_refusal_pattern",
+        "meal_related_notification_threshold"
+      ]
+    },
+    "#meal-setup": {
+      "label": "Meal Setup",
+      "required_keys": [
+        "meal_support_baseline",
+        "diet_order_or_meal_plan",
+        "aspiration_precautions",
+        "supervision_during_meals"
+      ],
+      "optional_keys": [
+        "adaptive_utensils_or_equipment",
+        "positioning_during_meals",
+        "food_texture_requirements",
+        "liquid_consistency_requirements",
+        "supplement_or_special_nutrition_support",
+        "meal_related_notification_threshold"
+      ]
+    },
+    "#intake-monitoring": {
+      "label": "Intake Monitoring",
+      "required_keys": [
+        "meal_support_baseline",
+        "diet_order_or_meal_plan",
+        "supervision_during_meals"
+      ],
+      "optional_keys": [
+        "fluid_intake_support",
+        "intake_monitoring_requirements",
+        "blood_glucose_meal_monitoring",
+        "meal_related_notification_threshold"
+      ]
+    },
+    "#hydration-support": {
+      "label": "Hydration Support",
+      "required_keys": [
+        "meal_support_baseline",
+        "supervision_during_meals"
+      ],
+      "optional_keys": [
+        "fluid_intake_support",
+        "liquid_consistency_requirements",
+        "aspiration_precautions",
+        "meal_related_notification_threshold"
+      ]
+    },
+    "#aspiration-precautions": {
+      "label": "Aspiration Precautions",
+      "required_keys": [
+        "aspiration_precautions",
+        "supervision_during_meals"
+      ],
+      "optional_keys": [
+        "meal_pacing_requirements",
+        "safe_swallow_protocol",
+        "positioning_during_meals",
+        "food_texture_requirements",
+        "liquid_consistency_requirements",
+        "choking_risk_status",
+        "meal_related_notification_threshold"
+      ]
+    },
+    "#snack-support": {
+      "label": "Snack Support",
+      "required_keys": [
+        "meal_support_baseline",
+        "diet_order_or_meal_plan",
+        "aspiration_precautions"
+      ],
+      "optional_keys": [
+        "meal_prompt_level",
+        "fluid_intake_support",
+        "intake_monitoring_requirements",
+        "food_texture_requirements",
+        "liquid_consistency_requirements",
+        "choking_risk_status",
+        "meal_refusal_pattern",
+        "meal_related_notification_threshold"
+      ]
+    }
+  }
+}

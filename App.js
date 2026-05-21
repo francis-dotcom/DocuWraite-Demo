@@ -104,12 +104,6 @@ const documentationCoordinationRuntimeMap = require("./decisionAlgo/documentatio
 const moduleCatalog = require("./decisionAlgo/moduleCatalog.json");
 const ruleMappingTable = require("./decisionAlgo/ruleMappingTable.json");
 const noteOutputTemplate = require("./decisionAlgo/noteOutputTemplate.json");
-const bPhaganBathingContext = require("./AILogic/clientContexts/BPhagan.bathingContext.json");
-const bPhaganDressingContext = require("./AILogic/clientContexts/BPhagan.dressingContext.json");
-const bPhaganGroomingContext = require("./AILogic/clientContexts/BPhagan.groomingContext.json");
-const bPhaganHygieneContext = require("./AILogic/clientContexts/BPhagan.hygieneContext.json");
-const bPhaganToiletingContext = require("./AILogic/clientContexts/BPhagan.toiletingContext.json");
-const bPhaganTransfersContext = require("./AILogic/clientContexts/BPhagan.transfersContext.json");
 const { resolveAiLogicPath, aiLogicExists } = require("./AILogic/engine/aiLogicResolver");
 const { loadAiLogic } = require("./AILogic/engine/aiLogicLoader");
 const { evaluateAiSafety } = require("./AILogic/engine/aiSafetyEngine");
@@ -145,37 +139,13 @@ const WORKFLOW_RUNTIME_MAPS = {
 };
 
 const aiLogicCache = new Map();
-const CLIENT_WORKFLOW_CONTEXT_MAP = [
-  {
-    workflowTag: "#bathing",
-    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
-    context: bPhaganBathingContext,
-  },
-  {
-    workflowTag: "#dressing",
-    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
-    context: bPhaganDressingContext,
-  },
-  {
-    workflowTag: "#grooming",
-    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
-    context: bPhaganGroomingContext,
-  },
-  {
-    workflowTag: "#hygiene",
-    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
-    context: bPhaganHygieneContext,
-  },
-  {
-    workflowTag: "#toileting",
-    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
-    context: bPhaganToiletingContext,
-  },
-  {
-    workflowTag: "#transfers",
-    clientNames: ["barbara c phagan", "phagan b", "phagan, b.", "barbara phagan"],
-    context: bPhaganTransfersContext,
-  },
+const MEAL_SUPPORT_SUBWORKFLOW_OPTIONS = [
+  { value: "feeding-assistance", label: "Feeding Assistance" },
+  { value: "meal-setup", label: "Meal Setup" },
+  { value: "intake-monitoring", label: "Intake Monitoring" },
+  { value: "hydration-support", label: "Hydration Support" },
+  { value: "aspiration-precautions", label: "Aspiration Precautions" },
+  { value: "snack-support", label: "Snack Support" },
 ];
 
 const ADL_GUIDED_TASK_OPTIONS = [
@@ -1353,7 +1323,7 @@ function getWorkflowTagForFieldContext(fieldContext = {}) {
     .trim()
     .toLowerCase();
   if (aiLogicTask) {
-    return `#${aiLogicTask}`;
+    return `#${aiLogicTask.replace(/\s+/g, "-")}`;
   }
 
   return "";
@@ -1374,7 +1344,12 @@ function getDocumentationScoreConfig(fieldContext = {}) {
   };
 }
 
-function resolveClientCarePlanContext({ workflowTag = "", clientProfile = null, activePatientName = "" } = {}) {
+function resolveClientCarePlanContext({
+  workflowTag = "",
+  clientProfile = null,
+  activePatientName = "",
+  clientWorkflowContexts = [],
+} = {}) {
   const normalizedWorkflowTag = String(workflowTag || "").trim().toLowerCase();
   if (!normalizedWorkflowTag) {
     return null;
@@ -1388,14 +1363,24 @@ function resolveClientCarePlanContext({ workflowTag = "", clientProfile = null, 
   ]
     .map((item) => normalizeLookupName(item))
     .filter(Boolean);
+  const candidateClientIds = [String(clientProfile?.id || "").trim(), String(clientProfile?.clientId || "").trim()].filter(Boolean);
 
-  return (
-    CLIENT_WORKFLOW_CONTEXT_MAP.find(
-      (entry) =>
-        entry.workflowTag.toLowerCase() === normalizedWorkflowTag &&
-        entry.clientNames.some((name) => candidateNames.includes(normalizeLookupName(name)))
-    )?.context || null
-  );
+  const matched = (clientWorkflowContexts || []).find((entry) => {
+    const entryWorkflowTag = String(entry?.workflowTag || entry?.context?.workflow_tag || "").trim().toLowerCase();
+    if (entryWorkflowTag !== normalizedWorkflowTag) {
+      return false;
+    }
+
+    const entryClientId = String(entry?.clientId || entry?.context?.client_id || "").trim();
+    if (entryClientId && candidateClientIds.includes(entryClientId)) {
+      return true;
+    }
+
+    const entryClientName = normalizeLookupName(entry?.context?.client_name || "");
+    return entryClientName ? candidateNames.includes(entryClientName) : false;
+  });
+
+  return matched?.context || null;
 }
 
 function attachClientCarePlanContext(fieldContext = {}, options = {}) {
@@ -1416,6 +1401,7 @@ function attachClientCarePlanContext(fieldContext = {}, options = {}) {
     workflowTag,
     clientProfile: options.clientProfile || null,
     activePatientName: options.activePatientName || "",
+    clientWorkflowContexts: options.clientWorkflowContexts || [],
   });
 
   if (!carePlanContext) {
@@ -1451,6 +1437,62 @@ function inferAiLogicSelection(fieldContext = {}) {
     return {
       category: "Handover Note",
       task: "Shift Handoff",
+    };
+  }
+
+  if (workflowId === "feeding-support" || workflowId === "meal-support") {
+    const explicitMealTask = String(
+      fieldContext.subworkflowId || fieldContext.taskLabel || fieldContext.workflowTask || ""
+    ).trim();
+    if (explicitMealTask) {
+      return {
+        category: "Meal Support",
+        task: explicitMealTask
+          .split(/[-_ ]+/)
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+          .join(" "),
+      };
+    }
+
+    const taskSignals = [
+      {
+        task: "Hydration Support",
+        signals: ["hydration", "fluids offered", "fluid monitoring", "fluid support", "drink", "drinks"],
+      },
+      {
+        task: "Aspiration Precautions",
+        signals: ["aspiration", "swallow", "swallow safety", "choking", "pacing", "pocketing"],
+      },
+      {
+        task: "Intake Monitoring",
+        signals: ["intake", "poor intake", "meal completion", "accepted fluids", "monitor intake", "percentage eaten"],
+      },
+      {
+        task: "Snack Support",
+        signals: ["snack", "snack support"],
+      },
+      {
+        task: "Meal Setup",
+        signals: ["meal setup", "tray setup", "set up meal", "utensils", "positioning for meal"],
+      },
+      {
+        task: "Feeding Assistance",
+        signals: ["feeding", "feeding assistance", "eating support", "hand over hand", "feed assist"],
+      },
+    ];
+
+    for (const candidate of taskSignals) {
+      if (candidate.signals.some((signal) => haystack.includes(normalizeInferenceText(signal)))) {
+        return {
+          category: "Meal Support",
+          task: candidate.task,
+        };
+      }
+    }
+
+    return {
+      category: "Meal Support",
+      task: "Feeding Assistance",
     };
   }
 
@@ -7553,6 +7595,7 @@ function DocumentationEntryScreen({
     const normalizedFieldContext = attachClientCarePlanContext(assist.fieldContext || {}, {
       clientProfile,
       activePatientName,
+      clientWorkflowContexts: persistedClientWorkflowContexts,
     });
     assist = {
       ...assist,
@@ -7635,6 +7678,7 @@ function DocumentationEntryScreen({
     fieldContext = attachClientCarePlanContext(fieldContext, {
       clientProfile,
       activePatientName,
+      clientWorkflowContexts: persistedClientWorkflowContexts,
     });
     const hasAssignedNodes = (fieldContext.assignedNodes || []).length > 0;
     const localWorkflowSteps = getAssignedWorkflowStepsForField(fieldContext);
@@ -9607,11 +9651,13 @@ function DecisionEngineScreen({
   const [newBlockStartHour, setNewBlockStartHour] = useState(initialBuilderSeed?.blockStartHour ?? 7);
   const [newBlockEndHour, setNewBlockEndHour] = useState(initialBuilderSeed?.blockEndHour ?? 8);
   const [newBlockWorkflowId, setNewBlockWorkflowId] = useState(initialBlockDraftState.workflowId);
+  const [newBlockMealSubworkflow, setNewBlockMealSubworkflow] = useState("feeding-assistance");
   const [blockDraftsByWorkflow, setBlockDraftsByWorkflow] = useState(initialBlockDraftState.drafts);
   const [scheduleBuilderHint, setScheduleBuilderHint] = useState("");
   const [builderGuide, setBuilderGuide] = useState(null);
   const [blockBuilderHint, setBlockBuilderHint] = useState("");
   const [newRowWorkflowId, setNewRowWorkflowId] = useState(initialRowDraftState.workflowId);
+  const [newRowMealSubworkflow, setNewRowMealSubworkflow] = useState("feeding-assistance");
   const [rowDraftsByWorkflow, setRowDraftsByWorkflow] = useState(initialRowDraftState.drafts);
   const [rowBuilderHint, setRowBuilderHint] = useState("");
   const [blockPromptPopoverVisible, setBlockPromptPopoverVisible] = useState(false);
@@ -10591,6 +10637,11 @@ function DecisionEngineScreen({
       description: String(newBlockDescription).trim(),
       source: "Shift Timeline",
       workflowId: newBlockWorkflowId,
+      subworkflowId: newBlockWorkflowId === "feeding-support" ? newBlockMealSubworkflow : "",
+      taskLabel:
+        newBlockWorkflowId === "feeding-support"
+          ? MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.find((option) => option.value === newBlockMealSubworkflow)?.label || ""
+          : "",
       theme: selectedWorkflow?.theme || "behavior",
     };
     onScheduleChange?.([...timeBlocks, nextBlock]);
@@ -10707,6 +10758,9 @@ function DecisionEngineScreen({
     suppressBlockPromptAutoOpenRef.current = false;
     blockPromptTypedRef.current = false;
     setNewBlockWorkflowId(workflowId);
+    if (workflowId !== "feeding-support") {
+      setNewBlockMealSubworkflow("feeding-assistance");
+    }
     setBlockGuidedAdlPrompt(buildInitialGuidedAdlPromptState());
     closeBlockPromptPopover();
     setBlockPromptSuggestions([]);
@@ -10775,6 +10829,11 @@ function DecisionEngineScreen({
       source: "Case Note",
       linkedFromCarePlan: true,
       workflowId: newRowWorkflowId,
+      subworkflowId: newRowWorkflowId === "feeding-support" ? newRowMealSubworkflow : "",
+      taskLabel:
+        newRowWorkflowId === "feeding-support"
+          ? MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.find((option) => option.value === newRowMealSubworkflow)?.label || ""
+          : "",
       theme: selectedWorkflow?.theme || "behavior",
       score: "",
       comment: "",
@@ -10802,6 +10861,9 @@ function DecisionEngineScreen({
   const handleWorkflowOptionPress = (workflowId) => {
     rowWorkflowTouchedRef.current = true;
     setNewRowWorkflowId(workflowId);
+    if (workflowId !== "feeding-support") {
+      setNewRowMealSubworkflow("feeding-assistance");
+    }
     setRowGuidedAdlPrompt(buildInitialGuidedAdlPromptState());
     closeRowPromptPopover();
     setRowPromptSuggestions([]);
@@ -11185,6 +11247,29 @@ function DecisionEngineScreen({
             </Pressable>
           ))}
         </View>
+        {newBlockWorkflowId === "feeding-support" ? (
+          <View style={styles.decisionWorkflowChipRow}>
+            {MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.map((option) => (
+              <Pressable
+                key={`block-meal-${option.value}`}
+                onPress={() => setNewBlockMealSubworkflow(option.value)}
+                style={[
+                  styles.decisionOptionButton,
+                  newBlockMealSubworkflow === option.value && styles.decisionOptionButtonActiveSubworkflow,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.decisionOptionText,
+                    newBlockMealSubworkflow === option.value && styles.decisionOptionTextActiveSubworkflow,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
         <Text style={styles.decisionScheduleSameTimeHint}>
           Same time, different job? Keep Start and End, tap another category (ADL, Communication, …), write the description, then Add Block again.
         </Text>
@@ -11343,6 +11428,27 @@ function DecisionEngineScreen({
               </Text>
             </Pressable>
           ))}
+          {newRowWorkflowId === "feeding-support"
+            ? MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.map((option) => (
+                <Pressable
+                  key={`row-meal-${option.value}`}
+                  onPress={() => setNewRowMealSubworkflow(option.value)}
+                  style={[
+                    styles.decisionOptionButton,
+                    newRowMealSubworkflow === option.value && styles.decisionOptionButtonActiveSubworkflow,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.decisionOptionText,
+                      newRowMealSubworkflow === option.value && styles.decisionOptionTextActiveSubworkflow,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))
+            : null}
           <Pressable
             style={[
               styles.decisionAssignButton,
@@ -16340,6 +16446,7 @@ export default function App() {
   const [pendingDecisionAssignmentTarget, setPendingDecisionAssignmentTarget] = useState(null);
   const [persistedClientShift, setPersistedClientShift] = useState(null);
   const [persistedClientCarePlan, setPersistedClientCarePlan] = useState(null);
+  const [persistedClientWorkflowContexts, setPersistedClientWorkflowContexts] = useState([]);
   const activeClientProfile = useMemo(
     () =>
       mergeResolvedClientProfile(getClientById(activeClientId) || getMaryBetProfile(), {
@@ -16502,6 +16609,7 @@ export default function App() {
     setDecisionStateHydrated(false);
     setPersistedClientShift(null);
     setPersistedClientCarePlan(null);
+    setPersistedClientWorkflowContexts([]);
 
     const applyDefaultState = () => {
       if (cancelled) {
@@ -16566,6 +16674,9 @@ export default function App() {
         }
         if (payload?.clientCarePlan) {
           setPersistedClientCarePlan(payload.clientCarePlan);
+        }
+        if (Array.isArray(payload?.clientWorkflowContexts)) {
+          setPersistedClientWorkflowContexts(payload.clientWorkflowContexts);
         }
 
         const state = payload?.state;
@@ -17217,7 +17328,10 @@ export default function App() {
                       <Pressable
                         key={item}
                         onPress={() => handleModuleSelect(item)}
-                        style={styles.modulePressable}
+                        style={[
+                          styles.modulePressable,
+                          isSelected && styles.modulePressableActive,
+                        ]}
                       >
                         <View style={styles.moduleRow}>
                           <Icon name="chevronRight" size={14} color={moduleColor} style={styles.moduleIcon} />
@@ -18019,6 +18133,17 @@ const styles = StyleSheet.create({
   },
   modulePressable: {
     alignSelf: "flex-start",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "transparent",
+    backgroundColor: "transparent",
+  },
+  modulePressableActive: {
+    borderWidth: 2,
+    borderColor: colors.topPurple,
+    backgroundColor: "#f3efff",
   },
   moduleRow: {
     flexDirection: "row",
@@ -19314,6 +19439,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f7a63",
     borderColor: "#0f7a63",
   },
+  decisionOptionButtonActiveSubworkflow: {
+    backgroundColor: "#ede9fe",
+    borderColor: colors.topPurple,
+  },
   decisionOptionText: {
     fontSize: 13,
     color: colors.headerText,
@@ -19321,6 +19450,9 @@ const styles = StyleSheet.create({
   },
   decisionOptionTextActive: {
     color: "#ffffff",
+  },
+  decisionOptionTextActiveSubworkflow: {
+    color: colors.topPurple,
   },
   decisionSummaryRow: {
     flexDirection: "row",
