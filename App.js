@@ -1718,7 +1718,7 @@ function getAssignedWorkflowStepsForField(fieldContext = {}) {
       return configDrivenSteps;
     }
   }
-  return createAssignedWorkflowSteps(fieldContext.assignedNodes || []);
+  return createAssignedWorkflowSteps(fieldContext.assignedNodes || [], fieldContext.workflowId || "");
 }
 
 function buildPrecomputedAssignedWorkflowSteps(fieldContext = {}) {
@@ -1735,7 +1735,7 @@ function buildPrecomputedAssignedWorkflowSteps(fieldContext = {}) {
     }
   }
 
-  return createAssignedWorkflowSteps(fieldContext.assignedNodes || []);
+  return createAssignedWorkflowSteps(fieldContext.assignedNodes || [], fieldContext.workflowId || "");
 }
 
 function workflowStepsContainAiLogic(steps = []) {
@@ -2052,7 +2052,7 @@ function getMissingDecisionChoiceNodeKeys(selectedKeys = [], selections = {}) {
   });
 }
 
-function createAssignedWorkflowSteps(assignedNodes = []) {
+function createAssignedWorkflowSteps(assignedNodes = [], workflowId = "") {
   const steps = assignedNodes
     .filter((node) => node?.question || getDecisionNodeDisplayQuestion(node))
     .map((node) => {
@@ -2078,13 +2078,31 @@ function createAssignedWorkflowSteps(assignedNodes = []) {
     return [];
   }
 
-  return [
-    ...steps,
+  const trailingSteps = [
     {
       stepKey: "assigned-nodes-draft",
       kind: "draft",
       question: "Review and generate note",
     },
+  ];
+
+  if (workflowId === "case-note-final") {
+    trailingSteps.push({
+      stepKey: "final-note-affirm",
+      kind: "affirm",
+      question: "Review final case note",
+    });
+  } else if (workflowId === "handover-note") {
+    trailingSteps.push({
+      stepKey: "handover-note-affirm",
+      kind: "affirm",
+      question: "Review handover note",
+    });
+  }
+
+  return [
+    ...steps,
+    ...trailingSteps,
   ];
 }
 
