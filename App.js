@@ -5267,7 +5267,9 @@ function getDocuWraiteCarePlanConflict(theme, value) {
   return null;
 }
 
-function getDocuWraiteSuggestion(theme, value, source) {
+function getDocuWraiteSuggestion(theme, value, source, score = "") {
+  const normalizedScore = String(score || "").trim();
+
   if (/risk/i.test(source || "")) {
     return "Staff support rendered with risk-informed supervision. Observed response documented and escalation plan noted if needed.";
   }
@@ -5282,6 +5284,9 @@ function getDocuWraiteSuggestion(theme, value, source) {
     return quickPhraseSnippets.behavior;
   }
   if (theme === "hygiene") {
+    if (normalizedScore) {
+      return `${normalizedScore} provided during ADL support. Staff support rendered and observed response documented.`;
+    }
     return "ADL support provided with verbal and physical prompts. Prompt level documented and observed response recorded.";
   }
   if (theme === "medication") {
@@ -5338,7 +5343,7 @@ function resolveDocuWraiteAssist({
       id: "compliance-comment",
       title: "Ready to start this note?",
       message: "Add what staff did and how the client responded for this entry.",
-      suggestion: getDocuWraiteSuggestion(detectDocuWraiteWorkflowTheme(description || ""), text, source),
+      suggestion: getDocuWraiteSuggestion(detectDocuWraiteWorkflowTheme(description || ""), text, source, score),
       trigger,
     });
   }
