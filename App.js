@@ -5336,8 +5336,8 @@ function resolveDocuWraiteAssist({
     candidates.push({
       priority: 95,
       id: "compliance-comment",
-      title: "Intervention comment missing",
-      message: "Add what staff did and how Mary Bet responded for this scored entry.",
+      title: "Ready to start this note?",
+      message: "Add what staff did and how the client responded for this entry.",
       suggestion: getDocuWraiteSuggestion(detectDocuWraiteWorkflowTheme(description || ""), text, source),
       trigger,
     });
