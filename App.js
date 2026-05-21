@@ -9682,6 +9682,7 @@ function DecisionEngineScreen({
   const blockPromptEngagedRef = useRef(false);
   const rowPromptEngagedRef = useRef(false);
   const suppressBlockPromptAutoOpenRef = useRef(false);
+  const suppressRowPromptAutoOpenRef = useRef(false);
   const blockPromptTypedRef = useRef(false);
   const blockPromptIdleTimerRef = useRef(null);
   const rowPromptIdleTimerRef = useRef(null);
@@ -10023,45 +10024,6 @@ function DecisionEngineScreen({
     scheduleBlockPromptIdleClose();
   };
 
-  useEffect(() => {
-    if (suppressBlockPromptAutoOpenRef.current) {
-      return;
-    }
-    if (!blockPromptTypedRef.current || !String(newBlockDescription).trim()) {
-      return;
-    }
-    if (blockPromptLoading || blockPromptSuggestions.length || blockPromptError) {
-      return;
-    }
-    loadBlockPromptSuggestions(newBlockWorkflowId);
-  }, [
-    blockPromptError,
-    blockPromptLoading,
-    blockPromptSuggestions.length,
-    loadBlockPromptSuggestions,
-    newBlockDescription,
-    newBlockWorkflowId,
-  ]);
-
-  useEffect(() => {
-    if (suppressBlockPromptAutoOpenRef.current) {
-      return;
-    }
-    const shouldShow =
-      blockPromptTypedRef.current &&
-      String(newBlockDescription).trim() &&
-      (blockPromptLoading || Boolean(blockPromptError) || liveBlockPromptSuggestions.length > 0);
-    if (shouldShow) {
-      setBlockPromptPopoverVisible(true);
-    }
-  }, [
-    blockPromptError,
-    blockPromptLoading,
-    blockPromptPopoverVisible,
-    liveBlockPromptSuggestions.length,
-    newBlockDescription,
-  ]);
-
   const toggleRowPromptHelp = () => {
     if (rowPromptPopoverVisible) {
       closeRowPromptPopover();
@@ -10073,37 +10035,6 @@ function DecisionEngineScreen({
     loadRowPromptSuggestions(newRowWorkflowId);
     scheduleRowPromptIdleClose();
   };
-
-  useEffect(() => {
-    if (!String(newRowDescription).trim()) {
-      return;
-    }
-    if (rowPromptLoading || rowPromptSuggestions.length || rowPromptError) {
-      return;
-    }
-    loadRowPromptSuggestions(newRowWorkflowId);
-  }, [
-    loadRowPromptSuggestions,
-    newRowDescription,
-    newRowWorkflowId,
-    rowPromptError,
-    rowPromptLoading,
-    rowPromptSuggestions.length,
-  ]);
-
-  useEffect(() => {
-    const shouldShow =
-      String(newRowDescription).trim() &&
-      (rowPromptLoading || Boolean(rowPromptError) || liveRowPromptSuggestions.length > 0);
-    if (shouldShow) {
-      setRowPromptPopoverVisible(true);
-    }
-  }, [
-    liveRowPromptSuggestions.length,
-    newRowDescription,
-    rowPromptError,
-    rowPromptLoading,
-  ]);
 
   useEffect(() => {
     const libraryIsAvailable = availableDecisionLibraries.some((lib) => lib.library === selectedLibrary);
@@ -10901,6 +10832,7 @@ function DecisionEngineScreen({
 
   const handleWorkflowOptionPress = (workflowId) => {
     rowWorkflowTouchedRef.current = true;
+    suppressRowPromptAutoOpenRef.current = false;
     const currentDraft = rowDraftsByWorkflow[newRowWorkflowId] || "";
     const targetDraft = rowDraftsByWorkflow[workflowId] || "";
     if (!targetDraft.trim() && currentDraft.trim()) {
@@ -10928,6 +10860,7 @@ function DecisionEngineScreen({
       return;
     }
 
+    suppressRowPromptAutoOpenRef.current = true;
     markRowPromptEngaged();
 
     setRowDraftsByWorkflow((prev) => {
@@ -11204,35 +11137,42 @@ function DecisionEngineScreen({
         </View>
         <View style={styles.rowPromptAnchor}>
           <View style={styles.decisionPromptInputWrap}>
-            <TextInput
-              value={newBlockDescription}
-              onChangeText={(text) => {
-                setBlockDraftsByWorkflow((prev) => ({
-                  ...prev,
-                  [newBlockWorkflowId]: text,
-                }));
-                suppressBlockPromptAutoOpenRef.current = false;
-                blockPromptTypedRef.current = Boolean(String(text).trim());
-                if (String(text).trim()) {
-                  setBlockBuilderHint("");
-                }
-                if (String(text).trim()) {
-                  markBlockPromptEngaged();
-                } else {
-                  setBlockPromptPopoverVisible(false);
-                }
-              }}
-              onFocus={() => {
-                blockPromptEngagedRef.current = false;
-              }}
-              onBlur={() => {
-                blockPromptEngagedRef.current = false;
-                scheduleBlockPromptIdleClose();
-              }}
-              placeholder="Describe what DSP should document in this time block."
-              placeholderTextColor="#888888"
-              style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap]}
-            />
+            <View style={styles.decisionPromptInputRow}>
+              <TextInput
+                value={newBlockDescription}
+                onChangeText={(text) => {
+                  setBlockDraftsByWorkflow((prev) => ({
+                    ...prev,
+                    [newBlockWorkflowId]: text,
+                  }));
+                  suppressBlockPromptAutoOpenRef.current = false;
+                  blockPromptTypedRef.current = Boolean(String(text).trim());
+                  if (String(text).trim()) {
+                    setBlockBuilderHint("");
+                  } else {
+                    setBlockPromptPopoverVisible(false);
+                  }
+                }}
+                onFocus={() => {
+                  blockPromptEngagedRef.current = false;
+                }}
+                onBlur={() => {
+                  blockPromptEngagedRef.current = false;
+                  scheduleBlockPromptIdleClose();
+                }}
+                placeholder="Describe what DSP should document in this time block."
+                placeholderTextColor="#888888"
+                style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap, styles.decisionRowInputWithHelp]}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Show block suggestions"
+                onPress={toggleBlockPromptHelp}
+                style={styles.decisionPromptHelpButton}
+              >
+                <Icon name="helpCircle" size={16} color={colors.muted} />
+              </Pressable>
+            </View>
             {blockPromptPopoverVisible ? (
               <View style={styles.decisionPromptSuggestionCard}>
                 <View style={styles.decisionPromptSuggestionHeader}>
@@ -11429,31 +11369,41 @@ function DecisionEngineScreen({
         </Text>
         <View style={styles.rowPromptAnchor}>
           <View style={styles.decisionPromptInputWrap}>
-            <TextInput
-              value={newRowDescription}
-              onChangeText={(text) => {
-                setRowDraftsByWorkflow((prev) => ({
-                  ...prev,
-                  [newRowWorkflowId]: text,
-                }));
-                if (String(text).trim()) {
-                  setRowBuilderHint("");
-                  markRowPromptEngaged();
-                } else {
-                  setRowPromptPopoverVisible(false);
-                }
-              }}
-              onFocus={() => {
-                rowPromptEngagedRef.current = false;
-              }}
-              onBlur={() => {
-                rowPromptEngagedRef.current = false;
-                scheduleRowPromptIdleClose();
-              }}
-              placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
-              placeholderTextColor="#888888"
-              style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap]}
-            />
+            <View style={styles.decisionPromptInputRow}>
+              <TextInput
+                value={newRowDescription}
+                onChangeText={(text) => {
+                  setRowDraftsByWorkflow((prev) => ({
+                    ...prev,
+                    [newRowWorkflowId]: text,
+                  }));
+                  suppressRowPromptAutoOpenRef.current = false;
+                  if (String(text).trim()) {
+                    setRowBuilderHint("");
+                  } else {
+                    setRowPromptPopoverVisible(false);
+                  }
+                }}
+                onFocus={() => {
+                  rowPromptEngagedRef.current = false;
+                }}
+                onBlur={() => {
+                  rowPromptEngagedRef.current = false;
+                  scheduleRowPromptIdleClose();
+                }}
+                placeholder="Describe the row, e.g. Document toileting support and observed response for Mary Bet."
+                placeholderTextColor="#888888"
+                style={[styles.decisionRowInput, styles.decisionRowInputInPromptWrap, styles.decisionRowInputWithHelp]}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Show row suggestions"
+                onPress={toggleRowPromptHelp}
+                style={styles.decisionPromptHelpButton}
+              >
+                <Icon name="helpCircle" size={16} color={colors.muted} />
+              </Pressable>
+            </View>
             {rowPromptPopoverVisible ? (
               <View style={styles.decisionPromptSuggestionCard}>
                 <View style={styles.decisionPromptSuggestionHeader}>
@@ -18645,6 +18595,26 @@ const styles = StyleSheet.create({
     position: "relative",
     marginBottom: 12,
     overflow: "visible",
+  },
+  decisionPromptInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  decisionRowInputWithHelp: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  decisionPromptHelpButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
   },
   decisionPromptSuggestionCard: {
     marginTop: 8,
