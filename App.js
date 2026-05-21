@@ -1702,15 +1702,15 @@ function getAssignedWorkflowStepsForField(fieldContext = {}) {
   if (fieldContext.assignedWorkflowSteps?.length) {
     return fieldContext.assignedWorkflowSteps;
   }
-  const aiLogicBundle = buildAiLogicWorkflowBundle(fieldContext);
-  if (aiLogicBundle?.steps?.length) {
-    return aiLogicBundle.steps;
-  }
   if (fieldContext.workflowId === "case-note-final") {
-    return buildCaseNoteFinalWorkflowSteps();
+    return buildCaseNoteFinalWorkflowSteps(fieldContext);
   }
   if (fieldContext.workflowId === "handover-note") {
     return buildHandoverWorkflowSteps();
+  }
+  const aiLogicBundle = buildAiLogicWorkflowBundle(fieldContext);
+  if (aiLogicBundle?.steps?.length) {
+    return aiLogicBundle.steps;
   }
   if (fieldContext.workflowId) {
     const configDrivenSteps = buildConfigDrivenRowWorkflowSteps(fieldContext.workflowId);
@@ -2106,7 +2106,57 @@ function createAssignedWorkflowSteps(assignedNodes = [], workflowId = "") {
   ];
 }
 
-function buildCaseNoteFinalWorkflowSteps() {
+function buildCaseNoteUnderstandingSteps(fieldContext = {}, patientName = "Mary Bet") {
+  const entries = Array.isArray(fieldContext.sourceEntries) ? fieldContext.sourceEntries : [];
+  const documented = entries.filter((entry) => String(entry.comment || "").trim());
+  if (!documented.length) {
+    return [
+      {
+        stepKey: "dsp-understanding-1",
+        kind: "suggestions",
+        question: `What is the main theme of today's case note for ${patientName}?`,
+        suggestions: [
+          "Behavior and interventions",
+          "ADLs and health supports",
+          "Community participation",
+          "Overall shift recap",
+        ],
+        allowCustom: false,
+        rationale: "Quick check so the DSP can confirm the note reflects their understanding.",
+        softCheck: true,
+      },
+    ];
+  }
+
+  return documented.map((entry, index) => {
+    const entryLabel = String(entry.label || entry.description || `Entry ${index + 1}`)
+      .replace(/^Document /i, "")
+      .trim();
+    const entryTypeLabel =
+      entry.entryType === "time-block"
+        ? "time block"
+        : entry.entryType === "case-note-row"
+          ? "case-note row"
+          : "entry";
+
+    return {
+      stepKey: `dsp-understanding-${index + 1}`,
+      kind: "suggestions",
+      question: `Does the final note clearly reflect the ${entryTypeLabel} "${entryLabel}"?`,
+      suggestions: [
+        "Yes, clearly reflected",
+        "Partly reflected, needs edit",
+        "No, revise before insert",
+        "Not sure yet",
+      ],
+      allowCustom: false,
+      rationale: "Quick check so the DSP can confirm the note reflects each documented entry.",
+      softCheck: true,
+    };
+  });
+}
+
+function buildCaseNoteFinalWorkflowSteps(fieldContext = {}, patientName = "Mary Bet") {
   return [
     ...(buildAiLogicWorkflowBundle({ workflowId: "case-note-final" })?.steps || [
       {
@@ -2115,6 +2165,7 @@ function buildCaseNoteFinalWorkflowSteps() {
         question: "Review and generate note",
       },
     ]),
+    ...buildCaseNoteUnderstandingSteps(fieldContext, patientName),
     {
       stepKey: "final-note-affirm",
       kind: "affirm",
@@ -5904,6 +5955,9 @@ function DocuWraiteGuidedWorkflowPanel({
   const useAssignedNodeWorkflow =
     !useAiWorkflow && workflowId === "assigned-nodes" && (workflowState?.localSteps || []).length > 0;
   const assignedNodeSteps = workflowState?.localSteps || [];
+  const quickCheckStepCount = assignedNodeSteps.filter(
+    (step) => step?.softCheck && /^dsp-understanding-/.test(step.stepKey || "")
+  ).length;
   const ruleSteps = workflowId === "community-outing" ? getCommunityOutingSteps(answers) : [];
   const stepIndex = workflowState?.stepIndex ?? 0;
   const ruleStepKey = ruleSteps[stepIndex];
@@ -5959,10 +6013,10 @@ function DocuWraiteGuidedWorkflowPanel({
     stepMeta?.kind === "draft" || stepMeta?.kind === "why" || stepMeta?.kind === "readiness" || stepMeta?.kind === "affirm"
       ? null
       : stepMeta?.softCheck && /^dsp-understanding-/.test(stepKey || "")
-        ? `Quick check ${stepKey.replace("dsp-understanding-", "")} of 3`
-      : useAiWorkflow
-        ? `Question ${stepIndex + 1}`
-        : useAssignedNodeWorkflow
+        ? `Quick check ${stepKey.replace("dsp-understanding-", "")} of ${Math.max(quickCheckStepCount, 1)}`
+        : useAiWorkflow
+          ? `Question ${stepIndex + 1}`
+          : useAssignedNodeWorkflow
           ? `${aiLogicQuestionFlow ? "Workflow question" : "Assigned question"} ${Math.min(stepIndex + 1, assignedNodeSteps.length)} of ${assignedNodeSteps.length}`
           : `Question ${Math.min(stepIndex + 1, Math.max(ruleSteps.length, stepIndex + 1))}`;
   const prefilledTask = String(getWorkflowAnswer(answers, "domain-task") || "").trim();
@@ -6712,8 +6766,7 @@ function DocuWraiteGuidedWorkflowPanel({
                         .filter(Boolean)
                         .join(" ");
                       if (isFinalCaseNoteWorkflow) {
-                        onAnswer({ finalDraftNote: noteToInsert });
-                        onJumpToStep?.("final-note-affirm");
+                        onAnswer({ finalDraftNote: noteToInsert }, { advance: true });
                       } else {
                         onInsert(noteToInsert);
                       }
@@ -7769,13 +7822,14 @@ function DocumentationEntryScreen({
   };
 
   const openCaseNoteFinalWorkflow = () => {
+    const fieldContext = buildCaseNoteFinalFieldContext();
     showDocuWraiteAssist({
       fieldId: "summary",
       id: "workflow-case-note-final",
       mode: "workflow",
       workflowId: "assigned-nodes",
-      fieldContext: buildCaseNoteFinalFieldContext(),
-      localWorkflowSteps: buildCaseNoteFinalWorkflowSteps(),
+      fieldContext,
+      localWorkflowSteps: buildCaseNoteFinalWorkflowSteps(fieldContext, activePatientName),
       title: getWorkflowEyebrow("case-note-final"),
       message: "DocuWraite will summarize the row notes into a final case note.",
       trigger: "manual",
@@ -8108,6 +8162,20 @@ function DocumentationEntryScreen({
           return current;
         }
 
+        if (current.workflowId === "assigned-nodes" && (current.localSteps || []).length) {
+          const targetIndex = (current.localSteps || []).findIndex((step) => step.stepKey === targetStepKey);
+          if (targetIndex >= 0) {
+            return {
+              ...current,
+              stepIndex: targetIndex,
+              remediationStepKey: null,
+              forcedStepKey: null,
+              pendingReturnToReadiness: false,
+            };
+          }
+          return current;
+        }
+
         const stepOrder = current.ai?.meta?.stepOrder || [];
         const targetIndex = stepOrder.indexOf(targetStepKey);
         const localStep = buildLocalRemediationStep(
@@ -8239,13 +8307,23 @@ function DocumentationEntryScreen({
         const isFinalCaseNoteWorkflow =
           docuWraiteWorkflow?.fieldContext?.workflowId === "case-note-final" ||
           docuWraiteWorkflow?.workflowId === "case-note-final";
-
-        patchSession({
-          shiftSummary: session.shiftSummary.trim() ? `${session.shiftSummary.trim()}\n${note}` : note,
-          caseNoteAttestationComplete: isFinalCaseNoteWorkflow,
-          dspValidationQuizPassed: false,
-          caseNoteAttestation: isFinalCaseNoteWorkflow
+        const requiredQuickCheckKeys = (docuWraiteWorkflow?.localSteps || [])
+          .filter((step) => step?.softCheck && /^dsp-understanding-/.test(step.stepKey || ""))
+          .map((step) => step.stepKey);
+        const hasAllQuickCheckAnswers =
+          requiredQuickCheckKeys.length > 0 &&
+          requiredQuickCheckKeys.every((key) => Boolean(docuWraiteWorkflow?.answers?.[key]));
+        const attestationAnswers =
+          isFinalCaseNoteWorkflow &&
+          hasAllQuickCheckAnswers
             ? {
+                ...requiredQuickCheckKeys.reduce(
+                  (accumulator, key) => ({
+                    ...accumulator,
+                    [key]: docuWraiteWorkflow.answers[key],
+                  }),
+                  {}
+                ),
                 style:
                   docuWraiteWorkflow?.answers?.["final_note_style"] ||
                   docuWraiteWorkflow?.answers?.["final-note-style"] ||
@@ -8267,7 +8345,13 @@ function DocumentationEntryScreen({
                   docuWraiteWorkflow?.answers?.["final-follow-up"] ||
                   "",
               }
-            : null,
+            : null;
+
+        patchSession({
+          shiftSummary: session.shiftSummary.trim() ? `${session.shiftSummary.trim()}\n${note}` : note,
+          caseNoteAttestationComplete: isFinalCaseNoteWorkflow ? Boolean(attestationAnswers) : false,
+          dspValidationQuizPassed: false,
+          caseNoteAttestation: attestationAnswers,
         });
       } else if (fieldId === "handover") {
         patchSession({
