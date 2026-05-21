@@ -407,6 +407,26 @@ const handoverVitalFields = [
 
 const NOTES_LIBRARY_STORAGE_KEY = "docuwraite-notes-library-v1";
 
+function loadInitialNotesLibraryRecords() {
+  const defaults = buildDefaultNotesLibraryRecords();
+  if (Platform.OS !== "web" || typeof window === "undefined") {
+    return defaults;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(NOTES_LIBRARY_STORAGE_KEY);
+    if (!stored) {
+      return defaults;
+    }
+    const parsed = JSON.parse(stored);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (_error) {}
+
+  return defaults;
+}
+
 function buildDefaultNotesLibraryRecords() {
   return [
     {
@@ -16504,9 +16524,9 @@ export default function App() {
     documentationHowToGuides[0]?.title ?? null
   );
   const [documentationSession, setDocumentationSession] = useState(null);
-  const [submittedNotesLibrary, setSubmittedNotesLibrary] = useState(() => buildDefaultNotesLibraryRecords());
+  const [submittedNotesLibrary, setSubmittedNotesLibrary] = useState(() => loadInitialNotesLibraryRecords());
   const [selectedSubmittedNoteId, setSelectedSubmittedNoteId] = useState(
-    () => buildDefaultNotesLibraryRecords()[0]?.id || ""
+    () => loadInitialNotesLibraryRecords()[0]?.id || ""
   );
   const [activeClientId, setActiveClientId] = useState("mary-bet");
   const [individualQuery, setIndividualQuery] = useState(
@@ -16632,9 +16652,11 @@ export default function App() {
         return;
       }
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length) {
+      if (Array.isArray(parsed)) {
         setSubmittedNotesLibrary(parsed);
-        setSelectedSubmittedNoteId((current) => current || parsed[0]?.id || "");
+        setSelectedSubmittedNoteId((current) =>
+          parsed.some((record) => String(record.id) === String(current)) ? current : parsed[0]?.id || ""
+        );
       }
     } catch (_error) {}
   }, []);
