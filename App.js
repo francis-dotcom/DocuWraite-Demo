@@ -74,6 +74,8 @@ import {
   getCategoriesForWorkflow,
   groupNodesByDocumentationCategory,
 } from "./decisionAlgo/workflowCatalog";
+import { generateFinalCaseNote } from "./lib/notes/finalCaseNote";
+import { buildValidationQuizQuestions } from "./lib/validation/buildValidationQuizQuestions";
 const { composeDecisionRuntime } = require("./decisionAlgo/runtimeComposer");
 
 const decisionNodes = require("./decisionAlgo/nodes.json");
@@ -3241,182 +3243,10 @@ function DocuWraiteDraftContextQuestionInline({
 
 function generateAssignedWorkflowNote(answers = {}, workflowState = {}, fieldContext = {}) {
   if (fieldContext.workflowId === "case-note-final") {
-    const getFinalAnswer = (primaryKey, legacyKey = "") =>
-      getWorkflowAnswer(answers, primaryKey) ?? (legacyKey ? getWorkflowAnswer(answers, legacyKey) : undefined);
-    const sourceEntries = fieldContext.sourceEntries || [];
-    const rowSummaries = sourceEntries
-      .map((entry) => String(entry.comment || "").trim())
-      .filter(Boolean);
-    const noteStyle = [
-      formatAssignedWorkflowAnswer(getFinalAnswer("final_note_style", "final-note-style")),
-      String(getFinalAnswer("final_note_style_other", "finalNoteStyleOther") || "").trim(),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-    const emphasisSelections = []
-      .concat(getFinalAnswer("final_emphasis", "final-emphasis") || [])
-      .map((item) => String(item || "").trim())
-      .filter(Boolean);
-    const emphasis = [
-      emphasisSelections.join(", "),
-      String(getFinalAnswer("final_emphasis_other") || "").trim(),
-    ]
-      .filter(Boolean)
-      .join(", ");
-    const concern = [
-      formatAssignedWorkflowAnswer(getFinalAnswer("final_shift_concern", "final-shift-concern")),
-      String(getFinalAnswer("final_shift_concern_other") || "").trim(),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-    const outcome = [
-      formatAssignedWorkflowAnswer(getFinalAnswer("final_shift_outcome", "final-shift-outcome")),
-      String(getFinalAnswer("final_shift_outcome_other") || "").trim(),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-    const followUp = [
-      formatAssignedWorkflowAnswer(getFinalAnswer("final_follow_up", "final-follow-up")),
-      String(getFinalAnswer("final_follow_up_other") || "").trim(),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-    const guidance = [
-      formatAssignedWorkflowAnswer(getFinalAnswer("final_guidance", "final-guidance")),
-      String(getFinalAnswer("final_guidance_other") || "").trim(),
-      String(answers.finalGuidanceNarration || "").trim(),
-    ]
-      .filter(Boolean)
-      .join(" - ");
-    const normalizedOutcome = String(outcome || "").trim().toLowerCase();
-    const normalizedConcern = String(concern || "").trim().toLowerCase();
-    const normalizedFollowUp = String(followUp || "").trim().toLowerCase();
-    const normalizedNoteStyle = String(noteStyle || "").trim().toLowerCase();
-    const normalizedEmphasisSelections = emphasisSelections.map((item) => item.toLowerCase());
-
-    const leadByOutcome = {
-      "stable shift":
-        "Throughout the shift, the client remained generally stable and staff provided routine supports across scheduled activities.",
-      "supported with minor issues":
-        "Throughout the shift, the client participated in scheduled supports with minor barriers that were addressed by staff as they arose.",
-      "supported with notable concerns":
-        "Throughout the shift, the client required ongoing staff support and the note reflects notable concerns that affected participation, tolerance, or routine flow.",
-      "partial completion of planned supports":
-        "Throughout the shift, staff provided planned supports, although some activities were only partially completed due to the barriers noted below.",
-      "follow-up needed":
-        "Throughout the shift, staff provided required supports and identified follow-up items that should be carried forward for supervisor or clinical review.",
-    };
-
-    const emphasisLeadByType = {
-      "behavior and interventions":
-        "Behavioral presentation, staff intervention, and the person's response remained a primary focus of the shift.",
-      "adl and personal care":
-        "ADL and personal-care supports remained a primary focus of the shift, including staff assistance, prompting, and observed tolerance.",
-      "meal support and medication":
-        "Meal support, intake monitoring, and medication-related supports remained a primary focus of the shift.",
-      "community and transitions":
-        "Community participation and transition supports remained a primary focus of the shift.",
-      "health and safety supports":
-        "Health and safety supports remained a primary focus of the shift, including ongoing monitoring, precautions, and follow-up awareness.",
-    };
-
-    const concernSentenceByType = {
-      "change in baseline":
-        "A change from baseline was observed and should remain visible in supervisory review of the shift.",
-      "repeated refusal":
-        "Repeated refusal affected parts of the shift and required additional staff redirection, pacing, or alternate support approaches.",
-      "safety concern":
-        "Safety concerns remained relevant during the shift and required active staff monitoring and precaution-based support.",
-      "medication concern":
-        "Medication-related concerns were noted during the shift and should remain visible in the final supervisory summary.",
-      "poor intake":
-        "Intake concerns were observed during the shift and should remain visible in follow-up review.",
-      "behavioral escalation":
-        "Behavioral escalation affected the shift and required documented intervention and response tracking.",
-      "follow-up required":
-        "The shift included issues that require follow-up beyond routine end-of-shift review.",
-    };
-
-    const followUpSentenceByType = {
-      "supervisor review":
-        "Supervisor review should remain explicit in the final note.",
-      "nurse follow-up":
-        "Nursing follow-up should remain explicit in the final note.",
-      "care team update":
-        "A care-team update should be carried forward from this shift summary.",
-      "family update":
-        "A family update should be carried forward if appropriate and authorized.",
-      "monitor next shift":
-        "The next shift should continue monitoring the items summarized here.",
-    };
-
-    const styleLeadByType = {
-      technical:
-        "Technical summary style selected. Keep the note structured, precise, and defensible, with clear support actions, observed outcomes, and carry-forward items.",
-      "clinical summary":
-        "Clinical summary style selected. Keep the note clinically aware, highlight changes from baseline, safety findings, and follow-up needs without overstating conclusions.",
-      "supervisor handoff":
-        "Supervisor handoff style selected. Keep the note operational, easy to scan, and explicit about what needs review or follow-up on the next shift.",
-      "concise narrative":
-        "Concise narrative style selected. Keep the note short, readable, and focused on the most relevant shift events.",
-      "family-safe summary":
-        "Family-safe summary style selected. Keep the note plain-language, respectful, and free of unnecessary internal shorthand while preserving accuracy.",
-    };
-
-    const leadSentence =
-      leadByOutcome[normalizedOutcome] ||
-      "Throughout the shift, staff provided scheduled supports and documented the client's response across row-level activities.";
-
-    const parts = [leadSentence];
-
-    if (styleLeadByType[normalizedNoteStyle]) {
-      parts.unshift(styleLeadByType[normalizedNoteStyle]);
-    } else if (noteStyle && normalizedNoteStyle !== "other") {
-      parts.unshift(`Final note style selected: ${noteStyle}.`);
-    }
-
-    const emphasisLeadParts = normalizedEmphasisSelections
-      .filter((item) => item !== "overall shift summary")
-      .map((item) => emphasisLeadByType[item] || `The final note should emphasize ${item}.`);
-    if (emphasisLeadParts.length) {
-      parts.push(emphasisLeadParts.join(" "));
-    }
-
-    if (rowSummaries.length) {
-      parts.push(rowSummaries.join(" "));
-    }
-
-    if (concernSentenceByType[normalizedConcern]) {
-      parts.push(concernSentenceByType[normalizedConcern]);
-    } else if (normalizedConcern && normalizedConcern !== "none") {
-      parts.push(`Shift-wide concern to highlight: ${concern}.`);
-    }
-
-    if (normalizedOutcome === "supported with notable concerns") {
-      parts.push("Barriers, staff response, and follow-up considerations should remain prominent in the final summary.");
-    }
-
-    if (normalizedOutcome === "follow-up needed") {
-      parts.push("Carry-forward needs should be stated clearly so the supervisor can review outstanding items without reconstructing the shift from row notes.");
-    }
-
-    if (followUpSentenceByType[normalizedFollowUp]) {
-      parts.push(followUpSentenceByType[normalizedFollowUp]);
-    } else if (normalizedFollowUp && normalizedFollowUp !== "none") {
-      parts.push(`Follow-up to carry forward: ${followUp}.`);
-    }
-
-    if (guidance && guidance.toLowerCase() !== "no extra guidance") {
-      parts.push(`Additional final-note guidance: ${guidance}.`);
-    }
-
-    return parts.length
-      ? parts.join(" ")
-      : "No row-level documentation was available to summarize into a final case note.";
+    return generateFinalCaseNote(answers, fieldContext, {
+      getWorkflowAnswer,
+      formatAssignedWorkflowAnswer,
+    });
   }
 
   if (fieldContext.workflowId === "handover-note") {
@@ -4793,106 +4623,6 @@ function buildValidationWarnings(session) {
   }
 
   return warnings;
-}
-
-function shuffleArray(items = []) {
-  const next = [...items];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
-  }
-  return next;
-}
-
-function buildValidationQuizQuestions(session, clientProfile = null) {
-  const questions = [];
-  const timeBlocks = session.timeBlocks || [];
-  const rows = session.rows || [];
-  const supportChoices = AI_ASSISTANCE_SCORE_OPTIONS.filter((item) => item !== "Refused" && item !== "Not needed");
-  const styleOptions = ["Technical", "Clinical summary", "Supervisor handoff", "Concise narrative", "Family-safe summary"];
-  const summaryText = String(session.shiftSummary || "").trim();
-  const finalStyle = String(session.caseNoteAttestation?.style || "").trim();
-
-  const scoredBlocks = timeBlocks.filter(
-    (block) => String(block.comment || "").trim() && String(block.score || "").trim()
-  );
-  const notedRows = rows.filter(
-    (row) => String(row.comment || "").trim() && String(row.description || "").trim()
-  );
-
-  scoredBlocks.forEach((block) => {
-    const distractors = shuffleArray(
-      [...new Set(scoredBlocks.map((block) => String(block.score || "").trim()).filter(Boolean).concat(supportChoices))]
-        .filter((item) => item && item !== block.score)
-    ).slice(0, 3);
-    questions.push({
-      id: `quiz-block-${block.id}`,
-      source: "Time block note",
-      prompt: `For the ${block.label} block, what support level or status was documented?`,
-      noteExcerpt: String(block.comment || "").trim(),
-      correctAnswer: String(block.score || "").trim(),
-      choices: shuffleArray([String(block.score || "").trim(), ...distractors]).slice(0, 4),
-    });
-  });
-
-  notedRows.forEach((row) => {
-    const rowLabel = getWorkflowEyebrow(String(row.baseWorkflowId || row.workflowId || "").trim());
-    const rowScore = String(row.score || "").trim();
-    if (rowScore) {
-      const distractors = shuffleArray(
-        [...new Set(notedRows.map((row) => String(row.score || "").trim()).filter(Boolean).concat(supportChoices))]
-          .filter((item) => item && item !== rowScore)
-      ).slice(0, 3);
-      questions.push({
-        id: `quiz-row-score-${row.id}`,
-        source: "Row note",
-        prompt: "What support level or status was documented for this row note?",
-        noteExcerpt: String(row.comment || "").trim(),
-        correctAnswer: rowScore,
-        choices: shuffleArray([rowScore, ...distractors]).slice(0, 4),
-      });
-      return;
-    }
-
-    const workflowChoices = shuffleArray(
-      [
-        ...new Set(
-          notedRows
-            .map((row) => getWorkflowEyebrow(String(row.baseWorkflowId || row.workflowId || "").trim()))
-            .filter(Boolean)
-            .concat(["ADL", "Behavior Support", "Meal Support", "Medication", "Communication"])
-        ),
-      ].filter((item) => item && item !== rowLabel)
-    ).slice(0, 3);
-    if (rowLabel) {
-      questions.push({
-        id: `quiz-row-${row.id}`,
-        source: "Row note",
-        prompt: `Which workflow area does this row note belong to?`,
-        noteExcerpt: String(row.comment || "").trim(),
-        correctAnswer: rowLabel,
-        choices: shuffleArray([rowLabel, ...workflowChoices]).slice(0, 4),
-      });
-    }
-  });
-
-  if (summaryText && finalStyle) {
-    const styleChoices = shuffleArray(
-      styleOptions.filter(
-        (item) => item !== finalStyle
-      )
-    ).slice(0, 3);
-    questions.push({
-      id: "quiz-summary-style",
-      source: "Final summary",
-      prompt: "What final note style was selected for this case note?",
-      noteExcerpt: summaryText,
-      correctAnswer: finalStyle,
-      choices: shuffleArray([finalStyle, ...styleChoices]).slice(0, 4),
-    });
-  }
-
-  return questions;
 }
 
 function escapeHtml(value = "") {
@@ -7221,6 +6951,7 @@ function DocumentationEntryScreen({
     showCorrect: false,
     trigger: "validate",
   });
+  const [nextActionBlinkOn, setNextActionBlinkOn] = useState(false);
   const validationQuizSuccessScale = useRef(new Animated.Value(0.88)).current;
   const validationQuizAdvanceTimer = useRef(null);
   const docuWraitePauseTimers = useRef({});
@@ -7242,6 +6973,64 @@ function DocumentationEntryScreen({
 
     return groups;
   }, [session.timeBlocks]);
+  const undocumentedBlocks = useMemo(
+    () =>
+      (session.timeBlocks || []).filter(
+        (block) => String(block.label || "").trim() && !String(block.comment || "").trim()
+      ),
+    [session.timeBlocks]
+  );
+  const undocumentedRows = useMemo(
+    () =>
+      (session.rows || []).filter(
+        (row) => String(row.description || "").trim() && !String(row.comment || "").trim()
+      ),
+    [session.rows]
+  );
+  const hasCaseNoteSummary = useMemo(
+    () => Boolean(String(session.shiftSummary || "").trim()),
+    [session.shiftSummary]
+  );
+  const hasGeneratedHandover = useMemo(
+    () => Boolean(String(session.handover?.generatedNote || "").trim()),
+    [session.handover?.generatedNote]
+  );
+  const hasCompletedHandover = useMemo(
+    () => Boolean(session.handover?.submitted),
+    [session.handover?.submitted]
+  );
+  const nextRequiredAction = useMemo(() => {
+    if (!isCaseNoteSession) {
+      return "";
+    }
+    if (
+      undocumentedBlocks.length ||
+      undocumentedRows.length ||
+      !hasCaseNoteSummary ||
+      !session.caseNoteAttestationComplete
+    ) {
+      return "Generate Final Case Note";
+    }
+    if (!session.dspValidationQuizPassed) {
+      return "Validate";
+    }
+    if (!hasGeneratedHandover) {
+      return "Generate Handover Note";
+    }
+    if (!hasCompletedHandover) {
+      return "Open Handover Note";
+    }
+    return "Submit Documentation";
+  }, [
+    hasCaseNoteSummary,
+    hasCompletedHandover,
+    hasGeneratedHandover,
+    isCaseNoteSession,
+    session.caseNoteAttestationComplete,
+    session.dspValidationQuizPassed,
+    undocumentedBlocks.length,
+    undocumentedRows.length,
+  ]);
 
   useEffect(() => {
     setExpandedAreas({});
@@ -7268,6 +7057,28 @@ function DocumentationEntryScreen({
 
     validationQuizSuccessScale.setValue(0.88);
   }, [validationQuizState.showCorrect, validationQuizSuccessScale]);
+
+  useEffect(() => {
+    setNextActionBlinkOn(false);
+    if (!nextRequiredAction) {
+      return undefined;
+    }
+
+    const timers = Array.from({ length: 6 }, (_, index) =>
+      setTimeout(() => {
+        setNextActionBlinkOn(index % 2 === 0);
+      }, index * 220)
+    );
+    timers.push(
+      setTimeout(() => {
+        setNextActionBlinkOn(false);
+      }, 6 * 220)
+    );
+
+    return () => {
+      timers.forEach((timerId) => clearTimeout(timerId));
+    };
+  }, [nextRequiredAction]);
 
   const getWorkflowFieldNote = (fieldId) => {
     if (fieldId === "summary") {
@@ -7585,7 +7396,10 @@ function DocumentationEntryScreen({
   };
 
   const openValidationQuiz = (trigger = "validate") => {
-    const questions = buildValidationQuizQuestions(session, clientProfile);
+    const questions = buildValidationQuizQuestions(session, {
+      getWorkflowEyebrow,
+      assistanceScoreOptions: AI_ASSISTANCE_SCORE_OPTIONS,
+    });
     if (!questions.length) {
       patchSession({
         validationWarnings: [],
@@ -7823,6 +7637,35 @@ function DocumentationEntryScreen({
 
   const openCaseNoteFinalWorkflow = () => {
     const fieldContext = buildCaseNoteFinalFieldContext();
+    if (undocumentedBlocks.length || undocumentedRows.length) {
+      const missingParts = [];
+      if (undocumentedBlocks.length) {
+        missingParts.push(
+          undocumentedBlocks.length === 1
+            ? "the supervisor-defined time block"
+            : `all ${undocumentedBlocks.length} supervisor-defined time blocks`
+        );
+      }
+      if (undocumentedRows.length) {
+        missingParts.push(
+          undocumentedRows.length === 1
+            ? "the supervisor-defined case-note row"
+            : `all ${undocumentedRows.length} supervisor-defined case-note rows`
+        );
+      }
+
+      setDocuWraiteWorkflow(null);
+      setDocuWraiteAssist({
+        fieldId: "summary",
+        id: "final-note-missing-documentation",
+        title: "Final case note not ready",
+        message: `Add documentation for ${missingParts.join(" and ")} before generating the final case note.`,
+        fieldContext,
+      });
+      setDocuWraiteExpanded(true);
+      return;
+    }
+
     showDocuWraiteAssist({
       fieldId: "summary",
       id: "workflow-case-note-final",
@@ -7836,6 +7679,27 @@ function DocumentationEntryScreen({
     });
   };
 
+  const updateFinalCaseNoteSummary = (shiftSummary) => {
+    if (!isCaseNoteSession) {
+      patchSession({ shiftSummary, dspValidationQuizPassed: false });
+      return;
+    }
+
+    const currentSummary = String(session.shiftSummary || "");
+    const nextSummary = String(shiftSummary || "");
+    const isAddingContent = nextSummary.trim().length > 0 && nextSummary !== currentSummary;
+    if (isAddingContent && (undocumentedBlocks.length || undocumentedRows.length)) {
+      openCaseNoteFinalWorkflow();
+      patchSession({
+        statusMessage:
+          "Complete the supervisor-defined block notes and case-note rows before typing the final case note.",
+      });
+      return;
+    }
+
+    patchSession({ shiftSummary, dspValidationQuizPassed: false });
+  };
+
   const openHandoverWorkflow = () => {
     if (isCaseNoteSession && !session.dspValidationQuizPassed) {
       patchSession({
@@ -7843,7 +7707,8 @@ function DocumentationEntryScreen({
           ...(session.handover || {}),
           required: true,
         },
-        statusMessage: "Complete Validate first. Handover opens after validation passes.",
+        statusMessage:
+          "Complete the Final Case Note and Validate first. Handover opens only after validation passes.",
       });
       return;
     }
@@ -7984,6 +7849,11 @@ function DocumentationEntryScreen({
       (docuWraiteWorkflow?.fieldId === fieldId || docuWraiteAssist?.fieldId === fieldId) &&
       docuWraiteExpanded,
     onHelpBubblePress: () => {
+      if (fieldId === "summary" && fieldContext.workflowId === "case-note-final") {
+        openCaseNoteFinalWorkflow();
+        return;
+      }
+
       const hasAssignedNodes = (fieldContext.assignedNodes || []).length > 0;
       const isCurrentFieldActive =
         docuWraiteWorkflow?.fieldId === fieldId || docuWraiteAssist?.fieldId === fieldId;
@@ -8446,12 +8316,18 @@ function DocumentationEntryScreen({
       openValidationQuiz("validate");
       return;
     }
+    const isMissingFinalCaseNoteSummary = isCaseNoteSession && !hasCaseNoteSummary;
+    const isMissingCaseNoteSourceNotes = isCaseNoteSession && !hasCaseNoteSourceNotes;
     patchSession({
       validationWarnings: warnings,
       statusMessage:
-        warnings.length === 0
-          ? "Validation complete. Review entries before submitting documentation."
-          : "Validation found compliance warnings. Review before submission.",
+        isMissingFinalCaseNoteSummary
+          ? "Complete the Final Case Note first. Finish the final note before Validate."
+          : isMissingCaseNoteSourceNotes
+            ? "Final Case Note text is present, but Validate still requires documented block notes or case-note rows before it can run."
+          : warnings.length === 0
+            ? "Validation complete. Review entries before submitting documentation."
+            : "Validation found compliance warnings. Review before submission.",
       review: {
         ...session.review,
         validationTimestamp: "05/14/2026 1:06 AM",
@@ -8535,12 +8411,20 @@ function DocumentationEntryScreen({
       patientName: activePatientName,
       loggedInStaff: loggedInUser,
     });
+    const warnings = buildValidationWarnings(nextSession);
+    const isReadyToSubmit =
+      !warnings.length &&
+      (!isCaseNoteSession || Boolean(session.caseNoteAttestationComplete) && Boolean(session.dspValidationQuizPassed));
 
     patchSession({
       handover: nextSession.handover,
-      statusMessage: opened
-        ? "Handover note opened in a new browser tab. Documentation is ready to submit."
-        : "Handover note saved. Browser tab opening is available on web. Documentation is ready to submit.",
+      statusMessage: isReadyToSubmit
+        ? opened
+          ? "Handover note opened in a new browser tab. Documentation is ready to submit."
+          : "Handover note saved. Browser tab opening is available on web. Documentation is ready to submit."
+        : opened
+          ? "Handover note opened in a new browser tab. Resolve the remaining validation warnings before submitting documentation."
+          : "Handover note saved. Browser tab opening is available on web. Resolve the remaining validation warnings before submitting documentation.",
     });
   };
 
@@ -8616,13 +8500,14 @@ function DocumentationEntryScreen({
     }
 
     if (isCaseNoteSession && warnings.length === 0 && !session.dspValidationQuizPassed) {
+      validateDocumentation();
       patchSession({
         validationWarnings: warnings,
         handover: {
           ...(session.handover || {}),
           required: true,
         },
-        statusMessage: "Validate first. After validation, complete handover before submitting documentation.",
+        statusMessage: "Validate first. Complete the validation step before submitting documentation.",
       });
       return;
     }
@@ -8631,6 +8516,7 @@ function DocumentationEntryScreen({
       const hasGeneratedHandover = Boolean(String(session.handover?.generatedNote || "").trim());
       const hasCompletedHandover = Boolean(session.handover?.submitted);
       if (!hasGeneratedHandover || !hasCompletedHandover) {
+        openHandoverWorkflow();
         patchSession({
           validationWarnings: warnings,
           handover: {
@@ -8760,8 +8646,22 @@ function DocumentationEntryScreen({
 
       <View style={styles.docWorkflowRow}>
         {workflowActions.map((item) => (
-          <Pressable key={item.label} style={styles.docWorkflowButton} onPress={item.action}>
-            <Text style={styles.docWorkflowButtonText}>{item.label}</Text>
+          <Pressable
+            key={item.label}
+            style={[
+              styles.docWorkflowButton,
+              item.label === nextRequiredAction && nextActionBlinkOn ? styles.docNextActionButton : null,
+            ]}
+            onPress={item.action}
+          >
+            <Text
+              style={[
+                styles.docWorkflowButtonText,
+                item.label === nextRequiredAction && nextActionBlinkOn ? styles.docNextActionButtonText : null,
+              ]}
+            >
+              {item.label}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -8899,12 +8799,12 @@ function DocumentationEntryScreen({
                 score: "",
                 description: isCaseNoteSession ? "Final Case Note" : "End of Shift Summary",
                 source: isCaseNoteSession ? "Case Note Final" : "Shift Summary",
-                workflowId: isCaseNoteSession ? "case-note-final" : null,
-                shiftIntelligence: runtimeShiftIntelligence,
-                sourceEntries: isCaseNoteSession ? buildCaseNoteFinalFieldContext().sourceEntries : undefined,
-              }}
+              workflowId: isCaseNoteSession ? "case-note-final" : null,
+              shiftIntelligence: runtimeShiftIntelligence,
+              sourceEntries: isCaseNoteSession ? buildCaseNoteFinalFieldContext().sourceEntries : undefined,
+            }}
               value={session.shiftSummary}
-              onChange={(shiftSummary) => patchSession({ shiftSummary, dspValidationQuizPassed: false })}
+              onChange={updateFinalCaseNoteSummary}
               expanded={!!expandedAreas.summary}
               onToggleExpanded={() => toggleExpanded("summary")}
               {...getCommentAssistProps("summary", {
@@ -8926,8 +8826,8 @@ function DocumentationEntryScreen({
           <View style={styles.docSectionBody}>
             <View style={styles.docReviewGrid}>
               <DocumentationStatusRow
-                label="Reviewed By"
-                value={session.review.reviewedBy || "Not reviewed"}
+                label="Signature Name"
+                value={session.review.reviewedBy || "Not signed"}
               />
               <DocumentationStatusRow label="Signed Status" value={session.review.signStatus} />
               <DocumentationStatusRow label="QA Review" value={session.review.qaStatus} />
@@ -8936,13 +8836,13 @@ function DocumentationEntryScreen({
                 value={session.review.validationTimestamp || "Not validated"}
               />
             </View>
-            <Text style={styles.docReviewInputLabel}>Supervisor / QA reviewer name</Text>
+            <Text style={styles.docReviewInputLabel}>DSP signature name</Text>
             <TextInput
               value={session.review.reviewedBy}
               onChangeText={(reviewedBy) =>
                 patchSession({ review: { ...session.review, reviewedBy, qaStatus: "QA Review In Progress" } })
               }
-              placeholder="Enter reviewer name"
+              placeholder={loggedInUser || "DSP Name"}
               placeholderTextColor="#888888"
               style={styles.docReviewInput}
             />
@@ -9022,11 +8922,47 @@ function DocumentationEntryScreen({
                 style={styles.docHandoverOtherVitalsInput}
               />
               <View style={styles.docHandoverActions}>
-                <Pressable style={[styles.docActionButton, styles.docActionPrimary]} onPress={openHandoverWorkflow}>
-                  <Text style={styles.docActionPrimaryText}>Generate Handover Note</Text>
+                <Pressable
+                  style={[
+                    styles.docActionButton,
+                    styles.docActionPrimary,
+                    nextRequiredAction === "Generate Handover Note" && nextActionBlinkOn
+                      ? styles.docNextActionButton
+                      : null,
+                  ]}
+                  onPress={openHandoverWorkflow}
+                >
+                  <Text
+                    style={[
+                      styles.docActionPrimaryText,
+                      nextRequiredAction === "Generate Handover Note" && nextActionBlinkOn
+                        ? styles.docNextActionButtonText
+                        : null,
+                    ]}
+                  >
+                    Generate Handover Note
+                  </Text>
                 </Pressable>
-                <Pressable style={[styles.docActionButton, styles.docActionPrimary]} onPress={openHandoverNote}>
-                  <Text style={styles.docActionPrimaryText}>Open Handover Note</Text>
+                <Pressable
+                  style={[
+                    styles.docActionButton,
+                    styles.docActionPrimary,
+                    nextRequiredAction === "Open Handover Note" && nextActionBlinkOn
+                      ? styles.docNextActionButton
+                      : null,
+                  ]}
+                  onPress={openHandoverNote}
+                >
+                  <Text
+                    style={[
+                      styles.docActionPrimaryText,
+                      nextRequiredAction === "Open Handover Note" && nextActionBlinkOn
+                        ? styles.docNextActionButtonText
+                        : null,
+                    ]}
+                  >
+                    Open Handover Note
+                  </Text>
                 </Pressable>
                 {session.handover?.submitted ? (
                   <Text style={styles.docHandoverStatus}>Handover note generated and marked submitted.</Text>
@@ -9068,11 +9004,41 @@ function DocumentationEntryScreen({
           <Pressable style={[styles.docActionButton, styles.docActionSecondary]} onPress={saveDraft}>
             <Text style={styles.docActionSecondaryText}>Save Draft</Text>
           </Pressable>
-          <Pressable style={[styles.docActionButton, styles.docActionOutline]} onPress={validateDocumentation}>
-            <Text style={styles.docActionOutlineText}>Validate</Text>
+          <Pressable
+            style={[
+              styles.docActionButton,
+              styles.docActionOutline,
+              nextRequiredAction === "Validate" && nextActionBlinkOn ? styles.docNextActionButton : null,
+            ]}
+            onPress={validateDocumentation}
+          >
+            <Text
+              style={[
+                styles.docActionOutlineText,
+                nextRequiredAction === "Validate" && nextActionBlinkOn ? styles.docNextActionButtonText : null,
+              ]}
+            >
+              Validate
+            </Text>
           </Pressable>
-          <Pressable style={[styles.docActionButton, styles.docActionPrimary]} onPress={submitDocumentation}>
-            <Text style={styles.docActionPrimaryText}>Submit Documentation</Text>
+          <Pressable
+            style={[
+              styles.docActionButton,
+              styles.docActionPrimary,
+              nextRequiredAction === "Submit Documentation" && nextActionBlinkOn ? styles.docNextActionButton : null,
+            ]}
+            onPress={submitDocumentation}
+          >
+            <Text
+              style={[
+                styles.docActionPrimaryText,
+                nextRequiredAction === "Submit Documentation" && nextActionBlinkOn
+                  ? styles.docNextActionButtonText
+                  : null,
+              ]}
+            >
+              Submit Documentation
+            </Text>
           </Pressable>
           <Pressable style={[styles.docActionButton, styles.docActionOutline]} onPress={onCancel}>
             <Text style={styles.docActionOutlineText}>Cancel</Text>
@@ -21475,6 +21441,13 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     paddingHorizontal: 10,
     paddingVertical: 7,
+  },
+  docNextActionButton: {
+    backgroundColor: "#d8f3e4",
+    borderColor: "#2d8a57",
+  },
+  docNextActionButtonText: {
+    color: "#14532d",
   },
   docWorkflowButtonText: {
     fontSize: 12,
