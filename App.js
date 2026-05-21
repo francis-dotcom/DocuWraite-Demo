@@ -7101,6 +7101,7 @@ function DocumentationEntryScreen({
   isPhone,
   clientProfile = null,
   onOpenDecisionAssignment,
+  persistedClientWorkflowContexts = [],
 }) {
   const activePatientName = formatClientNameLastFirstInitials(
     clientProfile?.displayName ?? patientDisplayName
@@ -12654,6 +12655,8 @@ function CarePlanDocument({
   onExtractCarePlanFromSource,
   clientProfile = null,
   clientPhoto,
+  persistedClientWorkflowContexts = [],
+  onOpenDecisionAssignment,
 }) {
   const profile = clientProfile || getMaryBetProfile();
   const [isEditingCarePlan, setIsEditingCarePlan] = useState(false);
@@ -13040,7 +13043,8 @@ function CarePlanDocument({
           onCancel={onDocumentationCancel}
           isPhone={isPhone}
           clientProfile={clientProfile}
-          onOpenDecisionAssignment={openDecisionAssignmentTarget}
+          onOpenDecisionAssignment={onOpenDecisionAssignment}
+          persistedClientWorkflowContexts={persistedClientWorkflowContexts}
         />
       ) : (
       <ScrollView
@@ -17551,6 +17555,8 @@ export default function App() {
                   onExtractCarePlanFromSource={handleExtractCarePlanFromSource}
                   clientProfile={activeClientProfile}
                   clientPhoto={activeClientPhoto}
+                  persistedClientWorkflowContexts={persistedClientWorkflowContexts}
+                  onOpenDecisionAssignment={openDecisionAssignmentTarget}
                 />
               ) : showDocumentationGuide ? (
                 <DocumentationGuideScreen
@@ -17583,6 +17589,7 @@ export default function App() {
                   onCancel={() => setDocumentationSession(null)}
                   isPhone={isPhone}
                   clientProfile={activeClientProfile}
+                  persistedClientWorkflowContexts={persistedClientWorkflowContexts}
                 />
               ) : (
                 <>

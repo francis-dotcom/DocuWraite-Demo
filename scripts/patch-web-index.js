@@ -3,6 +3,7 @@ const path = require("path");
 
 const scale = process.env.EXPO_PUBLIC_WEB_INITIAL_SCALE || "0.85";
 const indexPath = path.join(__dirname, "..", "dist", "index.html");
+const webBundleDir = path.join(__dirname, "..", "dist", "_expo", "static", "js", "web");
 
 if (!fs.existsSync(indexPath)) {
   console.error("patch-web-index: dist/index.html not found — run expo export -p web first");
@@ -26,4 +27,16 @@ html = html.replace(/(["'])\/_expo\//g, '$1./_expo/');
 html = html.replace(/(["'])\/assets\//g, '$1./assets/');
 
 fs.writeFileSync(indexPath, html);
+
+if (fs.existsSync(webBundleDir)) {
+  const bundleFiles = fs.readdirSync(webBundleDir).filter((file) => file.endsWith(".js"));
+  for (const file of bundleFiles) {
+    const bundlePath = path.join(webBundleDir, file);
+    let bundle = fs.readFileSync(bundlePath, "utf8");
+    bundle = bundle.replace(/httpServerLocation:"\/assets/g, 'httpServerLocation:"./assets');
+    bundle = bundle.replace(/httpServerLocation:'\/assets/g, "httpServerLocation:'./assets");
+    fs.writeFileSync(bundlePath, bundle);
+  }
+}
+
 console.log(`patch-web-index: viewport initial-scale=${scale}; asset paths rewritten to relative URLs`);
