@@ -9562,6 +9562,7 @@ function DecisionWhatsNextGuide({ guide, onDismiss, onAction }) {
           key={`${guide.type}-${step.action}-${index}`}
           onPress={() => onAction(step.action, guide)}
           accessibilityRole="button"
+          hitSlop={8}
           style={styles.decisionGuideNoteStepPress}
         >
           <Text style={styles.decisionGuideNoteStep}>
@@ -10389,6 +10390,27 @@ function DecisionEngineScreen({
   }, [selectedLibrary, activeNoteType]);
 
   useEffect(() => {
+    if (!builderGuide || (builderGuide.type !== "block-added" && builderGuide.type !== "row-added")) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setBuilderGuide((current) => {
+        if (
+          current &&
+          current.type === builderGuide.type &&
+          current.targetKey === builderGuide.targetKey
+        ) {
+          return null;
+        }
+        return current;
+      });
+    }, 10000);
+
+    return () => clearTimeout(timeoutId);
+  }, [builderGuide]);
+
+  useEffect(() => {
     const fallbackLabel =
       targetType === "case-note-row"
         ? rowTargets.find((row) => `row:${row.id}` === selectedTargetKey)?.description || ""
@@ -10677,6 +10699,8 @@ function DecisionEngineScreen({
     if (!guide) {
       return;
     }
+
+    setBuilderGuide(null);
 
     switch (action) {
       case "target":
@@ -11105,8 +11129,8 @@ function DecisionEngineScreen({
           Communication are two separate blocks for the DSP to document.
         </Text>
         <View style={[styles.decisionScheduleBuilderRow, isPhone && styles.decisionToolbarPhone]}>
-          <View style={styles.decisionToolbarGroup}>
-            <Text style={styles.decisionToolbarLabel}>Start</Text>
+          <View style={styles.decisionScheduleBuilderTimeGroup}>
+            <Text style={styles.decisionScheduleBuilderLabel}>Start</Text>
             <DecisionDropdown
               value={formatScheduleHourLabel(newBlockStartHour)}
               options={startHourDropdownOptions}
@@ -11118,8 +11142,8 @@ function DecisionEngineScreen({
               fieldStyle={styles.decisionDropdownScheduleHour}
             />
           </View>
-          <View style={styles.decisionToolbarGroup}>
-            <Text style={styles.decisionToolbarLabel}>End</Text>
+          <View style={styles.decisionScheduleBuilderTimeGroup}>
+            <Text style={styles.decisionScheduleBuilderLabel}>End</Text>
             <DecisionDropdown
               value={formatScheduleHourLabel(newBlockEndHour)}
               options={endHourDropdownOptions}
@@ -11131,10 +11155,56 @@ function DecisionEngineScreen({
               fieldStyle={styles.decisionDropdownScheduleHour}
             />
           </View>
-          <Pressable style={[styles.decisionAssignButton, styles.decisionAssignButtonBlock]} onPress={addScheduleBlock}>
-            <Text style={styles.decisionAssignButtonText}>Add Block</Text>
-          </Pressable>
+          <View style={styles.decisionScheduleBuilderAddBlockWrap}>
+            <Pressable style={[styles.decisionAssignButton, styles.decisionAssignButtonBlock]} onPress={addScheduleBlock}>
+              <Text style={styles.decisionAssignButtonText}>Add Block</Text>
+            </Pressable>
+          </View>
         </View>
+        <View style={styles.decisionWorkflowChipRow}>
+          {workflowOptions.map((option) => (
+            <Pressable
+              key={`block-${option.workflowId}`}
+              onPress={() => handleBlockWorkflowOptionPress(option.workflowId)}
+              style={[
+                styles.decisionOptionButton,
+                newBlockWorkflowId === option.workflowId && styles.decisionOptionButtonActiveBlock,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.decisionOptionText,
+                  newBlockWorkflowId === option.workflowId && styles.decisionOptionTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        {newBlockWorkflowId === "feeding-support" ? (
+          <View style={styles.decisionWorkflowChipRow}>
+            {MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.map((option) => (
+              <Pressable
+                key={`block-meal-${option.value}`}
+                onPress={() => setNewBlockMealSubworkflow(option.value)}
+                style={[
+                  styles.decisionOptionButton,
+                  newBlockMealSubworkflow === option.value && styles.decisionOptionButtonActiveSubworkflow,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.decisionOptionText,
+                    newBlockMealSubworkflow === option.value && styles.decisionOptionTextActiveSubworkflow,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
         <View style={styles.rowPromptAnchor}>
           <View style={styles.decisionPromptInputWrap}>
             <View style={styles.decisionPromptInputRow}>
@@ -11212,50 +11282,6 @@ function DecisionEngineScreen({
           </View>
         </View>
         {blockBuilderHint ? <Text style={styles.decisionInlineHint}>{blockBuilderHint}</Text> : null}
-        <View style={styles.decisionWorkflowChipRow}>
-          {workflowOptions.map((option) => (
-            <Pressable
-              key={`block-${option.workflowId}`}
-              onPress={() => handleBlockWorkflowOptionPress(option.workflowId)}
-              style={[
-                styles.decisionOptionButton,
-                newBlockWorkflowId === option.workflowId && styles.decisionOptionButtonActiveBlock,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.decisionOptionText,
-                  newBlockWorkflowId === option.workflowId && styles.decisionOptionTextActive,
-                ]}
-              >
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-        {newBlockWorkflowId === "feeding-support" ? (
-          <View style={styles.decisionWorkflowChipRow}>
-            {MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.map((option) => (
-              <Pressable
-                key={`block-meal-${option.value}`}
-                onPress={() => setNewBlockMealSubworkflow(option.value)}
-                style={[
-                  styles.decisionOptionButton,
-                  newBlockMealSubworkflow === option.value && styles.decisionOptionButtonActiveSubworkflow,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.decisionOptionText,
-                    newBlockMealSubworkflow === option.value && styles.decisionOptionTextActiveSubworkflow,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
         <Text style={styles.decisionScheduleSameTimeHint}>
           Same time, different job? Keep Start and End, tap another category (ADL, Communication, …), write the description, then Add Block again.
         </Text>
@@ -11367,6 +11393,58 @@ function DecisionEngineScreen({
         <Text style={styles.decisionScheduleLead}>
           Create the case-note rows the DSP will document. The row workflow itself now drives the DocuWraite question flow.
         </Text>
+        <View style={styles.decisionWorkflowChipRow}>
+          {workflowOptions.map((option) => (
+            <Pressable
+              key={option.workflowId}
+              onPress={() => handleWorkflowOptionPress(option.workflowId)}
+              style={[
+                styles.decisionOptionButton,
+                newRowWorkflowId === option.workflowId && styles.decisionOptionButtonActiveRow,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.decisionOptionText,
+                  newRowWorkflowId === option.workflowId && styles.decisionOptionTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+          {newRowWorkflowId === "feeding-support"
+            ? MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.map((option) => (
+                <Pressable
+                  key={`row-meal-${option.value}`}
+                  onPress={() => setNewRowMealSubworkflow(option.value)}
+                  style={[
+                    styles.decisionOptionButton,
+                    newRowMealSubworkflow === option.value && styles.decisionOptionButtonActiveSubworkflow,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.decisionOptionText,
+                      newRowMealSubworkflow === option.value && styles.decisionOptionTextActiveSubworkflow,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))
+            : null}
+          <Pressable
+            style={[
+              styles.decisionAssignButton,
+              styles.decisionAssignButtonRow,
+              styles.decisionWorkflowAddRowButton,
+            ]}
+            onPress={addRowTarget}
+          >
+            <Text style={styles.decisionAssignButtonText}>Add Row</Text>
+          </Pressable>
+        </View>
         <View style={styles.rowPromptAnchor}>
           <View style={styles.decisionPromptInputWrap}>
             <View style={styles.decisionPromptInputRow}>
@@ -11450,58 +11528,6 @@ function DecisionEngineScreen({
             onAction={handleBuilderGuideAction}
           />
         ) : null}
-        <View style={styles.decisionWorkflowChipRow}>
-          {workflowOptions.map((option) => (
-            <Pressable
-              key={option.workflowId}
-              onPress={() => handleWorkflowOptionPress(option.workflowId)}
-              style={[
-                styles.decisionOptionButton,
-                newRowWorkflowId === option.workflowId && styles.decisionOptionButtonActiveRow,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.decisionOptionText,
-                  newRowWorkflowId === option.workflowId && styles.decisionOptionTextActive,
-                ]}
-              >
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
-          {newRowWorkflowId === "feeding-support"
-            ? MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.map((option) => (
-                <Pressable
-                  key={`row-meal-${option.value}`}
-                  onPress={() => setNewRowMealSubworkflow(option.value)}
-                  style={[
-                    styles.decisionOptionButton,
-                    newRowMealSubworkflow === option.value && styles.decisionOptionButtonActiveSubworkflow,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.decisionOptionText,
-                      newRowMealSubworkflow === option.value && styles.decisionOptionTextActiveSubworkflow,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </Pressable>
-              ))
-            : null}
-          <Pressable
-            style={[
-              styles.decisionAssignButton,
-              styles.decisionAssignButtonRow,
-              styles.decisionWorkflowAddRowButton,
-            ]}
-            onPress={addRowTarget}
-          >
-            <Text style={styles.decisionAssignButtonText}>Add Row</Text>
-          </Pressable>
-        </View>
         <Text style={styles.decisionBuilderListLabel}>Case-note rows</Text>
         <View style={styles.decisionScheduleChipRow}>
           {rowTargets.map((row) => (
@@ -18730,6 +18756,8 @@ const styles = StyleSheet.create({
   },
   decisionGuideNoteStepPress: {
     marginTop: 4,
+    alignSelf: "flex-start",
+    ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
   },
   decisionGuideNoteStep: {
     fontSize: 12,
@@ -18752,6 +18780,25 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: "flex-end",
     marginBottom: 12,
+  },
+  decisionScheduleBuilderAddBlockWrap: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  decisionScheduleBuilderTimeGroup: {
+    width: 120,
+    maxWidth: "100%",
+    gap: 8,
+    alignItems: "stretch",
+  },
+  decisionScheduleBuilderLabel: {
+    fontSize: 11,
+    color: colors.muted,
+    fontWeight: "700",
+    letterSpacing: 0.35,
+    textTransform: "uppercase",
+    textAlign: "center",
+    width: "100%",
   },
   decisionWorkflowChipRow: {
     flexDirection: "row",
@@ -19907,13 +19954,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   decisionAssignButtonBlock: {
-    backgroundColor: "#d97706",
+    backgroundColor: "#c96f08",
+  },
+  decisionAssignButtonBlockFull: {
+    alignSelf: "stretch",
+    marginTop: 10,
   },
   decisionAssignButtonAssignments: {
     backgroundColor: "#c2416c",
   },
   decisionAssignButtonRow: {
-    backgroundColor: "#0f7a63",
+    backgroundColor: "#11705d",
   },
   decisionAssignButtonDisabled: {
     backgroundColor: "#b9abd9",
