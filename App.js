@@ -4719,12 +4719,14 @@ function escapeHtml(value = "") {
 }
 
 function resolveDocumentationActorNames(session = {}, loggedInStaff = "") {
-  const caregiverName = String(session?.review?.reviewedBy || "").trim() || String(loggedInStaff || "").trim();
+  const dspName = String(session?.review?.reviewedBy || "").trim() || String(loggedInStaff || "").trim();
+  const documentedByName = String(session?.review?.reviewedBy || "").trim() || String(loggedInStaff || "").trim();
   const accountOwnerName = String(loggedInStaff || "").trim();
-  const showAccountOwner = Boolean(accountOwnerName) && caregiverName !== accountOwnerName;
+  const showAccountOwner = Boolean(accountOwnerName) && documentedByName !== accountOwnerName;
 
   return {
-    caregiverName,
+    dspName,
+    documentedByName,
     accountOwnerName,
     showAccountOwner,
   };
@@ -4779,7 +4781,8 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
       <p><strong>Individual:</strong> ${escapeHtml(patientName)}</p>
       <p><strong>Program:</strong> ${escapeHtml(session.program)}</p>
       <p><strong>Service Date:</strong> ${escapeHtml(session.serviceDate)}</p>
-      <p><strong>Caregiver:</strong> ${escapeHtml(actorNames.caregiverName)}</p>
+      <p><strong>DSP:</strong> ${escapeHtml(actorNames.dspName)}</p>
+      <p><strong>Documented By:</strong> ${escapeHtml(actorNames.documentedByName)}</p>
       ${actorNames.showAccountOwner ? `<p><strong>Account Owner:</strong> ${escapeHtml(actorNames.accountOwnerName)}</p>` : ""}
       <p><strong>Generated:</strong> ${escapeHtml(session.handover?.generatedAt || session.review?.validationTimestamp || "")}</p>
     </div>
@@ -4811,13 +4814,14 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
   return true;
 }
 
-function buildSubmittedNoteLibraryRecord({ session, clientId, clientName, caregiverName, accountOwnerName = "", submittedAt }) {
+function buildSubmittedNoteLibraryRecord({ session, clientId, clientName, caregiverName, documentedByName = "", accountOwnerName = "", submittedAt }) {
   const timestamp = submittedAt || getCurrentEasternTimestamp();
   return {
     id: `submitted-note-${clientId}-${Date.now()}`,
     clientId,
     clientName,
     caregiverName,
+    documentedByName,
     accountOwnerName,
     serviceDate: session?.serviceDate || "",
     submittedAt: timestamp,
@@ -4892,8 +4896,9 @@ function openSubmittedNotePdfInBrowser({ record }) {
     <h1>Submitted Documentation</h1>
     <div class="meta">
       <p><strong>Individual:</strong> ${escapeHtml(record.clientName || "")}</p>
-      <p><strong>Caregiver:</strong> ${escapeHtml(record.caregiverName || "")}</p>
-      ${record.accountOwnerName && record.accountOwnerName !== record.caregiverName
+      <p><strong>DSP:</strong> ${escapeHtml(record.caregiverName || "")}</p>
+      <p><strong>Documented By:</strong> ${escapeHtml(record.documentedByName || record.caregiverName || "")}</p>
+      ${record.accountOwnerName && record.accountOwnerName !== (record.documentedByName || record.caregiverName)
         ? `<p><strong>Account Owner:</strong> ${escapeHtml(record.accountOwnerName)}</p>`
         : ""}
       <p><strong>Service Date:</strong> ${escapeHtml(record.serviceDate || "")}</p>
@@ -8684,7 +8689,8 @@ function DocumentationEntryScreen({
         },
         clientId: clientProfile?.id || activeClientName,
         clientName: activePatientName,
-        caregiverName: actorNames.caregiverName,
+        caregiverName: actorNames.dspName,
+        documentedByName: actorNames.documentedByName,
         accountOwnerName: actorNames.accountOwnerName,
         submittedAt: timestamp,
       });
