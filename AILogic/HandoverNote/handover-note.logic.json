@@ -52,7 +52,7 @@
       {
         "id": "handover_priority",
         "label": "How urgent is this handover?",
-        "type": "single_select",
+        "type": "multi_select",
         "required": true,
         "options": [
           "Routine",

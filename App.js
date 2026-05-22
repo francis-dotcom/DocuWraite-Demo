@@ -31,7 +31,9 @@ import {
   countIncompleteDraftContextQuestions,
   formatDraftContextClarificationsForPrompt,
   getDraftContextTogglesNeedingQuestions,
+  getDraftContextQuestionTrail,
   getFirstIncompleteDraftContextQuestion,
+  rewindDraftContextResponses,
 } from "./decisionAlgo/draftContextQuestionTrees";
 import {
   buildCaseNoteDocumentationItems,
@@ -113,6 +115,7 @@ const { resolveAiLogicPath, aiLogicExists } = require("./AILogic/engine/aiLogicR
 const { loadAiLogic } = require("./AILogic/engine/aiLogicLoader");
 const { evaluateAiSafety } = require("./AILogic/engine/aiSafetyEngine");
 const { buildAiSystemPrompt, buildAiUserPrompt } = require("./AILogic/engine/aiPromptBuilder");
+const { TASK_SCOPED_AI_LOGIC_CATALOG } = require("./AILogic/engine/taskScopedLogicCatalog");
 
 const WORKFLOW_INPUT_SECTION_CONFIGS = {
   behavioral: behavioralInputSection,
@@ -1446,10 +1449,59 @@ function attachClientCarePlanContext(fieldContext = {}, options = {}) {
 function inferAiLogicSelection(fieldContext = {}) {
   const workflowId = String(fieldContext.baseWorkflowId || fieldContext.workflowId || "").trim();
   const haystack = normalizeInferenceText(
-    [fieldContext.label, fieldContext.description, fieldContext.source, fieldContext.assignedNodeSummary]
+    [
+      fieldContext.label,
+      fieldContext.description,
+      fieldContext.source,
+      fieldContext.assignedNodeSummary,
+      fieldContext.taskLabel,
+      fieldContext.workflowTask,
+      fieldContext.subworkflowId,
+    ]
       .filter(Boolean)
       .join(" ")
   );
+  const inferCatalogTask = (catalogWorkflowId) => {
+    const workflowConfig = TASK_SCOPED_AI_LOGIC_CATALOG[catalogWorkflowId];
+    if (!workflowConfig) {
+      return null;
+    }
+
+    const explicitTask = normalizeInferenceText(
+      fieldContext.subworkflowId || fieldContext.taskLabel || fieldContext.workflowTask || ""
+    );
+    if (explicitTask) {
+      const exactTask = workflowConfig.tasks.find(
+        (taskConfig) =>
+          normalizeInferenceText(taskConfig.task) === explicitTask ||
+          normalizeInferenceText(taskConfig.pathKey) === explicitTask
+      );
+      if (exactTask) {
+        return {
+          category: workflowConfig.category,
+          task: exactTask.task,
+        };
+      }
+    }
+
+    for (const taskConfig of workflowConfig.tasks) {
+      if (
+        taskConfig.signals.some((signal) =>
+          haystack.includes(normalizeInferenceText(signal))
+        )
+      ) {
+        return {
+          category: workflowConfig.category,
+          task: taskConfig.task,
+        };
+      }
+    }
+
+    return {
+      category: workflowConfig.category,
+      task: workflowConfig.broadTask,
+    };
+  };
 
   if (workflowId === "case-note-final") {
     return {
@@ -1466,17 +1518,11 @@ function inferAiLogicSelection(fieldContext = {}) {
   }
 
   if (workflowId === "communication-support") {
-    return {
-      category: "Communication",
-      task: "Communication Support",
-    };
+    return inferCatalogTask("communication-support");
   }
 
   if (workflowId === "medication-support") {
-    return {
-      category: "Medication",
-      task: "Medication Support",
-    };
+    return inferCatalogTask("medication-support");
   }
 
   if (workflowId === "feeding-support" || workflowId === "meal-support") {
@@ -1574,38 +1620,23 @@ function inferAiLogicSelection(fieldContext = {}) {
   }
 
   if (workflowId === "mobility") {
-    return {
-      category: "Mobility",
-      task: "Mobility Support",
-    };
+    return inferCatalogTask("mobility");
   }
 
   if (workflowId === "behavior-support") {
-    return {
-      category: "Behavior Support",
-      task: "Behavior Support",
-    };
+    return inferCatalogTask("behavior-support");
   }
 
   if (workflowId === "community-outing") {
-    return {
-      category: "Community Outing",
-      task: "Community Outing",
-    };
+    return inferCatalogTask("community-outing");
   }
 
   if (workflowId === "night-adl") {
-    return {
-      category: "Sleep Support",
-      task: "Sleep Support",
-    };
+    return inferCatalogTask("night-adl");
   }
 
   if (workflowId === "in-home-leisure") {
-    return {
-      category: "Safety Monitoring",
-      task: "Safety Monitoring",
-    };
+    return inferCatalogTask("in-home-leisure");
   }
 
   return null;
@@ -1634,6 +1665,30 @@ function mapAiLogicQuestionToWorkflowStep(question = {}, logic = null) {
   };
 }
 
+function buildAiLogicQuestionSequence(logic = null) {
+  const sequence = logic?.rules?.sequence || [];
+  const questionsById = logic?.rules?.questionsById || {};
+  const orderedQuestionIds = [];
+  const seen = new Set();
+
+  const pushQuestionId = (questionId) => {
+    if (!questionId || seen.has(questionId) || !questionsById[questionId]) {
+      return;
+    }
+    seen.add(questionId);
+    orderedQuestionIds.push(questionId);
+  };
+
+  sequence.forEach((questionId) => {
+    pushQuestionId(questionId);
+    const question = questionsById[questionId];
+    const followUpRules = Array.isArray(question?.followUpRules) ? question.followUpRules : [];
+    followUpRules.forEach((rule) => pushQuestionId(String(rule?.ask || "").trim()));
+  });
+
+  return orderedQuestionIds;
+}
+
 function buildAiLogicWorkflowBundle(fieldContext = {}) {
   const selection = inferAiLogicSelection(fieldContext);
   if (!selection) {
@@ -1652,9 +1707,8 @@ function buildAiLogicWorkflowBundle(fieldContext = {}) {
 
   try {
     const logic = getCachedAiLogic(logicPath);
-    const sequence = logic?.rules?.sequence || [];
     const questionsById = logic?.rules?.questionsById || {};
-    const steps = sequence
+    const steps = buildAiLogicQuestionSequence(logic)
       .map((questionId) => questionsById[questionId])
       .filter(Boolean)
       .map((question) => mapAiLogicQuestionToWorkflowStep(question, logic));
@@ -3078,6 +3132,7 @@ function useDraftContextQuestionState(toggles, fieldContext, responses) {
   const togglesWithTrees = getDraftContextTogglesNeedingQuestions(resolvedToggles);
   const active = getFirstIncompleteDraftContextQuestion(resolvedToggles, responses, fieldContext);
   const pendingTrees = countIncompleteDraftContextQuestions(resolvedToggles, responses, fieldContext);
+  const trail = getDraftContextQuestionTrail(resolvedToggles, responses, fieldContext);
   const [textDraft, setTextDraft] = useState("");
 
   useEffect(() => {
@@ -3093,6 +3148,7 @@ function useDraftContextQuestionState(toggles, fieldContext, responses) {
     togglesWithTrees,
     active,
     pendingTrees,
+    trail,
     textDraft,
     setTextDraft,
   };
@@ -3191,9 +3247,10 @@ function DocuWraiteDraftContextQuestionModal({
   fieldContext,
   responses,
   onSaveResponse,
+  onBackResponse,
   onMoveInline,
 }) {
-  const { togglesWithTrees, active, pendingTrees, textDraft, setTextDraft } = useDraftContextQuestionState(
+  const { togglesWithTrees, active, pendingTrees, trail, textDraft, setTextDraft } = useDraftContextQuestionState(
     toggles,
     fieldContext,
     responses
@@ -3219,8 +3276,8 @@ function DocuWraiteDraftContextQuestionModal({
     runDraftContextQuestionLayoutAnimation();
     onSaveResponse(active.responseKey, String(value).trim());
     setTextDraft("");
-    onMoveInline?.();
   };
+  const canGoBack = trail.filter((entry) => entry.answered).length > 0;
 
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={onMoveInline}>
@@ -3249,6 +3306,24 @@ function DocuWraiteDraftContextQuestionModal({
               onTextDraftChange={setTextDraft}
               onSaveResponse={saveResponse}
             />
+            <View style={styles.docuWraiteDraftContextModalFooter}>
+              {canGoBack ? (
+                <Pressable
+                  onPress={() => {
+                    runDraftContextQuestionLayoutAnimation();
+                    setTextDraft("");
+                    onBackResponse?.();
+                  }}
+                >
+                  <Text style={styles.docuWraiteWorkflowBack}>Back</Text>
+                </Pressable>
+              ) : (
+                <View />
+              )}
+              <Pressable onPress={onMoveInline}>
+                <Text style={styles.docuWraiteWorkflowDismiss}>Dismiss</Text>
+              </Pressable>
+            </View>
           </Animated.View>
         </View>
       </View>
@@ -6847,6 +6922,9 @@ function DocumentationFormTable({
           source: row.source,
           workflowId: rowWorkflowId,
           baseWorkflowId: rowBaseWorkflowId,
+          subworkflowId: row.subworkflowId || "",
+          taskLabel: row.taskLabel || "",
+          workflowTask: row.taskLabel || row.subworkflowId || "",
           theme: row.theme,
           shiftIntelligence: runtimeShiftIntelligence,
           assignedNodes: row.assignedNodes || [],
@@ -6919,6 +6997,8 @@ function DocumentationEntryScreen({
   const [docuWraiteExpanded, setDocuWraiteExpanded] = useState(false);
   const [docuWraiteWorkflow, setDocuWraiteWorkflow] = useState(null);
   const [submitHandoverPromptVisible, setSubmitHandoverPromptVisible] = useState(false);
+  const [handoverVitalsPromptVisible, setHandoverVitalsPromptVisible] = useState(false);
+  const [highlightHandoverVitals, setHighlightHandoverVitals] = useState(false);
   const [validationQuizState, setValidationQuizState] = useState({
     visible: false,
     questions: [],
@@ -6934,6 +7014,8 @@ function DocumentationEntryScreen({
   const docuWraitePauseTimers = useRef({});
   const docuWraiteDismissed = useRef(new Set());
   const docuWraiteWorkflowRequestId = useRef(0);
+  const docEntryScrollRef = useRef(null);
+  const handoverSectionOffset = useRef(0);
   const groupedTimeBlocks = useMemo(() => {
     const groups = [];
     const groupsByLabel = new Map();
@@ -7008,6 +7090,53 @@ function DocumentationEntryScreen({
     undocumentedBlocks.length,
     undocumentedRows.length,
   ]);
+  const nextActionGuidance = useMemo(() => {
+    switch (nextRequiredAction) {
+      case "Generate Final Case Note":
+        return {
+          tone: "warning",
+          lead: "Do this first:",
+          detail: "Finish the block and row documentation, then generate the final case note.",
+        };
+      case "Validate":
+        return {
+          tone: "info",
+          lead: "Next step:",
+          detail: "Run Validate so the DSP awareness check and submission gate can clear.",
+        };
+      case "Generate Handover Note":
+        return {
+          tone: "warning",
+          lead: "Action needed:",
+          detail: "Generate the handover note next, and enter vitals first if they need to be included.",
+        };
+      case "Open Handover Note":
+        return {
+          tone: "info",
+          lead: "Review now:",
+          detail: "Open the handover note, confirm it reads correctly, and finish the handover step.",
+        };
+      case "Submit Documentation":
+        return {
+          tone: "success",
+          lead: "Ready to submit:",
+          detail: "Everything required is in place. Submit the documentation when you are satisfied with the note.",
+        };
+      default:
+        return null;
+    }
+  }, [nextRequiredAction]);
+  const handoverGenerateButtonLabel = highlightHandoverVitals
+    ? "Proceed to Generate Handover Note"
+    : "Generate Handover Note";
+  const scrollToHandoverSection = useCallback(() => {
+    if (docEntryScrollRef.current && typeof handoverSectionOffset.current === "number") {
+      docEntryScrollRef.current.scrollTo({
+        y: Math.max(handoverSectionOffset.current - 16, 0),
+        animated: true,
+      });
+    }
+  }, []);
 
   useEffect(() => {
     setExpandedAreas({});
@@ -7057,6 +7186,16 @@ function DocumentationEntryScreen({
     };
   }, [nextRequiredAction]);
 
+  useEffect(() => {
+    if (!highlightHandoverVitals || !session.handover?.required) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      scrollToHandoverSection();
+    });
+  }, [highlightHandoverVitals, scrollToHandoverSection, session.handover?.required]);
+
   const getWorkflowFieldNote = (fieldId) => {
     if (fieldId === "summary") {
       return session.shiftSummary || "";
@@ -7090,6 +7229,8 @@ function DocumentationEntryScreen({
         score: block.score,
         comment: block.comment,
         workflowId: getTimeBlockWorkflowId(block, clientProfile),
+        subworkflowId: block.subworkflowId || "",
+        taskLabel: block.taskLabel || "",
       })),
       ...session.rows.map((row) => ({
         entryType: "case-note-row",
@@ -7098,6 +7239,8 @@ function DocumentationEntryScreen({
         score: row.score,
         comment: row.comment,
         workflowId: row.workflowId || null,
+        subworkflowId: row.subworkflowId || "",
+        taskLabel: row.taskLabel || "",
       })),
     ],
   });
@@ -7117,6 +7260,8 @@ function DocumentationEntryScreen({
         score: block.score,
         comment: block.comment,
         workflowId: getTimeBlockWorkflowId(block, clientProfile),
+        subworkflowId: block.subworkflowId || "",
+        taskLabel: block.taskLabel || "",
       })),
       ...session.rows.map((row) => ({
         entryType: "case-note-row",
@@ -7125,6 +7270,8 @@ function DocumentationEntryScreen({
         score: row.score,
         comment: row.comment,
         workflowId: row.workflowId || null,
+        subworkflowId: row.subworkflowId || "",
+        taskLabel: row.taskLabel || "",
       })),
       {
         entryType: "final-summary",
@@ -7137,6 +7284,13 @@ function DocumentationEntryScreen({
     finalSummary: session.shiftSummary,
     generatedHandoverNote: session.handover?.generatedNote || "",
     manualHandoverNotes: session.handover?.additionalNotes || "",
+    handoverVitals: handoverVitalFields
+      .filter((field) => session.handover?.vitalSigns?.[field.key])
+      .map((field) => ({
+        label: field.label,
+        value: String(session.handover?.vitalValues?.[field.key] || "").trim(),
+      })),
+    handoverOtherVitals: String(session.handover?.otherVitals || "").trim(),
   });
 
   const withWorkflowSnapshot = (workflowSnapshot) => ({
@@ -7532,11 +7686,18 @@ function DocumentationEntryScreen({
         const initialLocalWorkflowState = useLocalWorkflow
           ? buildInitialLocalWorkflowAnswers(assist.fieldContext || {}, localSteps)
           : { answers: {}, stepIndex: 0 };
+        const requestedInitialStepKey = String(assist.initialStepKey || "").trim();
+        const requestedInitialStepIndex = requestedInitialStepKey
+          ? localSteps.findIndex((step) => step.stepKey === requestedInitialStepKey)
+          : -1;
 
         const startingWorkflow = {
           fieldId: assist.fieldId,
           workflowId: assist.workflowId,
-          stepIndex: initialLocalWorkflowState.stepIndex,
+          stepIndex:
+            requestedInitialStepIndex >= 0
+              ? requestedInitialStepIndex
+              : initialLocalWorkflowState.stepIndex,
           answers: initialLocalWorkflowState.answers,
           structuredAnswers: [],
           fieldContext: assist.fieldContext || {},
@@ -7677,7 +7838,7 @@ function DocumentationEntryScreen({
     patchSession({ shiftSummary, dspValidationQuizPassed: false });
   };
 
-  const openHandoverWorkflow = () => {
+  const launchHandoverWorkflow = ({ initialStepKey = "" } = {}) => {
     if (isCaseNoteSession && !session.dspValidationQuizPassed) {
       patchSession({
         handover: {
@@ -7697,10 +7858,24 @@ function DocumentationEntryScreen({
       workflowId: "assigned-nodes",
       fieldContext: buildHandoverFieldContext(),
       localWorkflowSteps: buildHandoverWorkflowSteps(),
+      initialStepKey,
       title: getWorkflowEyebrow("handover-note"),
       message: "DocuWraite will guide a detailed handover note for the next shift.",
       trigger: "manual",
     });
+  };
+
+  const openHandoverWorkflow = () => {
+    if (highlightHandoverVitals) {
+      setHighlightHandoverVitals(false);
+      launchHandoverWorkflow({ initialStepKey: "assigned-nodes-draft" });
+      return;
+    }
+    if (!String(session.handover?.generatedNote || "").trim()) {
+      setHandoverVitalsPromptVisible(true);
+      return;
+    }
+    launchHandoverWorkflow();
   };
 
   const evaluateDocuWraiteAssist = (fieldId, fieldContext, value, trigger) => {
@@ -8209,7 +8384,7 @@ function DocumentationEntryScreen({
             generatedAt: "05/14/2026 1:06 AM",
             submitted: false,
           },
-          statusMessage: "Handover note generated. Review and open it when ready.",
+          statusMessage: "",
         });
       } else {
         applyDocuWraiteNote(fieldId, note);
@@ -8227,9 +8402,13 @@ function DocumentationEntryScreen({
         fieldContext: {
           fieldKind: "time",
           score: block.score,
-          description: block.label,
+          label: block.label,
+          description: getTimeBlockPrompt(block, clientProfile),
           source: "Shift Timeline",
           workflowId: getTimeBlockWorkflowId(block, clientProfile),
+          subworkflowId: block.subworkflowId || "",
+          taskLabel: block.taskLabel || "",
+          workflowTask: block.taskLabel || block.subworkflowId || "",
           shiftIntelligence: runtimeShiftIntelligence,
         },
         value: block.comment,
@@ -8242,6 +8421,9 @@ function DocumentationEntryScreen({
           description: row.description,
           source: row.source,
           workflowId: row.workflowId,
+          subworkflowId: row.subworkflowId || "",
+          taskLabel: row.taskLabel || "",
+          workflowTask: row.taskLabel || row.subworkflowId || "",
           theme: row.theme,
           shiftIntelligence: runtimeShiftIntelligence,
         },
@@ -8320,6 +8502,14 @@ function DocumentationEntryScreen({
   };
 
   const patchHandover = (changes) => {
+    if (
+      highlightHandoverVitals &&
+      (Object.prototype.hasOwnProperty.call(changes || {}, "vitalSigns") ||
+        Object.prototype.hasOwnProperty.call(changes || {}, "vitalValues") ||
+        Object.prototype.hasOwnProperty.call(changes || {}, "otherVitals"))
+    ) {
+      setHighlightHandoverVitals(false);
+    }
     patchSession({
       handover: {
         ...(session.handover || {}),
@@ -8656,6 +8846,7 @@ function DocumentationEntryScreen({
       </View>
 
       <ScrollView
+        ref={docEntryScrollRef}
         style={styles.docEntryScroll}
         contentContainerStyle={styles.docEntryScrollInner}
         keyboardShouldPersistTaps="handled"
@@ -8701,6 +8892,9 @@ function DocumentationEntryScreen({
                       source: getTimeBlockSource(block, clientProfile),
                       workflowId,
                       baseWorkflowId,
+                      subworkflowId: block.subworkflowId || "",
+                      taskLabel: block.taskLabel || "",
+                      workflowTask: block.taskLabel || block.subworkflowId || "",
                       shiftIntelligence: runtimeShiftIntelligence,
                       assignedNodes: block.assignedNodes || [],
                       assignedNodeSummary: block.assignedNodeSummary || "",
@@ -8839,7 +9033,12 @@ function DocumentationEntryScreen({
         </View>
 
         {session.handover?.required ? (
-          <View style={styles.docFormCard}>
+          <View
+            style={styles.docFormCard}
+            onLayout={(event) => {
+              handoverSectionOffset.current = event.nativeEvent.layout.y;
+            }}
+          >
             <Text style={styles.docSectionHeading}>Handover Note</Text>
             <View style={styles.docSectionBody}>
               <Text style={styles.docSectionSubtitle}>
@@ -8849,7 +9048,14 @@ function DocumentationEntryScreen({
               {session.handover?.generatedNote ? (
                 <>
                   <Text style={styles.docReviewInputLabel}>Generated handover note</Text>
-                  <Text style={styles.docValidationQuizExcerpt}>{session.handover.generatedNote}</Text>
+                  <TextInput
+                    value={session.handover?.generatedNote || ""}
+                    onChangeText={(generatedNote) => patchHandover({ generatedNote })}
+                    placeholder="Generated handover note will appear here"
+                    placeholderTextColor="#888888"
+                    multiline
+                    style={styles.docHandoverInput}
+                  />
                 </>
               ) : null}
               <Text style={styles.docReviewInputLabel}>Additional handover notes</Text>
@@ -8861,55 +9067,62 @@ function DocumentationEntryScreen({
                 multiline
                 style={styles.docHandoverInput}
               />
-              <Text style={styles.docReviewInputLabel}>Vital signs</Text>
-              <View style={styles.docHandoverVitalsGrid}>
-                {handoverVitalFields.map((field) => (
-                  <Pressable
-                    key={field.key}
-                    style={[
-                      styles.docHandoverVitalChip,
-                      session.handover?.vitalSigns?.[field.key] && styles.docHandoverVitalChipActive,
-                    ]}
-                    onPress={() => toggleHandoverVital(field.key)}
-                  >
-                    <Text
+              <View
+                style={[
+                  styles.docHandoverVitalsSection,
+                  highlightHandoverVitals ? styles.docHandoverVitalsSectionHighlight : null,
+                ]}
+              >
+                <Text style={styles.docReviewInputLabel}>Vital signs</Text>
+                <View style={styles.docHandoverVitalsGrid}>
+                  {handoverVitalFields.map((field) => (
+                    <Pressable
+                      key={field.key}
                       style={[
-                        styles.docHandoverVitalChipText,
-                        session.handover?.vitalSigns?.[field.key] && styles.docHandoverVitalChipTextActive,
+                        styles.docHandoverVitalChip,
+                        session.handover?.vitalSigns?.[field.key] && styles.docHandoverVitalChipActive,
                       ]}
+                      onPress={() => toggleHandoverVital(field.key)}
                     >
-                      {`${session.handover?.vitalSigns?.[field.key] ? "☑" : "☐"} ${field.label}`}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              {handoverVitalFields.some((field) => session.handover?.vitalSigns?.[field.key]) ? (
-                <View style={styles.docHandoverVitalValues}>
-                  {handoverVitalFields
-                    .filter((field) => session.handover?.vitalSigns?.[field.key])
-                    .map((field) => (
-                      <View key={`${field.key}-value`} style={styles.docHandoverVitalValueRow}>
-                        <Text style={styles.docHandoverVitalValueLabel}>{field.label}</Text>
-                        <TextInput
-                          value={session.handover?.vitalValues?.[field.key] || ""}
-                          onChangeText={(value) => updateHandoverVitalValue(field.key, value)}
-                          placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                          placeholderTextColor="#888888"
-                          style={styles.docHandoverVitalValueInput}
-                        />
-                      </View>
-                    ))}
+                      <Text
+                        style={[
+                          styles.docHandoverVitalChipText,
+                          session.handover?.vitalSigns?.[field.key] && styles.docHandoverVitalChipTextActive,
+                        ]}
+                      >
+                        {`${session.handover?.vitalSigns?.[field.key] ? "☑" : "☐"} ${field.label}`}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
-              ) : null}
-              <Text style={styles.docReviewInputLabel}>Other vitals or readings</Text>
-              <TextInput
-                value={session.handover?.otherVitals || ""}
-                onChangeText={(otherVitals) => patchHandover({ otherVitals })}
-                placeholder="Add glucose, weight, pain score, or any other reading"
-                placeholderTextColor="#888888"
-                multiline
-                style={styles.docHandoverOtherVitalsInput}
-              />
+                {handoverVitalFields.some((field) => session.handover?.vitalSigns?.[field.key]) ? (
+                  <View style={styles.docHandoverVitalValues}>
+                    {handoverVitalFields
+                      .filter((field) => session.handover?.vitalSigns?.[field.key])
+                      .map((field) => (
+                        <View key={`${field.key}-value`} style={styles.docHandoverVitalValueRow}>
+                          <Text style={styles.docHandoverVitalValueLabel}>{field.label}</Text>
+                          <TextInput
+                            value={session.handover?.vitalValues?.[field.key] || ""}
+                            onChangeText={(value) => updateHandoverVitalValue(field.key, value)}
+                            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                            placeholderTextColor="#888888"
+                            style={styles.docHandoverVitalValueInput}
+                          />
+                        </View>
+                      ))}
+                  </View>
+                ) : null}
+                <Text style={styles.docReviewInputLabel}>Other vitals or readings</Text>
+                <TextInput
+                  value={session.handover?.otherVitals || ""}
+                  onChangeText={(otherVitals) => patchHandover({ otherVitals })}
+                  placeholder="Add glucose, weight, pain score, or any other reading"
+                  placeholderTextColor="#888888"
+                  multiline
+                  style={styles.docHandoverOtherVitalsInput}
+                />
+              </View>
               <View style={styles.docHandoverActions}>
                 <Pressable
                   style={[
@@ -8929,7 +9142,7 @@ function DocumentationEntryScreen({
                         : null,
                     ]}
                   >
-                    Generate Handover Note
+                    {handoverGenerateButtonLabel}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -8988,6 +9201,28 @@ function DocumentationEntryScreen({
         ) : null}
 
         {session.statusMessage ? <Text style={styles.docStatusMessage}>{session.statusMessage}</Text> : null}
+        {nextActionGuidance ? (
+          <View
+            style={[
+              styles.docNextActionGuidance,
+              nextActionGuidance.tone === "warning" ? styles.docNextActionGuidanceWarning : null,
+              nextActionGuidance.tone === "info" ? styles.docNextActionGuidanceInfo : null,
+              nextActionGuidance.tone === "success" ? styles.docNextActionGuidanceSuccess : null,
+            ]}
+          >
+            <Text
+              style={[
+                styles.docNextActionGuidanceLead,
+                nextActionGuidance.tone === "warning" ? styles.docNextActionGuidanceLeadWarning : null,
+                nextActionGuidance.tone === "info" ? styles.docNextActionGuidanceLeadInfo : null,
+                nextActionGuidance.tone === "success" ? styles.docNextActionGuidanceLeadSuccess : null,
+              ]}
+            >
+              {nextActionGuidance.lead}
+            </Text>
+            <Text style={styles.docNextActionGuidanceDetail}>{nextActionGuidance.detail}</Text>
+          </View>
+        ) : null}
 
       <View style={[styles.docEntryActions, isPhone && styles.docEntryActionsStacked]}>
           <Pressable style={[styles.docActionButton, styles.docActionSecondary]} onPress={saveDraft}>
@@ -9065,6 +9300,48 @@ function DocumentationEntryScreen({
                 }}
               >
                 <Text style={styles.docCommentToolSecondaryText}>No, submit only</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={handoverVitalsPromptVisible} animationType="fade" onRequestClose={() => setHandoverVitalsPromptVisible(false)}>
+        <View style={styles.docValidationQuizRoot}>
+          <Pressable style={styles.docValidationQuizBackdrop} onPress={() => setHandoverVitalsPromptVisible(false)} />
+          <View style={styles.docValidationQuizCard}>
+            <Text style={styles.docValidationQuizEyebrow}>Vitals Before Handover?</Text>
+            <Text style={styles.docValidationQuizPrompt}>
+              Do vitals or readings need to be entered before generating the handover note?
+            </Text>
+            <Text style={styles.docValidationQuizExcerpt}>
+              Choose Yes to highlight the vitals section first, or Skip to generate the handover note now.
+            </Text>
+            <View style={styles.docCommentToolActions}>
+              <Pressable
+                style={styles.docCommentToolPrimary}
+                onPress={() => {
+                  setHandoverVitalsPromptVisible(false);
+                  setHighlightHandoverVitals(true);
+                  patchSession({
+                    statusMessage: "Enter vitals or readings in the highlighted handover section, then proceed to generate the handover note.",
+                  });
+                  requestAnimationFrame(() => {
+                    scrollToHandoverSection();
+                  });
+                }}
+              >
+                <Text style={styles.docCommentToolPrimaryText}>Yes, enter vitals first</Text>
+              </Pressable>
+              <Pressable
+                style={styles.docCommentToolSecondary}
+                onPress={() => {
+                  setHandoverVitalsPromptVisible(false);
+                  setHighlightHandoverVitals(false);
+                  launchHandoverWorkflow({ initialStepKey: "assigned-nodes-draft" });
+                }}
+              >
+                <Text style={styles.docCommentToolSecondaryText}>Skip and generate</Text>
               </Pressable>
             </View>
           </View>
@@ -9188,6 +9465,30 @@ function DocumentationEntryScreen({
                     ...(current.answers?.draftContextResponses || {}),
                     [responseKey]: value,
                   },
+                },
+              };
+            });
+          }}
+          onBackResponse={() => {
+            setDocuWraiteWorkflow((current) => {
+              if (!current || current.workflowId !== "assigned-nodes") {
+                return current;
+              }
+
+              return {
+                ...current,
+                answers: {
+                  ...current.answers,
+                  draftContextResponses: rewindDraftContextResponses(
+                    normalizeDraftContextToggles(current.draftContextToggles),
+                    current.answers?.draftContextResponses || {},
+                    {
+                      ...(current.fieldContext || {}),
+                      shiftIntelligence:
+                        current.fieldContext?.shiftIntelligence ||
+                        getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session),
+                    }
+                  ),
                 },
               };
             });
@@ -17725,9 +18026,11 @@ export default function App() {
             <View style={[styles.topRight, isPhone && styles.topRightPhone]}>
               <View style={styles.topUser}>
                 <Image source={userProfilePhoto} style={styles.topUserPhoto} resizeMode="cover" />
-                <Text style={[styles.topRightText, { fontSize: topRightSize }]}>{loggedInUser}</Text>
+                <Text style={[styles.topRightText, styles.topUserNameText, { fontSize: topRightSize }]}>
+                  {loggedInUser}
+                </Text>
               </View>
-              <Text style={[styles.topRightText, { fontSize: topRightSize }]}>Logout</Text>
+              <Text style={[styles.topRightText, styles.topLogoutText, { fontSize: topRightSize }]}>Logout</Text>
             </View>
           </View>
 
@@ -18164,6 +18467,14 @@ const styles = StyleSheet.create({
   },
   topRightText: {
     color: colors.text,
+  },
+  topUserNameText: {
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  topLogoutText: {
+    fontWeight: "600",
+    letterSpacing: 0.15,
   },
   layout: {
     flexDirection: "row",
@@ -23040,6 +23351,16 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
   },
+  docHandoverVitalsSection: {
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  docHandoverVitalsSectionHighlight: {
+    borderWidth: 2,
+    borderColor: "#e0b100",
+    backgroundColor: "rgba(255, 236, 153, 0.32)",
+    padding: 12,
+  },
   docHandoverVitalValues: {
     rowGap: 10,
     marginBottom: 12,
@@ -23137,6 +23458,44 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  docNextActionGuidance: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    rowGap: 4,
+  },
+  docNextActionGuidanceWarning: {
+    borderColor: "#e0b100",
+    backgroundColor: "#fff6d8",
+  },
+  docNextActionGuidanceInfo: {
+    borderColor: "#8fb4ff",
+    backgroundColor: "#eef4ff",
+  },
+  docNextActionGuidanceSuccess: {
+    borderColor: "#8bc7a2",
+    backgroundColor: "#edf8f1",
+  },
+  docNextActionGuidanceLead: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  docNextActionGuidanceLeadWarning: {
+    color: "#8b6500",
+  },
+  docNextActionGuidanceLeadInfo: {
+    color: "#2450b2",
+  },
+  docNextActionGuidanceLeadSuccess: {
+    color: "#25724d",
+  },
+  docNextActionGuidanceDetail: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#2c2c2c",
+    fontWeight: "600",
   },
   docEntryActions: {
     flexDirection: "row",

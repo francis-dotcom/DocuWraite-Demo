@@ -434,6 +434,63 @@ export function countIncompleteDraftContextQuestions(toggles = {}, responses = {
   return count;
 }
 
+export function getDraftContextQuestionTrail(toggles = {}, responses = {}, fieldContext = {}) {
+  const trail = [];
+
+  for (const toggleKey of getDraftContextTogglesNeedingQuestions(toggles)) {
+    const tree = DRAFT_CONTEXT_QUESTION_TREES[toggleKey];
+    if (!tree) {
+      continue;
+    }
+
+    let nodeId = tree.start;
+    while (nodeId) {
+      const node = resolveNode(tree, nodeId, fieldContext);
+      if (!node) {
+        break;
+      }
+
+      const responseKey = draftContextResponseKey(toggleKey, nodeId);
+      const answer = responses[responseKey];
+      const answered = !(answer === undefined || answer === null || String(answer).trim() === "");
+
+      trail.push({
+        toggleKey,
+        treeLabel: tree.label,
+        nodeId,
+        question: node.question,
+        suggestions: node.suggestions || [],
+        kind: node.kind || "choice",
+        responseKey,
+        answered,
+      });
+
+      if (!answered) {
+        return trail;
+      }
+
+      nodeId = resolveNextNodeId(tree, nodeId, answer);
+    }
+  }
+
+  return trail;
+}
+
+export function rewindDraftContextResponses(toggles = {}, responses = {}, fieldContext = {}) {
+  const trail = getDraftContextQuestionTrail(toggles, responses, fieldContext);
+  const activeIndex = trail.findIndex((entry) => !entry.answered);
+  if (activeIndex <= 0) {
+    return responses;
+  }
+
+  const targetIndex = activeIndex - 1;
+  const nextResponses = { ...(responses || {}) };
+  trail.slice(targetIndex).forEach((entry) => {
+    delete nextResponses[entry.responseKey];
+  });
+  return nextResponses;
+}
+
 export function clearDraftContextResponsesForToggle(responses = {}, toggleKey) {
   const prefix = `draftCtx:${toggleKey}:`;
   const next = { ...responses };
