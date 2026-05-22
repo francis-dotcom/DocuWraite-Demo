@@ -1,0 +1,146 @@
+{
+  "workflowId": "community-outing",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Community Outing",
+    "task": "Community Outing",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing community-outing note using structured answers and escalation rules.",
+    "documentationGoals": [
+      "Capture the outing support provided",
+      "Capture participation, supervision, and transitions",
+      "Capture community safety or fatigue concerns",
+      "Generate a concise but defensible community narrative"
+    ],
+    "requiredCarePlanContext": [],
+    "regulatoryRiskLevel": "medium",
+    "clinicalSensitivity": ["community safety", "fatigue", "transition distress"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "outing_task",
+      "outcome",
+      "support_level",
+      "engagement",
+      "observed_response",
+      "protocols_active",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "outing_task",
+        "label": "What outing support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Transportation support", "Shopping support", "Community supervision", "Transition support", "Social participation support", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "outing_task_other" }]
+      },
+      {
+        "id": "outing_task_other",
+        "label": "Describe the outing support.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "outing_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Ended early", "Interrupted", "Not needed"]
+      },
+      {
+        "id": "support_level",
+        "label": "What support level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Supervision only", "Verbal prompt", "Repeated cueing", "Close supervision", "Hands-on support during transitions", "Transportation assistance"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during the outing?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Hesitant", "Distracted", "Fatigued", "Withdrawn", "Re-engaged"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Participated as expected", "Accepted supervision", "Needed repeated prompting", "Returned early due to fatigue", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "protocols_active",
+        "label": "Which protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Transportation safety protocol", "Community supervision required", "Transition support required", "Return-home flexibility needed", "Behavior support plan active", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Community safety concern", "Fatigue concern", "Behavior concern", "Supervisor notification needed", "Early return follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra community-outing note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "community_safety_trigger",
+        "whenAnySelected": ["Community safety concern", "Behavior concern"],
+        "sourceQuestionId": "alerts_and_escalations",
+        "flag": "community_safety_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must mention the community-related safety or behavior concern, the support used, and required supervisor follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["support_rendered", "support_level", "engagement", "observed_response", "protocols_active", "follow_up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the outing support rendered, participation observed, and any supervision or follow-up needs.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "community_safety_concern": {
+        "mustMention": ["community-related safety or behavior concern", "support used", "supervisor follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["protocols_active", "follow_up"]
+    }
+  }
+}

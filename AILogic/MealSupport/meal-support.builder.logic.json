@@ -1,0 +1,62 @@
+{
+  "workflowId": "feeding-support",
+  "version": "1.0.0",
+  "format": "builder-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Meal Support",
+    "task": "Meal Support Builder",
+    "purpose": "Drive builder autocomplete for meal-support documentation with subworkflow-specific note starts."
+  },
+  "builderPromptProfiles": {
+    "primary": "Document meal support provided, intake observed, prompts or precautions used, and the person's response during the meal.",
+    "variants": [
+      "Document eating or drinking support provided, prompts or setup used, intake observed, and the person's response throughout the meal.",
+      "Document meal participation, staff support rendered, acceptance or refusal of food or fluids, and the person's response.",
+      "Document nutrition-related support completed, meal safety or cueing used, and how the person tolerated the meal."
+    ],
+    "subworkflowProfiles": {
+      "feeding-assistance": {
+        "primary": "Document feeding assistance provided, prompt level used, intake observed, and the person's response during the meal.",
+        "variants": [
+          "Document feeding assistance provided, hand-over-hand or verbal prompting used, amount accepted, and the person's response during the meal.",
+          "Document the feeding support completed, staff prompts required, intake accepted or refused, and the person's response after support."
+        ]
+      },
+      "meal-setup": {
+        "primary": "Document meal setup provided, positioning or adaptive items used, and the person's response before and during the meal.",
+        "variants": [
+          "Document how the meal was prepared for participation, including setup, positioning, adaptive equipment, and the person's readiness to begin.",
+          "Document pre-meal support completed, including seating, supplies, and safety preparation, and how the person responded before eating."
+        ]
+      },
+      "intake-monitoring": {
+        "primary": "Document intake observed, amount accepted, support provided, and the person's response during the meal.",
+        "variants": [
+          "Document what the person ate or drank, how much was accepted, prompts or encouragement provided, and the response during the meal.",
+          "Document meal intake observed, staff support provided to encourage participation, and the person's response to food or fluids offered."
+        ]
+      },
+      "hydration-support": {
+        "primary": "Document hydration support provided, fluids offered or accepted, any prompts used, and the person's response.",
+        "variants": [
+          "Document hydration support completed, fluids offered, amount accepted or refused, and the person's response to prompts or encouragement.",
+          "Document hydration monitoring completed, staff prompting used, fluids accepted, and any follow-up needed when intake was low."
+        ]
+      },
+      "aspiration-precautions": {
+        "primary": "Document aspiration precautions followed, pacing or positioning support provided, and the person's tolerance during the meal.",
+        "variants": [
+          "Document aspiration precautions used, including positioning, pacing, and cueing, and how the person tolerated meal support.",
+          "Document meal safety measures provided, staff pacing or positioning support used, and whether the person tolerated intake without concern."
+        ]
+      },
+      "snack-support": {
+        "primary": "Document snack support provided, intake observed, prompts used, and the person's response during the snack.",
+        "variants": [
+          "Document snack support completed, food or fluids offered, amount accepted, and the person's response to prompts or encouragement.",
+          "Document snack monitoring completed, staff support rendered, preferences or refusals observed, and the person's response."
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,159 @@
+{
+  "workflowId": "medication-support",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Medication",
+    "task": "Medication Support",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing medication-support note using structured answers and escalation rules.",
+    "documentationGoals": [
+      "Capture medication or oxygen support provided",
+      "Capture assistance level, prompts, and acceptance or refusal",
+      "Capture adverse observations and notification needs",
+      "Generate a concise but defensible medication narrative"
+    ],
+    "requiredCarePlanContext": [],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["medication refusal", "oxygen support", "adverse response"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "medication_task",
+      "outcome",
+      "support_level",
+      "engagement",
+      "observed_response",
+      "protocols_active",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "medication_task",
+        "label": "What medication support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Medication reminder", "Medication observation", "Medication refusal follow-up", "PRN-related support", "Oxygen support", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "medication_task_other" }]
+      },
+      {
+        "id": "medication_task_other",
+        "label": "Describe the medication support.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "medication_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "PRN used", "Interrupted", "Not needed"]
+      },
+      {
+        "id": "support_level",
+        "label": "What support level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Independent", "Supervision only", "Reminder only", "Verbal prompt", "Repeated cueing", "Observation with follow-up"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during medication support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Hesitant", "Distracted", "Resistant", "Refused initially", "Re-engaged"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Accepted support", "Accepted reminders", "Required repeated prompting", "Refused support", "No unusual response observed", "Possible adverse response", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "protocols_active",
+        "label": "Which protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Medication reminder protocol", "PRN monitoring required", "Oxygen checks required", "Supervisor review required", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Medication refusal", "Possible adverse response", "Oxygen concern", "Supervisor notification needed", "Nurse notification needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra medication note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "medication_refusal_trigger",
+        "whenAnySelected": ["Medication refusal"],
+        "sourceQuestionId": "alerts_and_escalations",
+        "flag": "medication_refusal",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must mention the medication refusal, staff response, and required supervisor follow-up."
+      },
+      {
+        "id": "medication_adverse_trigger",
+        "whenAnySelected": ["Possible adverse response", "Oxygen concern"],
+        "sourceQuestionId": "alerts_and_escalations",
+        "flag": "medication_safety_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed", "Nurse notification needed"],
+        "requiredNoteDirective": "The generated note must mention the medication or oxygen safety concern observed, the staff response, and required nurse or supervisor follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["support_rendered", "support_level", "observed_response", "protocols_active", "follow_up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the support rendered, acceptance or refusal, and any follow-up needs.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "medication_refusal": {
+        "mustMention": ["medication refusal", "staff response", "supervisor follow-up required"],
+        "toneOverride": "concern_heavy"
+      },
+      "medication_safety_concern": {
+        "mustMention": ["medication or oxygen safety concern", "staff response", "nurse or supervisor follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["protocols_active", "follow_up"]
+    }
+  }
+}

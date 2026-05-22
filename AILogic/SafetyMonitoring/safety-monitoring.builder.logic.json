@@ -1,0 +1,52 @@
+{
+  "workflowId": "in-home-leisure",
+  "version": "1.0.0",
+  "format": "builder-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Safety Monitoring",
+    "task": "Safety Monitoring Builder",
+    "purpose": "Drive builder autocomplete for safety-monitoring documentation with risk-specific note starts."
+  },
+  "builderPromptProfiles": {
+    "primary": "Document safety monitoring completed, precautions followed, observations made, and any follow-up needed.",
+    "variants": [
+      "Document safety monitoring completed, supervision provided, risks observed or ruled out, and any follow-up taken.",
+      "Document staff safety checks performed, precautions maintained, observations made during monitoring, and the person's status.",
+      "Document monitoring support provided to maintain safety, what was observed, and any intervention or follow-up required."
+    ],
+    "keywordBranches": [
+      {
+        "id": "fall-risk-monitoring",
+        "keywords": ["fall", "balance", "unsteady"],
+        "variants": [
+          "Document fall-risk monitoring completed, safety precautions maintained, observations made, and any follow-up needed.",
+          "Document supervision related to fall risk, staff observations, interventions if needed, and the person's status."
+        ]
+      },
+      {
+        "id": "aspiration-monitoring",
+        "keywords": ["aspiration", "swallow", "cough", "choke"],
+        "variants": [
+          "Document aspiration-related safety monitoring completed, precautions followed, observations made, and any follow-up required.",
+          "Document swallow-safety monitoring, precautions maintained, and the person's status during observation."
+        ]
+      },
+      {
+        "id": "elopement-monitoring",
+        "keywords": ["elopement", "exit-seeking", "wander", "leave"],
+        "variants": [
+          "Document elopement-risk monitoring completed, supervision maintained, behaviors observed, and any redirection or follow-up provided.",
+          "Document exit-seeking safety monitoring, staff observation and intervention, and the person's response."
+        ]
+      },
+      {
+        "id": "routine-checks",
+        "keywords": ["check", "round", "monitoring", "observation"],
+        "variants": [
+          "Document routine safety checks completed, observations made, precautions maintained, and any issues requiring follow-up.",
+          "Document scheduled monitoring completed, status observed, and any safety-related actions taken."
+        ]
+      }
+    ]
+  }
+}

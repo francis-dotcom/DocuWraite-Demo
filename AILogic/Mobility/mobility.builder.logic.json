@@ -1,0 +1,52 @@
+{
+  "workflowId": "mobility",
+  "version": "1.0.0",
+  "format": "builder-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Mobility",
+    "task": "Mobility Builder",
+    "purpose": "Drive builder autocomplete for mobility documentation with movement-specific note starts."
+  },
+  "builderPromptProfiles": {
+    "primary": "Document mobility support provided, transfer or ambulation assistance used, safety precautions, and the person's response.",
+    "variants": [
+      "Document mobility support completed, transfer or walking assistance provided, safety measures used, and the person's response during movement.",
+      "Document staff support for ambulation or transfers, equipment or cueing used, and the person's tolerance and stability.",
+      "Document movement-related assistance provided, safety monitoring completed, and the person's response before, during, and after mobility support."
+    ],
+    "keywordBranches": [
+      {
+        "id": "transfer-support",
+        "keywords": ["transfer", "pivot", "sit to stand", "lift"],
+        "variants": [
+          "Document transfer assistance provided, staff support or equipment used, safety precautions followed, and the person's response during the transfer.",
+          "Document sit-to-stand or transfer support completed, prompt level used, and the person's tolerance and safety."
+        ]
+      },
+      {
+        "id": "wheelchair-support",
+        "keywords": ["wheelchair", "chair"],
+        "variants": [
+          "Document wheelchair support provided, positioning or mobility assistance completed, safety checks performed, and the person's response.",
+          "Document wheelchair-related mobility support, staff handling or supervision used, and the person's response during movement."
+        ]
+      },
+      {
+        "id": "walker-support",
+        "keywords": ["walker", "gait belt", "cane", "ambulation"],
+        "variants": [
+          "Document walker-assisted mobility support provided, cueing or supervision used, safety during ambulation, and the person's response.",
+          "Document ambulation with assistive device, staff support required, fall precautions used, and the person's tolerance."
+        ]
+      },
+      {
+        "id": "fall-risk-support",
+        "keywords": ["fall", "balance", "unsteady"],
+        "variants": [
+          "Document fall-risk mobility support provided, safety monitoring used during movement, and the person's response to staff assistance.",
+          "Document movement support with fall precautions, staff cueing or hands-on assistance, and the person's stability and response."
+        ]
+      }
+    ]
+  }
+}

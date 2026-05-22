@@ -1,0 +1,52 @@
+{
+  "workflowId": "night-adl",
+  "version": "1.0.0",
+  "format": "builder-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Sleep Support",
+    "task": "Sleep Support Builder",
+    "purpose": "Drive builder autocomplete for bedtime and overnight documentation with sleep-specific note starts."
+  },
+  "builderPromptProfiles": {
+    "primary": "Document sleep support provided, bedtime or overnight assistance used, monitoring completed, and the person's response.",
+    "variants": [
+      "Document bedtime or overnight support provided, prompts or monitoring completed, and the person's response during the routine.",
+      "Document sleep-related assistance completed, settling or supervision support used, and the person's response overnight or at bedtime.",
+      "Document nighttime support provided, staff monitoring completed, and the person's response to prompts, care, or redirection."
+    ],
+    "keywordBranches": [
+      {
+        "id": "bedtime-support",
+        "keywords": ["bedtime", "bed", "settle", "night routine"],
+        "variants": [
+          "Document bedtime support provided, routine prompts or setup completed, and the person's response while preparing for sleep.",
+          "Document evening routine support completed, cueing or reassurance used, and the person's response at bedtime."
+        ]
+      },
+      {
+        "id": "overnight-monitoring",
+        "keywords": ["overnight", "night", "sleeping", "checks"],
+        "variants": [
+          "Document overnight monitoring or support completed, checks performed, any assistance provided, and the person's response during the night.",
+          "Document nighttime observation or intervention provided and the person's status and response overnight."
+        ]
+      },
+      {
+        "id": "overnight-toileting",
+        "keywords": ["toilet", "toileting", "bathroom", "brief"],
+        "variants": [
+          "Document nighttime toileting support provided, prompts or assistance used, and the person's response before returning to bed.",
+          "Document sleep-related toileting support completed, staff assistance used, and the person's tolerance during the overnight routine."
+        ]
+      },
+      {
+        "id": "sleep-refusal",
+        "keywords": ["refused", "refusal", "declined"],
+        "variants": [
+          "Document refusal of bedtime or overnight support, staff response to the refusal, and the person's status after follow-up.",
+          "Document resistance to the sleep routine, support or reassurance provided, and whether the person re-engaged."
+        ]
+      }
+    ]
+  }
+}

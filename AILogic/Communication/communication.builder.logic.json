@@ -1,0 +1,52 @@
+{
+  "workflowId": "communication-support",
+  "version": "1.0.0",
+  "format": "builder-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Communication",
+    "task": "Communication Builder",
+    "purpose": "Drive builder autocomplete for communication documentation with accommodation-specific note starts."
+  },
+  "builderPromptProfiles": {
+    "primary": "Document communication support provided, prompts or accommodations used, the person's participation, and the observed response.",
+    "variants": [
+      "Document communication support provided, cues or clarification used, how the person expressed needs, and the observed response to staff support.",
+      "Document expressive or receptive communication support completed, accommodations used, participation observed, and the person's response during interaction.",
+      "Document staff support used to facilitate communication, prompts or tools provided, and how the person responded or engaged."
+    ],
+    "keywordBranches": [
+      {
+        "id": "hearing-support",
+        "keywords": ["hearing", "repeat", "hearing aid", "volume"],
+        "variants": [
+          "Document hearing-related communication support provided, repetition or volume adjustments used, and the person's response during the interaction.",
+          "Document support for hearing or understanding information, accommodations used, and whether the person responded appropriately."
+        ]
+      },
+      {
+        "id": "cueing-support",
+        "keywords": ["cue", "prompt", "redirect", "reassure", "clarify"],
+        "variants": [
+          "Document cueing provided to support communication, how the person responded to prompts, and whether clarification or repetition was needed.",
+          "Document verbal prompting or redirection used to support communication and the person's response during the exchange."
+        ]
+      },
+      {
+        "id": "social-interaction",
+        "keywords": ["social", "conversation", "peer", "group", "interaction"],
+        "variants": [
+          "Document social communication support provided, conversation prompts or reassurance used, and the person's participation and response.",
+          "Document support for interaction with others, staff facilitation used, and how the person responded socially."
+        ]
+      },
+      {
+        "id": "device-support",
+        "keywords": ["device", "aac", "tablet", "board", "adaptive"],
+        "variants": [
+          "Document communication-device or adaptive-support use, assistance provided, and the person's response while expressing needs.",
+          "Document communication tool support completed, setup or prompting used, and whether the person was able to participate."
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,146 @@
+{
+  "workflowId": "communication-support",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Communication",
+    "task": "Communication Support",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing communication-support note using structured answers and escalation rules.",
+    "documentationGoals": [
+      "Capture the communication support provided",
+      "Capture prompts, accommodations, and observed participation",
+      "Capture barriers, refusals, or safety-relevant communication concerns",
+      "Generate a concise but defensible communication narrative"
+    ],
+    "requiredCarePlanContext": [],
+    "regulatoryRiskLevel": "medium",
+    "clinicalSensitivity": ["communication barriers", "hearing support", "behavioral frustration"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "communication_task",
+      "outcome",
+      "support_level",
+      "engagement",
+      "observed_response",
+      "barriers_or_protocols",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "communication_task",
+        "label": "What communication support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Prompting to express needs", "Repetition or clarification", "Hearing-support cueing", "Communication-device support", "Social interaction support", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "communication_task_other" }]
+      },
+      {
+        "id": "communication_task_other",
+        "label": "Describe the communication support.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "communication_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Minimal participation", "Interrupted", "Not needed"]
+      },
+      {
+        "id": "support_level",
+        "label": "What support level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Independent", "Supervision only", "Verbal prompt", "Modeling required", "Redirection required", "Repeated cueing", "Hands-on support with device"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during communication support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Hesitant", "Distracted", "Withdrawn", "Frustrated", "Re-engaged"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Expressed needs successfully", "Accepted cueing", "Needed repeated prompting", "Accepted redirection", "Difficulty understanding", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "barriers_or_protocols",
+        "label": "Were any barriers or protocols active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Hearing support required", "Communication device required", "Simple-language cues required", "Behavior support plan active", "Approved-contact-only protocol", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Persistent communication barrier", "Escalating frustration observed", "Supervisor notification needed", "Team follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra communication note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "communication_frustration_trigger",
+        "whenAnySelected": ["Escalating frustration observed"],
+        "sourceQuestionId": "alerts_and_escalations",
+        "flag": "communication_escalation",
+        "severity": "medium",
+        "requiredEscalations": ["Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must mention the communication-related frustration observed, the support used, and required supervisor follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["support_rendered", "support_level", "participation", "observed_response", "barriers_or_protocols", "follow_up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the communication support rendered, observed participation, and any barriers or follow-up needs.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "communication_escalation": {
+        "mustMention": ["communication-related frustration observed", "support used", "supervisor follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["barriers_or_protocols", "follow_up"]
+    }
+  }
+}

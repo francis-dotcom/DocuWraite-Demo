@@ -1,0 +1,146 @@
+{
+  "workflowId": "sleep-support",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Sleep Support",
+    "task": "Sleep Support",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing sleep-support note using structured answers and escalation rules.",
+    "documentationGoals": [
+      "Capture bedtime or overnight support provided",
+      "Capture prompting, monitoring, and observed response",
+      "Capture overnight safety or refusal concerns",
+      "Generate a concise but defensible sleep-support narrative"
+    ],
+    "requiredCarePlanContext": [],
+    "regulatoryRiskLevel": "medium",
+    "clinicalSensitivity": ["overnight safety", "bedtime refusal", "sleep disruption"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "sleep_task",
+      "outcome",
+      "support_level",
+      "engagement",
+      "observed_response",
+      "protocols_active",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "sleep_task",
+        "label": "What sleep support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Bedtime routine support", "Overnight monitoring", "Nighttime toileting support", "Settling or reassurance support", "Sleep-redirection support", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "sleep_task_other" }]
+      },
+      {
+        "id": "sleep_task_other",
+        "label": "Describe the sleep support.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "sleep_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Interrupted", "Overnight issue observed", "Not needed"]
+      },
+      {
+        "id": "support_level",
+        "label": "What support level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Supervision only", "Verbal prompt", "Repeated cueing", "Close monitoring", "Hands-on support", "Overnight check only"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during sleep support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Hesitant", "Resistant", "Refused initially", "Re-engaged", "Sleeping during checks"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Settled as expected", "Accepted prompts", "Required repeated prompting", "Sleep disruption observed", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "protocols_active",
+        "label": "Which protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Overnight checks required", "Bed sensor or floor-mat monitoring", "Bedtime routine protocol", "Toileting check required", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Bedtime refusal", "Overnight safety concern", "Repeated disruption", "Supervisor notification needed", "Morning follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra sleep-support note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "sleep_safety_trigger",
+        "whenAnySelected": ["Overnight safety concern", "Repeated disruption"],
+        "sourceQuestionId": "alerts_and_escalations",
+        "flag": "sleep_safety_concern",
+        "severity": "medium",
+        "requiredEscalations": ["Supervisor notification needed"],
+        "requiredNoteDirective": "The generated note must mention the overnight or sleep-related concern observed, the support used, and required supervisor follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["support_rendered", "support_level", "observed_response", "protocols_active", "follow_up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the sleep support rendered, monitoring completed, and any follow-up needs.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "sleep_safety_concern": {
+        "mustMention": ["overnight or sleep-related concern", "support used", "supervisor follow-up required"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["protocols_active", "follow_up"]
+    }
+  }
+}

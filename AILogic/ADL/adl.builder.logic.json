@@ -1,0 +1,68 @@
+{
+  "workflowId": "morning-adl",
+  "version": "1.0.0",
+  "format": "builder-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "ADL",
+    "task": "ADL Builder",
+    "purpose": "Drive builder autocomplete for ADL documentation with task-specific note starts."
+  },
+  "builderPromptProfiles": {
+    "primary": "Document ADL support provided, prompt level required, safety considerations, and the person's observed response.",
+    "variants": [
+      "Document the ADL task completed, staff support or prompts required, any safety precautions used, and the person's response to assistance.",
+      "Document personal-care support provided, level of assistance needed, participation during the task, and any follow-up or tolerance concerns.",
+      "Document the ADL routine addressed, cueing or hands-on support used, safety monitoring completed, and the person's outcome."
+    ],
+    "keywordBranches": [
+      {
+        "id": "toileting",
+        "keywords": ["toilet", "toileting", "brief", "continence", "bathroom"],
+        "variants": [
+          "Document toileting support provided, prompt level required, continence care completed, and the person's response during and after support.",
+          "Document bathroom assistance provided, transfers or hygiene support used, staff cueing required, and the person's tolerance of toileting support."
+        ]
+      },
+      {
+        "id": "bathing",
+        "keywords": ["bath", "bathing", "shower", "wash"],
+        "variants": [
+          "Document bathing or shower support provided, assistance level required, safety precautions used, and the person's response to care.",
+          "Document hygiene support during bathing, cueing or physical assistance used, skin or comfort observations made, and the person's response."
+        ]
+      },
+      {
+        "id": "grooming",
+        "keywords": ["groom", "oral care", "brush", "teeth", "hair"],
+        "variants": [
+          "Document grooming support provided, tasks completed, prompts used, and the person's participation and response during care.",
+          "Document oral care or grooming assistance completed, setup and prompting provided, and the person's tolerance of the routine."
+        ]
+      },
+      {
+        "id": "dressing",
+        "keywords": ["dress", "clothing", "shirt", "pants"],
+        "variants": [
+          "Document dressing support provided, assistance level needed, clothing selection or setup completed, and the person's response during the routine.",
+          "Document dressing assistance completed, staff cueing or hands-on support used, and how the person participated and responded."
+        ]
+      },
+      {
+        "id": "transfers",
+        "keywords": ["transfer", "sit to stand", "pivot", "gait belt", "lift"],
+        "variants": [
+          "Document transfer support provided, mobility or safety precautions used, assistance level required, and the person's response during movement.",
+          "Document ADL-related transfer assistance completed, equipment or staff support used, and the person's tolerance and safety during the task."
+        ]
+      },
+      {
+        "id": "hygiene",
+        "keywords": ["hygiene", "wash up", "cleanup", "denture"],
+        "variants": [
+          "Document hygiene support provided, supplies or setup used, prompt level required, and the person's response during personal care.",
+          "Document personal-hygiene assistance completed, staff cueing or physical support used, and the person's tolerance and participation."
+        ]
+      }
+    ]
+  }
+}

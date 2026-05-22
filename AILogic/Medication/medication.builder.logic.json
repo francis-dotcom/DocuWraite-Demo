@@ -1,0 +1,52 @@
+{
+  "workflowId": "medication-support",
+  "version": "1.0.0",
+  "format": "builder-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Medication",
+    "task": "Medication Builder",
+    "purpose": "Drive builder autocomplete for medication and oxygen documentation with medication-event-specific note starts."
+  },
+  "builderPromptProfiles": {
+    "primary": "Document medication support provided, timing followed, prompts used, and the person's observed response.",
+    "variants": [
+      "Document medication support completed, reminders or supervision provided, whether the medication was accepted, and the person's response.",
+      "Document medication-related assistance provided, timing followed, prompts or education used, and the person's tolerance or response.",
+      "Document staff support around medication administration, cueing or observation completed, and the person's response after support."
+    ],
+    "keywordBranches": [
+      {
+        "id": "oxygen-support",
+        "keywords": ["oxygen", "o2", "tank", "concentrator"],
+        "variants": [
+          "Document oxygen support provided, equipment use or checks completed, prompts or observation provided, and the person's response.",
+          "Document oxygen-related support completed, safety or usage monitoring performed, and the person's tolerance and response."
+        ]
+      },
+      {
+        "id": "medication-refusal",
+        "keywords": ["refused", "refusal", "declined"],
+        "variants": [
+          "Document medication support offered, refusal observed, staff education or redirection provided, and the person's response and follow-up.",
+          "Document medication refusal, staff response to the refusal, any re-approach attempted, and the person's status afterward."
+        ]
+      },
+      {
+        "id": "prn-support",
+        "keywords": ["prn", "pain", "anxiety", "as needed"],
+        "variants": [
+          "Document PRN support provided, reason for use, staff monitoring completed, and the person's response after the intervention.",
+          "Document as-needed medication support completed, symptoms addressed, follow-up observation, and the person's response."
+        ]
+      },
+      {
+        "id": "medication-reminder",
+        "keywords": ["reminder", "med pass", "prompt"],
+        "variants": [
+          "Document medication reminders provided, cueing required, whether the person accepted support, and the observed response.",
+          "Document prompt-based medication support completed and the person's response to reminders or supervision."
+        ]
+      }
+    ]
+  }
+}

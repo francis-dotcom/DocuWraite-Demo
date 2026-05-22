@@ -1,0 +1,52 @@
+{
+  "workflowId": "behavior-support",
+  "version": "1.0.0",
+  "format": "builder-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Behavior Support",
+    "task": "Behavior Support Builder",
+    "purpose": "Drive builder autocomplete for behavior documentation with incident-specific note starts."
+  },
+  "builderPromptProfiles": {
+    "primary": "Document the behavior observed, antecedent context, staff response, and the person's outcome.",
+    "variants": [
+      "Document the behavior observed, what happened before it, the intervention staff used, and how the person responded afterward.",
+      "Document the behavioral concern addressed, staff de-escalation or redirection provided, and the person's outcome after intervention.",
+      "Document the incident or behavior observed, triggers or context noted, staff response, and the person's status following support."
+    ],
+    "keywordBranches": [
+      {
+        "id": "elopement-risk",
+        "keywords": ["elopement", "exit-seeking", "wander", "leave"],
+        "variants": [
+          "Document exit-seeking or elopement behavior observed, supervision or redirection provided, and the person's response and current status.",
+          "Document attempts to leave or unsafe wandering, staff intervention used, and how the person responded after support."
+        ]
+      },
+      {
+        "id": "aggression-response",
+        "keywords": ["aggression", "aggressive", "hit", "kick", "threat"],
+        "variants": [
+          "Document aggressive behavior observed, immediate staff response used for safety, and the person's response after de-escalation.",
+          "Document behavioral escalation involving aggression, antecedents noted, interventions used, and the person's outcome."
+        ]
+      },
+      {
+        "id": "refusal-support",
+        "keywords": ["refused", "refusal", "declined", "would not"],
+        "variants": [
+          "Document refusal behavior observed, what support or task was refused, staff response, and whether the person re-engaged or required follow-up.",
+          "Document refusal or non-compliance observed, redirection or reassurance provided, and the person's response after intervention."
+        ]
+      },
+      {
+        "id": "transition-support",
+        "keywords": ["transition", "change", "return", "arrival"],
+        "variants": [
+          "Document behavior during transition, antecedent context, staff support provided, and whether the person re-engaged after the transition.",
+          "Document transition-related distress or dysregulation, calming support used, and the person's response afterward."
+        ]
+      }
+    ]
+  }
+}

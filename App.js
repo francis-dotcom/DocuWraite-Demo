@@ -74,8 +74,11 @@ import {
   getCategoriesForWorkflow,
   groupNodesByDocumentationCategory,
 } from "./decisionAlgo/workflowCatalog";
+import { buildBuilderSmartSuggestions } from "./lib/notes/builderSmartCompletion";
 import { generateFinalCaseNote } from "./lib/notes/finalCaseNote";
+import { generateHandoverNote } from "./lib/notes/handoverNote";
 import { buildValidationQuizQuestions } from "./lib/validation/buildValidationQuizQuestions";
+const { buildFinalNoteClarificationSteps } = require("./AILogic/engine/finalNoteClarificationBuilder");
 const { composeDecisionRuntime } = require("./decisionAlgo/runtimeComposer");
 
 const decisionNodes = require("./decisionAlgo/nodes.json");
@@ -233,7 +236,7 @@ function rankPromptTemplates(templates = [], draftText = "", categoryKey = "") {
     .filter(Boolean)
     .sort((left, right) => right.score - left.score);
 
-  return uniqueValues(scored.map((item) => item.text)).slice(0, 5);
+  return uniqueValues(scored.map((item) => item.text)).slice(0, 12);
 }
 
 function buildModuleCatalogById() {
@@ -1462,6 +1465,20 @@ function inferAiLogicSelection(fieldContext = {}) {
     };
   }
 
+  if (workflowId === "communication-support") {
+    return {
+      category: "Communication",
+      task: "Communication Support",
+    };
+  }
+
+  if (workflowId === "medication-support") {
+    return {
+      category: "Medication",
+      task: "Medication Support",
+    };
+  }
+
   if (workflowId === "feeding-support" || workflowId === "meal-support") {
     const explicitMealTask = String(
       fieldContext.subworkflowId || fieldContext.taskLabel || fieldContext.workflowTask || ""
@@ -1554,6 +1571,41 @@ function inferAiLogicSelection(fieldContext = {}) {
         };
       }
     }
+  }
+
+  if (workflowId === "mobility") {
+    return {
+      category: "Mobility",
+      task: "Mobility Support",
+    };
+  }
+
+  if (workflowId === "behavior-support") {
+    return {
+      category: "Behavior Support",
+      task: "Behavior Support",
+    };
+  }
+
+  if (workflowId === "community-outing") {
+    return {
+      category: "Community Outing",
+      task: "Community Outing",
+    };
+  }
+
+  if (workflowId === "night-adl") {
+    return {
+      category: "Sleep Support",
+      task: "Sleep Support",
+    };
+  }
+
+  if (workflowId === "in-home-leisure") {
+    return {
+      category: "Safety Monitoring",
+      task: "Safety Monitoring",
+    };
   }
 
   return null;
@@ -2158,15 +2210,38 @@ function buildCaseNoteUnderstandingSteps(fieldContext = {}, patientName = "Mary 
   });
 }
 
+function buildFinalNoteStaticCoreSteps(fieldContext = {}) {
+  const aiLogicSteps = buildAiLogicWorkflowBundle({ workflowId: "case-note-final" })?.steps || [];
+  const allowedStepKeys = new Set([
+    "final_note_style",
+    "final_note_style_other",
+    "final_shift_concern",
+    "final_shift_concern_other",
+    "final_follow_up",
+    "final_follow_up_other",
+  ]);
+
+  return aiLogicSteps.filter(
+    (step) => step.kind !== "draft" && allowedStepKeys.has(String(step.stepKey || "").trim())
+  );
+}
+
 function buildCaseNoteFinalWorkflowSteps(fieldContext = {}, patientName = "Mary Bet") {
+  const aiLogicBundle = buildAiLogicWorkflowBundle({ workflowId: "case-note-final" });
+  const baseStepsBeforeDraft = buildFinalNoteStaticCoreSteps(fieldContext);
+  const draftAndAfterSteps = [
+    {
+      stepKey: "assigned-nodes-draft",
+      kind: "draft",
+      question: "Review and generate note",
+      sourceAiLogicPath: aiLogicBundle?.logic?.path || "final-case-note:summary",
+    },
+  ];
+
   return [
-    ...(buildAiLogicWorkflowBundle({ workflowId: "case-note-final" })?.steps || [
-      {
-        stepKey: "assigned-nodes-draft",
-        kind: "draft",
-        question: "Review and generate note",
-      },
-    ]),
+    ...baseStepsBeforeDraft,
+    ...buildFinalNoteClarificationSteps(fieldContext),
+    ...draftAndAfterSteps,
     ...buildCaseNoteUnderstandingSteps(fieldContext, patientName),
     {
       stepKey: "final-note-affirm",
@@ -3250,126 +3325,10 @@ function generateAssignedWorkflowNote(answers = {}, workflowState = {}, fieldCon
   }
 
   if (fieldContext.workflowId === "handover-note") {
-    const sourceEntries = fieldContext.sourceEntries || [];
-    const nonEmptyEntries = sourceEntries
-      .map((entry) => ({
-        entryType: entry.entryType,
-        comment: String(entry.comment || "").trim(),
-      }))
-      .filter((entry) => entry.comment);
-    const finalSummaryEntry =
-      nonEmptyEntries.find((entry) => entry.entryType === "final-summary")?.comment || "";
-    const supportingEntries = nonEmptyEntries
-      .filter((entry) => entry.entryType !== "final-summary")
-      .map((entry) => entry.comment);
-    const focus = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "handover_focus"));
-    const priority = formatAssignedWorkflowAnswer(getWorkflowAnswer(answers, "handover_priority"));
-    const normalizedFocus = String(focus || "").trim().toLowerCase();
-    const normalizedPriority = String(priority || "").trim().toLowerCase();
-    const resolvedSupports = []
-      .concat(getWorkflowAnswer(answers, "resolved_supports") || [])
-      .map((item) => String(item || "").trim())
-      .filter(Boolean);
-    const carryForward = [
-      []
-        .concat(getWorkflowAnswer(answers, "carry_forward_items") || [])
-        .map((item) => String(item || "").trim())
-        .filter((item) => item && item !== "Other"),
-      String(getWorkflowAnswer(answers, "carry_forward_items_other") || "").trim(),
-    ]
-      .flat()
-      .filter(Boolean);
-    const notifications = []
-      .concat(getWorkflowAnswer(answers, "notifications_completed") || [])
-      .map((item) => String(item || "").trim())
-      .filter(Boolean);
-    const nextShiftActions = [
-      []
-        .concat(getWorkflowAnswer(answers, "next_shift_actions") || [])
-        .map((item) => String(item || "").trim())
-        .filter((item) => item && item !== "Other"),
-      String(getWorkflowAnswer(answers, "next_shift_actions_other") || "").trim(),
-    ]
-      .flat()
-      .filter(Boolean);
-    const vitals = [
-      []
-        .concat(getWorkflowAnswer(answers, "vitals_reviewed") || [])
-        .map((item) => String(item || "").trim())
-        .filter((item) => item && item !== "Other reading"),
-      String(getWorkflowAnswer(answers, "vitals_reviewed_other") || "").trim(),
-    ]
-      .flat()
-      .filter(Boolean);
-    const freeNote = String(getWorkflowAnswer(answers, "free_note") || "").trim();
-
-    const focusLeadByType = {
-      "routine shift transition":
-        "This handover reflects a routine shift transition with emphasis on continuity of supports and routine monitoring.",
-      "clinical monitoring":
-        "This handover is clinically focused and should guide the next shift toward close observation of health, symptoms, and follow-up needs.",
-      "behavioral follow-up":
-        "This handover centers behavioral presentation, intervention continuity, and what the next shift should continue monitoring.",
-      "medication follow-up":
-        "This handover emphasizes medication-related awareness, follow-up, and any related carry-forward monitoring.",
-      "safety concern carry-forward":
-        "This handover is safety-focused and should be treated as a carry-forward alert for the next shift.",
-      "mixed handoff":
-        "This handover includes multiple domains and should be reviewed as a mixed shift handoff with both routine and concern-based carry-forward items.",
-    };
-
-    const prioritySentenceByType = {
-      routine:
-        "Priority is routine, but the next shift should still review the summarized supports and ongoing expectations.",
-      "watch closely next shift":
-        "The next shift should watch the identified items closely and document any change from the current presentation.",
-      "supervisor review needed":
-        "Supervisor visibility is needed on the carry-forward items from this shift.",
-      "clinical follow-up needed":
-        "Clinical follow-up should remain explicit in handoff, and the next shift should maintain awareness of related observations or symptom changes.",
-      "immediate carry-forward priority":
-        "This handoff includes immediate carry-forward priorities that should be reviewed at the start of the next shift without delay.",
-    };
-
-    const parts = [];
-    if (focusLeadByType[normalizedFocus]) {
-      parts.push(focusLeadByType[normalizedFocus]);
-    } else if (focus) {
-      parts.push(`Handover focus: ${focus}.`);
-    }
-    if (prioritySentenceByType[normalizedPriority]) {
-      parts.push(prioritySentenceByType[normalizedPriority]);
-    } else if (priority) {
-      parts.push(`Priority level: ${priority}.`);
-    }
-    if (resolvedSupports.length) {
-      parts.push(`Completed supports acknowledged in handoff: ${resolvedSupports.join(", ")}.`);
-    }
-    if (finalSummaryEntry) {
-      parts.push(`Shift summary for handoff: ${finalSummaryEntry}`);
-    }
-    if (supportingEntries.length) {
-      parts.push(`Supporting note details: ${supportingEntries.join(" ")}`);
-    }
-    if (carryForward.length && !(carryForward.length === 1 && carryForward[0].toLowerCase() === "none")) {
-      parts.push(`Carry-forward items for the next shift: ${carryForward.join(", ")}.`);
-    }
-    if (notifications.length) {
-      parts.push(`Notifications already completed this shift: ${notifications.join(", ")}.`);
-    }
-    if (nextShiftActions.length) {
-      parts.push(`Next-shift actions should include: ${nextShiftActions.join(", ")}.`);
-    }
-    if (vitals.length && !(vitals.length === 1 && vitals[0].toLowerCase() === "no vitals reviewed")) {
-      parts.push(`Vitals or readings reviewed for handoff: ${vitals.join(", ")}.`);
-    }
-    if (freeNote) {
-      parts.push(`Additional handover guidance: ${freeNote}.`);
-    }
-
-    return parts.length
-      ? parts.join(" ")
-      : "No handover details were captured for this shift.";
+    return generateHandoverNote(answers, fieldContext, {
+      getWorkflowAnswer,
+      formatAssignedWorkflowAnswer,
+    });
   }
 
   const answeredSteps = (workflowState.localSteps || [])
@@ -5107,6 +5066,7 @@ function resolveDocuWraiteAssist({
   clientProfile = null,
 }) {
   const text = value?.trim() || "";
+  const normalizedScore = String(score || "").trim().toLowerCase();
   const candidates = [];
   const workflowId = detectDocuWraiteGuidedWorkflow({ description, source }, text, clientProfile);
 
@@ -5140,9 +5100,14 @@ function resolveDocuWraiteAssist({
     candidates.push({
       priority: 95,
       id: "compliance-comment",
-      title: "Ready to start this note?",
-      message: "Add what staff did and how the client responded for this entry.",
+      title: normalizedScore === "refused" ? "Document refusal support" : "Ready to start this note?",
+      message:
+        normalizedScore === "refused"
+          ? "Capture what was refused, how staff responded, and what follow-up or re-approach happened."
+          : "Add what staff did and how the client responded for this entry.",
       suggestion: getDocuWraiteSuggestion(detectDocuWraiteWorkflowTheme(description || ""), text, source, score),
+      applyLabel: normalizedScore === "refused" ? "Use refused-support wording" : "Use suggested wording",
+      dismissLabel: "Type my own note",
       trigger,
     });
   }
@@ -5169,6 +5134,8 @@ function resolveDocuWraiteAssist({
         text,
         source
       ),
+      applyLabel: "Use suggested wording",
+      dismissLabel: "Type my own note",
       trigger,
     });
   }
@@ -5898,18 +5865,22 @@ function DocuWraiteGuidedWorkflowPanel({
         })()
       ))}
       {(hasSelectedOther || (!multiSelect && answers[stepKey] === "Other...") || answers[`${stepKey}Custom`]) ? (
-        <TextInput
-          value={answers[`${stepKey}Custom`] || ""}
-          onChangeText={(entry) =>
-            onAnswer({
-              [`${stepKey}Custom`]: entry,
-              [stepKey]: multiSelect ? selectedSuggestions : "Other...",
-            })
-          }
-          placeholder="Type answer"
-          placeholderTextColor="#888888"
-          style={styles.docuWraiteWorkflowInput}
-        />
+        <View style={styles.docuWraiteWorkflowOtherStrip}>
+          <Text style={styles.docuWraiteWorkflowOtherStripLabel}>Other detail</Text>
+          <TextInput
+            value={answers[`${stepKey}Custom`] || ""}
+            onChangeText={(entry) =>
+              onAnswer({
+                [`${stepKey}Custom`]: entry,
+                [stepKey]: multiSelect ? selectedSuggestions : "Other...",
+              })
+            }
+            placeholder="Type the specific detail"
+            placeholderTextColor="#888888"
+            multiline
+            style={[styles.docuWraiteWorkflowInput, styles.docuWraiteWorkflowOtherStripInput]}
+          />
+        </View>
       ) : null}
       {stepKey !== "runtime-goal-progress" && stepMeta.contextualOptions?.length ? (
         <View style={styles.docuWraiteWorkflowContextBox}>
@@ -6755,11 +6726,15 @@ function DocumentationCommentField({
                   <View style={styles.docuWraiteCardActions}>
                     {assist.suggestion ? (
                       <Pressable style={styles.docuWraiteCardPrimary} onPress={onAssistApply}>
-                        <Text style={styles.docuWraiteCardPrimaryText}>Apply suggestion</Text>
+                        <Text style={styles.docuWraiteCardPrimaryText}>
+                          {assist.applyLabel || "Use suggested wording"}
+                        </Text>
                       </Pressable>
                     ) : null}
                     <Pressable style={styles.docuWraiteCardSecondary} onPress={onAssistDismiss}>
-                      <Text style={styles.docuWraiteCardSecondaryText}>Dismiss</Text>
+                      <Text style={styles.docuWraiteCardSecondaryText}>
+                        {assist.dismissLabel || "Dismiss"}
+                      </Text>
                     </Pressable>
                   </View>
                 </View>
@@ -8489,6 +8464,18 @@ function DocumentationEntryScreen({
   };
 
   const submitDocumentation = () => {
+    const signatureNameParts = String(session.review?.reviewedBy || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (isCaseNoteSession && signatureNameParts.length < 2) {
+      patchSession({
+        statusMessage:
+          "Enter the DSP signature name before submitting documentation. Use first and last name.",
+      });
+      return;
+    }
+
     const warnings = buildValidationWarnings(session);
     if (isCaseNoteSession && warnings.length === 0 && !session.caseNoteAttestationComplete) {
       openCaseNoteFinalWorkflow();
@@ -9684,6 +9671,7 @@ function DecisionEngineScreen({
   timeBlocks = [],
   rowTargets = [],
   clientProfile = null,
+  clientWorkflowContexts = [],
   initialTargetKey = "",
   initialSelectionState = null,
   onScheduleChange,
@@ -9784,11 +9772,22 @@ function DecisionEngineScreen({
   const blockPromptIdleTimerRef = useRef(null);
   const rowPromptIdleTimerRef = useRef(null);
   const suppressBuilderHydrationRef = useRef({ block: false, row: false });
+  const skipHydrationTargetRef = useRef({ block: "", row: "" });
   const workflowOptions = WORKFLOW_SCHEDULE_OPTIONS;
+  const blockWorkflowOption = workflowOptions.find((option) => option.workflowId === newBlockWorkflowId) || null;
+  const rowWorkflowOption = workflowOptions.find((option) => option.workflowId === newRowWorkflowId) || null;
+  const blockMealTaskLabel =
+    newBlockWorkflowId === "feeding-support"
+      ? MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.find((option) => option.value === newBlockMealSubworkflow)?.label || ""
+      : "";
+  const rowMealTaskLabel =
+    newRowWorkflowId === "feeding-support"
+      ? MEAL_SUPPORT_SUBWORKFLOW_OPTIONS.find((option) => option.value === newRowMealSubworkflow)?.label || ""
+      : "";
   const blockPromptCategory =
-    workflowOptions.find((option) => option.workflowId === newBlockWorkflowId)?.promptCategory || "";
+    blockWorkflowOption?.promptCategory || "";
   const rowPromptCategory =
-    workflowOptions.find((option) => option.workflowId === newRowWorkflowId)?.promptCategory || "";
+    rowWorkflowOption?.promptCategory || "";
   const blockUsesGuidedAdlPrompt = blockPromptCategory === "adl";
   const rowUsesGuidedAdlPrompt = rowPromptCategory === "adl";
   const assignmentTargets = [
@@ -9811,6 +9810,56 @@ function DecisionEngineScreen({
   );
   const newBlockDescription = blockDraftsByWorkflow[newBlockWorkflowId] || "";
   const newRowDescription = rowDraftsByWorkflow[newRowWorkflowId] || "";
+  const blockBuilderFieldContext = useMemo(
+    () =>
+      attachClientCarePlanContext(
+        {
+          workflowId: newBlockWorkflowId,
+          description: newBlockDescription,
+          source: blockWorkflowOption?.label || "",
+          subworkflowId: newBlockMealSubworkflow,
+          taskLabel: blockMealTaskLabel,
+        },
+        {
+          clientProfile,
+          clientWorkflowContexts,
+        }
+      ),
+    [
+      blockMealTaskLabel,
+      blockWorkflowOption?.label,
+      clientProfile,
+      clientWorkflowContexts,
+      newBlockDescription,
+      newBlockMealSubworkflow,
+      newBlockWorkflowId,
+    ]
+  );
+  const rowBuilderFieldContext = useMemo(
+    () =>
+      attachClientCarePlanContext(
+        {
+          workflowId: newRowWorkflowId,
+          description: newRowDescription,
+          source: rowWorkflowOption?.label || "",
+          subworkflowId: newRowMealSubworkflow,
+          taskLabel: rowMealTaskLabel,
+        },
+        {
+          clientProfile,
+          clientWorkflowContexts,
+        }
+      ),
+    [
+      clientProfile,
+      clientWorkflowContexts,
+      newRowDescription,
+      newRowMealSubworkflow,
+      newRowWorkflowId,
+      rowMealTaskLabel,
+      rowWorkflowOption?.label,
+    ]
+  );
   const liveBlockPromptSuggestions = useMemo(
     () => rankPromptTemplates(blockPromptSuggestions, newBlockDescription, blockPromptCategory),
     [blockPromptCategory, blockPromptSuggestions, newBlockDescription]
@@ -9818,6 +9867,48 @@ function DecisionEngineScreen({
   const liveRowPromptSuggestions = useMemo(
     () => rankPromptTemplates(rowPromptSuggestions, newRowDescription, rowPromptCategory),
     [newRowDescription, rowPromptCategory, rowPromptSuggestions]
+  );
+  const blockSmartCompletionSuggestions = useMemo(
+    () =>
+      buildBuilderSmartSuggestions({
+        mode: "block",
+        workflowId: newBlockWorkflowId,
+        workflowOptions,
+        mealSubworkflow: newBlockMealSubworkflow,
+        mealSupportOptions: MEAL_SUPPORT_SUBWORKFLOW_OPTIONS,
+        currentText: newBlockDescription,
+        carePlanContext: blockBuilderFieldContext?.carePlanContext || null,
+      }),
+    [
+      blockBuilderFieldContext,
+      newBlockDescription,
+      newBlockMealSubworkflow,
+      newBlockWorkflowId,
+      workflowOptions,
+    ]
+  );
+  const rowSmartCompletionSuggestions = useMemo(
+    () =>
+      buildBuilderSmartSuggestions({
+        mode: "row",
+        workflowId: newRowWorkflowId,
+        workflowOptions,
+        mealSubworkflow: newRowMealSubworkflow,
+        mealSupportOptions: MEAL_SUPPORT_SUBWORKFLOW_OPTIONS,
+        currentText: newRowDescription,
+        carePlanContext: rowBuilderFieldContext?.carePlanContext || null,
+      }),
+    [newRowDescription, newRowMealSubworkflow, newRowWorkflowId, rowBuilderFieldContext, workflowOptions]
+  );
+  const liveBlockAutocompleteSuggestions = useMemo(
+    () =>
+      uniqueValues([...blockSmartCompletionSuggestions, ...liveBlockPromptSuggestions].filter(Boolean)).slice(0, 14),
+    [blockSmartCompletionSuggestions, liveBlockPromptSuggestions]
+  );
+  const liveRowAutocompleteSuggestions = useMemo(
+    () =>
+      uniqueValues([...rowSmartCompletionSuggestions, ...liveRowPromptSuggestions].filter(Boolean)).slice(0, 14),
+    [liveRowPromptSuggestions, rowSmartCompletionSuggestions]
   );
 
   useEffect(() => {
@@ -9846,7 +9937,13 @@ function DecisionEngineScreen({
     if (seed.blockDescription) {
       const workflowId = seed.blockWorkflowId || "behavior-support";
       setNewBlockWorkflowId(workflowId);
-      if (suppressBuilderHydrationRef.current.block) {
+      if (skipHydrationTargetRef.current.block === selectedTargetKey) {
+        setBlockDraftsByWorkflow({});
+      } else
+      if (suppressBuilderHydrationRef.current.block === "clear") {
+        suppressBuilderHydrationRef.current.block = false;
+        setBlockDraftsByWorkflow({});
+      } else if (suppressBuilderHydrationRef.current.block) {
         suppressBuilderHydrationRef.current.block = false;
       } else {
         setBlockDraftsByWorkflow((prev) => {
@@ -9867,7 +9964,13 @@ function DecisionEngineScreen({
     if (seed.rowDescription) {
       const workflowId = seed.rowWorkflowId || "behavior-support";
       setNewRowWorkflowId(workflowId);
-      if (suppressBuilderHydrationRef.current.row) {
+      if (skipHydrationTargetRef.current.row === selectedTargetKey) {
+        setRowDraftsByWorkflow({});
+      } else
+      if (suppressBuilderHydrationRef.current.row === "clear") {
+        suppressBuilderHydrationRef.current.row = false;
+        setRowDraftsByWorkflow({});
+      } else if (suppressBuilderHydrationRef.current.row) {
         suppressBuilderHydrationRef.current.row = false;
       } else {
         setRowDraftsByWorkflow((prev) => {
@@ -9879,6 +9982,15 @@ function DecisionEngineScreen({
       }
     }
   }, [selectedTargetKey, targetType, timeBlocks, rowTargets]);
+
+  useEffect(() => {
+    if (skipHydrationTargetRef.current.block && skipHydrationTargetRef.current.block !== selectedTargetKey) {
+      skipHydrationTargetRef.current.block = "";
+    }
+    if (skipHydrationTargetRef.current.row && skipHydrationTargetRef.current.row !== selectedTargetKey) {
+      skipHydrationTargetRef.current.row = "";
+    }
+  }, [selectedTargetKey]);
 
   useEffect(() => {
     if (
@@ -10730,7 +10842,9 @@ function DecisionEngineScreen({
       theme: selectedWorkflow?.theme || "behavior",
     };
     onScheduleChange?.([...timeBlocks, nextBlock]);
-    suppressBuilderHydrationRef.current.block = true;
+    suppressBuilderHydrationRef.current.block = "clear";
+    skipHydrationTargetRef.current.block = `time:${nextBlock.id}`;
+    setTargetType("time-block");
     setSelectedTargetKey(`time:${nextBlock.id}`);
     setScheduleBuilderHint("");
     const blocksAtSlot = [...timeBlocks, nextBlock].filter((block) => block.label === nextLabel);
@@ -10750,10 +10864,7 @@ function DecisionEngineScreen({
       siblingJobCount,
       canAddSiblingJob,
     });
-    setBlockDraftsByWorkflow((prev) => ({
-      ...prev,
-      [newBlockWorkflowId]: "",
-    }));
+    setBlockDraftsByWorkflow({});
     setBlockBuilderHint("");
     closeBlockPromptPopover();
   };
@@ -10877,9 +10988,17 @@ function DecisionEngineScreen({
     setBlockPromptPopoverVisible(false);
 
     setBlockDraftsByWorkflow((prev) => {
+      const current = String(prev[newBlockWorkflowId] || "").trim();
+      const shouldReplaceCurrent =
+        !current ||
+        /^doc/i.test(current) ||
+        current.length < 18 ||
+        promptText.toLowerCase().includes(current.toLowerCase());
       return {
         ...prev,
-        [newBlockWorkflowId]: String(promptText).trim(),
+        [newBlockWorkflowId]: shouldReplaceCurrent
+          ? String(promptText).trim()
+          : `${current.replace(/[.\s]+$/, "")}. ${String(promptText).trim()}`,
       };
     });
     setBlockBuilderHint("");
@@ -10897,6 +11016,21 @@ function DecisionEngineScreen({
 
   const applyBlockGuidedAdlPrompt = () => {
     applyBlockPromptSuggestion(buildGuidedAdlPromptText(blockGuidedAdlPrompt));
+  };
+
+  const applyBlockAutocompleteSuggestion = (promptText) => {
+    if (!String(promptText).trim()) {
+      return;
+    }
+
+    suppressBlockPromptAutoOpenRef.current = true;
+    markBlockPromptEngaged();
+    setBlockDraftsByWorkflow((prev) => ({
+      ...prev,
+      [newBlockWorkflowId]: String(promptText).trim(),
+    }));
+    setBlockBuilderHint("");
+    closeBlockPromptPopover();
   };
 
   const addRowTarget = () => {
@@ -10931,12 +11065,11 @@ function DecisionEngineScreen({
       comment: "",
     };
     onRowsChange?.([...rowTargets, nextRow]);
-    suppressBuilderHydrationRef.current.row = true;
+    suppressBuilderHydrationRef.current.row = "clear";
+    skipHydrationTargetRef.current.row = `row:${nextRow.id}`;
+    setTargetType("case-note-row");
     setSelectedTargetKey(`row:${nextRow.id}`);
-    setRowDraftsByWorkflow((prev) => ({
-      ...prev,
-      [newRowWorkflowId]: "",
-    }));
+    setRowDraftsByWorkflow({});
     const rowDescription = String(newRowDescription).trim();
     const rowTargetLabel =
       rowDescription.length > 72 ? `${rowDescription.slice(0, 72)}…` : rowDescription;
@@ -10985,9 +11118,16 @@ function DecisionEngineScreen({
 
     setRowDraftsByWorkflow((prev) => {
       const current = String(prev[newRowWorkflowId] || "").trim();
+      const shouldReplaceCurrent =
+        !current ||
+        /^doc/i.test(current) ||
+        current.length < 18 ||
+        promptText.toLowerCase().includes(current.toLowerCase());
       return {
         ...prev,
-        [newRowWorkflowId]: current ? `${current} ${promptText}` : promptText,
+        [newRowWorkflowId]: shouldReplaceCurrent
+          ? String(promptText).trim()
+          : `${current.replace(/[.\s]+$/, "")}. ${String(promptText).trim()}`,
       };
     });
     setRowBuilderHint("");
@@ -10996,6 +11136,21 @@ function DecisionEngineScreen({
 
   const applyRowGuidedAdlPrompt = () => {
     applyRowPromptSuggestion(buildGuidedAdlPromptText(rowGuidedAdlPrompt));
+  };
+
+  const applyRowAutocompleteSuggestion = (promptText) => {
+    if (!String(promptText).trim()) {
+      return;
+    }
+
+    suppressRowPromptAutoOpenRef.current = true;
+    markRowPromptEngaged();
+    setRowDraftsByWorkflow((prev) => ({
+      ...prev,
+      [newRowWorkflowId]: String(promptText).trim(),
+    }));
+    setRowBuilderHint("");
+    closeRowPromptPopover();
   };
 
   const removeRowTarget = (rowId) => {
@@ -11315,12 +11470,21 @@ function DecisionEngineScreen({
                   blockPromptTypedRef.current = Boolean(String(text).trim());
                   if (String(text).trim()) {
                     setBlockBuilderHint("");
+                    blockPromptEngagedRef.current = false;
+                    setBlockPromptPopoverVisible(true);
+                    loadBlockPromptSuggestions(newBlockWorkflowId);
+                    scheduleBlockPromptIdleClose();
                   } else {
                     setBlockPromptPopoverVisible(false);
                   }
                 }}
                 onFocus={() => {
                   blockPromptEngagedRef.current = false;
+                  if (String(newBlockDescription).trim()) {
+                    setBlockPromptPopoverVisible(true);
+                    loadBlockPromptSuggestions(newBlockWorkflowId);
+                    scheduleBlockPromptIdleClose();
+                  }
                 }}
                 onBlur={() => {
                   blockPromptEngagedRef.current = false;
@@ -11352,18 +11516,25 @@ function DecisionEngineScreen({
                 {blockPromptError ? (
                   <Text style={styles.decisionPromptSuggestionError}>{blockPromptError}</Text>
                 ) : null}
-                {liveBlockPromptSuggestions.length ? (
+                {liveBlockAutocompleteSuggestions.length ? (
                   <View style={styles.decisionPromptSuggestionList}>
-                    {liveBlockPromptSuggestions.map((suggestion) => (
+                    {liveBlockAutocompleteSuggestions.map((suggestion, index) => (
                       <Pressable
                         key={suggestion}
                         accessibilityRole="button"
                         onPressIn={() => {
                           markBlockPromptEngaged();
                         }}
-                        onPress={() => applyBlockPromptSuggestion(suggestion)}
+                        onPress={() =>
+                          index === 0
+                            ? applyBlockAutocompleteSuggestion(suggestion)
+                            : applyBlockPromptSuggestion(suggestion)
+                        }
                         style={styles.decisionPromptSuggestionItem}
                       >
+                        {index === 0 ? (
+                          <Text style={styles.decisionPromptSuggestionMeta}>Autocomplete</Text>
+                        ) : null}
                         <Text style={styles.decisionPromptSuggestionText}>{suggestion}</Text>
                       </Pressable>
                     ))}
@@ -11554,12 +11725,21 @@ function DecisionEngineScreen({
                   suppressRowPromptAutoOpenRef.current = false;
                   if (String(text).trim()) {
                     setRowBuilderHint("");
+                    rowPromptEngagedRef.current = false;
+                    setRowPromptPopoverVisible(true);
+                    loadRowPromptSuggestions(newRowWorkflowId);
+                    scheduleRowPromptIdleClose();
                   } else {
                     setRowPromptPopoverVisible(false);
                   }
                 }}
                 onFocus={() => {
                   rowPromptEngagedRef.current = false;
+                  if (String(newRowDescription).trim()) {
+                    setRowPromptPopoverVisible(true);
+                    loadRowPromptSuggestions(newRowWorkflowId);
+                    scheduleRowPromptIdleClose();
+                  }
                 }}
                 onBlur={() => {
                   rowPromptEngagedRef.current = false;
@@ -11591,18 +11771,25 @@ function DecisionEngineScreen({
                 {rowPromptError ? (
                   <Text style={styles.decisionPromptSuggestionError}>{rowPromptError}</Text>
                 ) : null}
-                {liveRowPromptSuggestions.length ? (
+                {liveRowAutocompleteSuggestions.length ? (
                   <View style={styles.decisionPromptSuggestionList}>
-                    {liveRowPromptSuggestions.map((suggestion) => (
+                    {liveRowAutocompleteSuggestions.map((suggestion, index) => (
                       <Pressable
                         key={suggestion}
                         accessibilityRole="button"
                         onPressIn={() => {
                           markRowPromptEngaged();
                         }}
-                        onPress={() => applyRowPromptSuggestion(suggestion)}
+                        onPress={() =>
+                          index === 0
+                            ? applyRowAutocompleteSuggestion(suggestion)
+                            : applyRowPromptSuggestion(suggestion)
+                        }
                         style={styles.decisionPromptSuggestionItem}
                       >
+                        {index === 0 ? (
+                          <Text style={styles.decisionPromptSuggestionMeta}>Autocomplete</Text>
+                        ) : null}
                         <Text style={styles.decisionPromptSuggestionText}>{suggestion}</Text>
                       </Pressable>
                     ))}
@@ -16720,6 +16907,47 @@ export default function App() {
     "Case Status",
     "About Me",
   ];
+  const workspaceStatePayload = useMemo(
+    () => ({
+      timeBlocks: decisionEngineTimeBlocks,
+      rows: decisionEngineRows,
+      documentationSession,
+      selectedLibrary: decisionEngineSelectionState.selectedLibrary,
+      selectedNoteType: decisionEngineSelectionState.selectedNoteType,
+      selectedDepth: decisionEngineSelectionState.selectedDepth,
+      includeMode: decisionEngineSelectionState.includeMode,
+      selectedBranchKey: decisionEngineSelectionState.selectedBranchKey,
+      selectedTargetType: decisionEngineSelectionState.targetType,
+      selectedTargetId: decisionEngineSelectionState.selectedTargetKey
+        ? decisionEngineSelectionState.selectedTargetKey.split(":").slice(1).join(":")
+        : null,
+      checkedNodes: decisionEngineSelectionState.checkedNodes,
+      includeInFinalMap: decisionEngineSelectionState.includeInFinalMap,
+      choiceSelections: decisionEngineSelectionState.choiceSelections,
+      stagedAssignments: decisionEngineSelectionState.stagedAssignments,
+      finalizedAssignments: decisionEngineSelectionState.finalizedAssignments,
+      collapsedSections: decisionEngineSelectionState.collapsedSections,
+      updatedAt: new Date().toISOString(),
+    }),
+    [
+      decisionEngineRows,
+      decisionEngineSelectionState.checkedNodes,
+      decisionEngineSelectionState.choiceSelections,
+      decisionEngineSelectionState.collapsedSections,
+      decisionEngineSelectionState.finalizedAssignments,
+      decisionEngineSelectionState.includeInFinalMap,
+      decisionEngineSelectionState.includeMode,
+      decisionEngineSelectionState.selectedBranchKey,
+      decisionEngineSelectionState.selectedDepth,
+      decisionEngineSelectionState.selectedLibrary,
+      decisionEngineSelectionState.selectedNoteType,
+      decisionEngineSelectionState.selectedTargetKey,
+      decisionEngineSelectionState.stagedAssignments,
+      decisionEngineSelectionState.targetType,
+      decisionEngineTimeBlocks,
+      documentationSession,
+    ]
+  );
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") {
@@ -16929,27 +17157,7 @@ export default function App() {
       fetch(`${docuWraiteApiBaseUrl}/api/workspace-state/${activeClientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          timeBlocks: decisionEngineTimeBlocks,
-          rows: decisionEngineRows,
-          documentationSession,
-          selectedLibrary: decisionEngineSelectionState.selectedLibrary,
-          selectedNoteType: decisionEngineSelectionState.selectedNoteType,
-          selectedDepth: decisionEngineSelectionState.selectedDepth,
-          includeMode: decisionEngineSelectionState.includeMode,
-          selectedBranchKey: decisionEngineSelectionState.selectedBranchKey,
-          selectedTargetType: decisionEngineSelectionState.targetType,
-          selectedTargetId: decisionEngineSelectionState.selectedTargetKey
-            ? decisionEngineSelectionState.selectedTargetKey.split(":").slice(1).join(":")
-            : null,
-          checkedNodes: decisionEngineSelectionState.checkedNodes,
-          includeInFinalMap: decisionEngineSelectionState.includeInFinalMap,
-          choiceSelections: decisionEngineSelectionState.choiceSelections,
-          stagedAssignments: decisionEngineSelectionState.stagedAssignments,
-          finalizedAssignments: decisionEngineSelectionState.finalizedAssignments,
-          collapsedSections: decisionEngineSelectionState.collapsedSections,
-          updatedAt: new Date().toISOString(),
-        }),
+        body: JSON.stringify(workspaceStatePayload),
       })
         .then(() => {
           lastLoadedStateRef.current = serialized;
@@ -16965,6 +17173,49 @@ export default function App() {
     decisionEngineTimeBlocks,
     decisionStateHydrated,
     documentationSession,
+    workspaceStatePayload,
+  ]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined" || !decisionStateHydrated) {
+      return undefined;
+    }
+
+    const flushWorkspaceState = () => {
+      const serialized = JSON.stringify({
+        clientId: activeClientId,
+        timeBlocks: decisionEngineTimeBlocks,
+        rows: decisionEngineRows,
+        documentationSession,
+        selectionState: decisionEngineSelectionState,
+      });
+      if (serialized === lastLoadedStateRef.current) {
+        return;
+      }
+
+      fetch(`${docuWraiteApiBaseUrl}/api/workspace-state/${activeClientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(workspaceStatePayload),
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    window.addEventListener("pagehide", flushWorkspaceState);
+    window.addEventListener("beforeunload", flushWorkspaceState);
+
+    return () => {
+      window.removeEventListener("pagehide", flushWorkspaceState);
+      window.removeEventListener("beforeunload", flushWorkspaceState);
+    };
+  }, [
+    activeClientId,
+    decisionEngineRows,
+    decisionEngineSelectionState,
+    decisionEngineTimeBlocks,
+    decisionStateHydrated,
+    documentationSession,
+    workspaceStatePayload,
   ]);
 
   const handleSelectClient = (clientId) => {
@@ -17627,6 +17878,7 @@ export default function App() {
                   key={`decision-engine-${activeClientId}-${decisionEngineSelectionLoadToken}`}
                   isPhone={isPhone}
                   clientProfile={activeClientProfile}
+                  clientWorkflowContexts={persistedClientWorkflowContexts}
                   onStageAssignment={handleStageAssignment}
                   stagedAssignments={decisionEngineSelectionState.stagedAssignments || []}
                   finalizedAssignments={decisionEngineSelectionState.finalizedAssignments || []}
@@ -18748,17 +19000,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
   },
+  decisionPromptAutoButton: {
+    height: 36,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    backgroundColor: colors.topPurple,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    ...(Platform.OS === "web" ? { cursor: "pointer" } : {}),
+  },
+  decisionPromptAutoButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
   decisionPromptSuggestionCard: {
     marginTop: 8,
     borderWidth: 1,
-    borderColor: "#d8cfff",
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
+    borderColor: "rgba(141, 116, 214, 0.22)",
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.84)",
     padding: 10,
     shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 1,
   },
   decisionPromptSuggestionHeader: {
@@ -18784,11 +19052,11 @@ const styles = StyleSheet.create({
   },
   decisionPromptSuggestionItem: {
     borderWidth: 1,
-    borderColor: "#e9ddff",
+    borderColor: "rgba(141, 116, 214, 0.16)",
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 9,
-    backgroundColor: "#faf7ff",
+    backgroundColor: "rgba(248, 244, 255, 0.72)",
   },
   decisionPromptSuggestionText: {
     fontSize: 13,
@@ -21943,6 +22211,24 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 13,
     color: "#111111",
+  },
+  docuWraiteWorkflowOtherStrip: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: docuWraiteColors.borderSoft,
+    borderRadius: 6,
+    backgroundColor: docuWraiteColors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  docuWraiteWorkflowOtherStripLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: docuWraiteColors.primaryMuted,
+  },
+  docuWraiteWorkflowOtherStripInput: {
+    minHeight: 68,
+    textAlignVertical: "top",
   },
   docuWraiteWorkflowNarrationInput: {
     minHeight: 72,

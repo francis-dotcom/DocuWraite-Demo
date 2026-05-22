@@ -1,0 +1,138 @@
+{
+  "workflowId": "safety-monitoring",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Safety Monitoring",
+    "task": "Safety Monitoring",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing safety-monitoring note using structured answers and escalation rules.",
+    "documentationGoals": [
+      "Capture the safety monitoring performed",
+      "Capture precautions followed and observations made",
+      "Capture safety concerns and required follow-up",
+      "Generate a concise but defensible monitoring narrative"
+    ],
+    "requiredCarePlanContext": [],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["fall risk", "aspiration risk", "elopement risk", "incident risk"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "monitoring_task",
+      "outcome",
+      "support_level",
+      "observed_response",
+      "protocols_active",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "monitoring_task",
+        "label": "What safety monitoring was completed?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Routine safety checks", "Fall-risk monitoring", "Aspiration monitoring", "Elopement-risk monitoring", "Line-of-sight supervision", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "monitoring_task_other" }]
+      },
+      {
+        "id": "monitoring_task_other",
+        "label": "Describe the safety monitoring completed.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "monitoring_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Concern observed", "No concern observed", "Incident prevented", "Interrupted", "Not needed"]
+      },
+      {
+        "id": "support_level",
+        "label": "What support level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Observation only", "Supervision only", "Close supervision", "Line-of-sight supervision", "Redirection required", "Incident-prevention response"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was observed during monitoring?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["No unusual finding", "Required redirection", "Unsafe behavior observed", "Near-fall concern", "Aspiration concern", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe what was observed.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "protocols_active",
+        "label": "Which protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Line-of-sight supervision required", "Gait belt required", "Aspiration precautions active", "Incident protocol active", "Documentation required", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Fall concern", "Aspiration concern", "Elopement concern", "Supervisor notification needed", "Incident follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra safety-monitoring note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "safety_monitoring_trigger",
+        "whenAnySelected": ["Fall concern", "Aspiration concern", "Elopement concern"],
+        "sourceQuestionId": "alerts_and_escalations",
+        "flag": "safety_monitoring_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed", "Incident follow-up needed"],
+        "requiredNoteDirective": "The generated note must mention the safety concern observed, the precautions or response used, and the required follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["support_rendered", "observed_response", "protocols_active", "follow_up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the monitoring completed, what was observed, and any follow-up needs.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "safety_monitoring_concern": {
+        "mustMention": ["safety concern observed", "precautions or response used", "required follow-up"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["protocols_active", "follow_up"]
+    }
+  }
+}

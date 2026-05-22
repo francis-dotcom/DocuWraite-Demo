@@ -1,0 +1,52 @@
+{
+  "workflowId": "community-outing",
+  "version": "1.0.0",
+  "format": "builder-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Community Outing",
+    "task": "Community Outing Builder",
+    "purpose": "Drive builder autocomplete for outing documentation with activity-specific note starts."
+  },
+  "builderPromptProfiles": {
+    "primary": "Document community support provided, participation observed, prompts or supervision used, and the person's response.",
+    "variants": [
+      "Document community outing support provided, transportation or supervision used, participation observed, and the person's response during the outing.",
+      "Document support for community access or activity participation, staff prompts used, and the person's response before, during, and after the outing.",
+      "Document outing-related support completed, safety or transition assistance used, and how the person responded in the community setting."
+    ],
+    "keywordBranches": [
+      {
+        "id": "transportation-support",
+        "keywords": ["transport", "ride", "vehicle", "van", "bus"],
+        "variants": [
+          "Document transportation support provided, boarding or travel assistance used, safety supervision completed, and the person's response.",
+          "Document vehicle or transit support, staff assistance during loading or travel, and the person's tolerance and response."
+        ]
+      },
+      {
+        "id": "shopping-support",
+        "keywords": ["shopping", "store", "grocery", "purchase", "errand"],
+        "variants": [
+          "Document community shopping support provided, prompts or supervision used, participation observed, and the person's response during the outing.",
+          "Document store or errand support completed, staff assistance used, and how the person participated and responded."
+        ]
+      },
+      {
+        "id": "transition-support",
+        "keywords": ["transition", "return", "arrival", "departure"],
+        "variants": [
+          "Document community transition support provided, preparation or return-home assistance used, and the person's response during the transition.",
+          "Document support during departure, arrival, or return from the outing, prompts used, and the person's response."
+        ]
+      },
+      {
+        "id": "community-safety",
+        "keywords": ["safety", "supervision", "monitor", "redirect"],
+        "variants": [
+          "Document community safety monitoring completed, supervision or redirection used, and the person's response during the outing.",
+          "Document staff support used to maintain community safety and how the person responded to supervision."
+        ]
+      }
+    ]
+  }
+}

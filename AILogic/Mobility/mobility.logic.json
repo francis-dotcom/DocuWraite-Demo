@@ -1,0 +1,146 @@
+{
+  "workflowId": "mobility-support",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Mobility",
+    "task": "Mobility Support",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing mobility-support note using structured answers and escalation rules.",
+    "documentationGoals": [
+      "Capture mobility support provided",
+      "Capture assistance level, equipment, and observed tolerance",
+      "Capture fall-safety concerns and required follow-up",
+      "Generate a concise but defensible mobility narrative"
+    ],
+    "requiredCarePlanContext": [],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["fall risk", "transfer safety", "mobility decline"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "mobility_task",
+      "outcome",
+      "assistance_level",
+      "engagement",
+      "observed_response",
+      "protocols_active",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "mobility_task",
+        "label": "What mobility support was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Transfer assistance", "Ambulation support", "Wheelchair support", "Positioning support", "Fall-prevention support", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "mobility_task_other" }]
+      },
+      {
+        "id": "mobility_task_other",
+        "label": "Describe the mobility support.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "mobility_task", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Completed", "Partially completed", "Refused", "Interrupted", "Safety prevented completion", "Not needed"]
+      },
+      {
+        "id": "assistance_level",
+        "label": "What assistance level was provided?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Independent", "Standby assist", "Supervision only", "Verbal prompt", "Partial assist", "Full assist", "Two-person assist", "Dependent"]
+      },
+      {
+        "id": "engagement",
+        "label": "How did the person engage during mobility support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Engaged", "Cooperative", "Hesitant", "Distracted", "Resistant", "Refused initially", "Re-engaged"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Tolerated well", "Tolerated with support", "Required repeated prompting", "Unsafe balance observed", "Pain or weakness observed", "No unusual response observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "protocols_active",
+        "label": "Which protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Gait belt required", "Two-person assist required", "Walker required", "Wheelchair safety checks required", "Line-of-sight supervision required", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Unsafe balance observed", "Pain with mobility", "Change in baseline", "Supervisor notification needed", "Incident follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra mobility note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "mobility_balance_trigger",
+        "whenAnySelected": ["Unsafe balance observed", "Change in baseline"],
+        "sourceQuestionId": "alerts_and_escalations",
+        "flag": "mobility_safety_concern",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed", "Incident follow-up needed"],
+        "requiredNoteDirective": "The generated note must mention the mobility-related safety concern, the support used, and the required follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["support_rendered", "assistance_level", "observed_response", "protocols_active", "follow_up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include the mobility support rendered, assistance level, and observed tolerance or concerns.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "mobility_safety_concern": {
+        "mustMention": ["mobility-related safety concern", "support used", "required follow-up"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["protocols_active", "follow_up"]
+    }
+  }
+}

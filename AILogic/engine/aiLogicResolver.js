@@ -5,10 +5,17 @@ const groomingLogic = require("../ADL/Grooming/grooming.logic.json");
 const handoverNoteLogic = require("../HandoverNote/handover-note.logic.json");
 const hygieneLogic = require("../ADL/Hygiene/hygiene.logic.json");
 const aspirationPrecautionsLogic = require("../MealSupport/AspirationPrecautions/aspiration-precautions.logic.json");
+const behaviorSupportLogic = require("../BehaviorSupport/behavior-support.logic.json");
+const communicationSupportLogic = require("../Communication/communication-support.logic.json");
+const communityOutingLogic = require("../CommunityOuting/community-outing.logic.json");
 const feedingAssistanceLogic = require("../MealSupport/FeedingAssistance/feeding-assistance.logic.json");
 const hydrationSupportLogic = require("../MealSupport/HydrationSupport/hydration-support.logic.json");
 const intakeMonitoringLogic = require("../MealSupport/IntakeMonitoring/intake-monitoring.logic.json");
 const mealSetupLogic = require("../MealSupport/MealSetup/meal-setup.logic.json");
+const medicationSupportLogic = require("../Medication/medication-support.logic.json");
+const mobilityLogic = require("../Mobility/mobility.logic.json");
+const safetyMonitoringLogic = require("../SafetyMonitoring/safety-monitoring.logic.json");
+const sleepSupportLogic = require("../SleepSupport/sleep-support.logic.json");
 const snackSupportLogic = require("../MealSupport/SnackSupport/snack-support.logic.json");
 const toiletingLogic = require("../ADL/Toileting/toileting.logic.json");
 const transfersLogic = require("../ADL/Transfers/transfers.logic.json");
@@ -22,12 +29,19 @@ const WORKFLOW_TASK_FILE_MAP = {
   "adl:hygiene": "adl:hygiene",
   "adl:toileting": "adl:toileting",
   "adl:transfers": "adl:transfers",
+  "behavior support:behavior support": "behavior-support:behavior-support",
+  "communication:communication support": "communication:communication-support",
+  "community outing:community outing": "community-outing:community-outing",
+  "medication:medication support": "medication:medication-support",
   "meal support:aspiration precautions": "meal-support:aspiration-precautions",
   "meal support:feeding assistance": "meal-support:feeding-assistance",
   "meal support:hydration support": "meal-support:hydration-support",
   "meal support:intake monitoring": "meal-support:intake-monitoring",
   "meal support:meal setup": "meal-support:meal-setup",
   "meal support:snack support": "meal-support:snack-support",
+  "mobility:mobility support": "mobility:mobility-support",
+  "safety monitoring:safety monitoring": "safety-monitoring:safety-monitoring",
+  "sleep support:sleep support": "sleep-support:sleep-support",
   "case note final:summary": "final-case-note:summary",
   "case-note-final:summary": "final-case-note:summary",
   "handover-note:shift handoff": "handover-note:shift-handoff",
@@ -103,6 +117,41 @@ const AI_LOGIC_REGISTRY = {
     key: "adl:transfers",
     source: "AILogic/ADL/Transfers/transfers.logic.json",
     raw: transfersLogic,
+  },
+  "behavior-support:behavior-support": {
+    key: "behavior-support:behavior-support",
+    source: "AILogic/BehaviorSupport/behavior-support.logic.json",
+    raw: behaviorSupportLogic,
+  },
+  "communication:communication-support": {
+    key: "communication:communication-support",
+    source: "AILogic/Communication/communication-support.logic.json",
+    raw: communicationSupportLogic,
+  },
+  "community-outing:community-outing": {
+    key: "community-outing:community-outing",
+    source: "AILogic/CommunityOuting/community-outing.logic.json",
+    raw: communityOutingLogic,
+  },
+  "medication:medication-support": {
+    key: "medication:medication-support",
+    source: "AILogic/Medication/medication-support.logic.json",
+    raw: medicationSupportLogic,
+  },
+  "mobility:mobility-support": {
+    key: "mobility:mobility-support",
+    source: "AILogic/Mobility/mobility.logic.json",
+    raw: mobilityLogic,
+  },
+  "safety-monitoring:safety-monitoring": {
+    key: "safety-monitoring:safety-monitoring",
+    source: "AILogic/SafetyMonitoring/safety-monitoring.logic.json",
+    raw: safetyMonitoringLogic,
+  },
+  "sleep-support:sleep-support": {
+    key: "sleep-support:sleep-support",
+    source: "AILogic/SleepSupport/sleep-support.logic.json",
+    raw: sleepSupportLogic,
   },
 };
 

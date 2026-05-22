@@ -1,0 +1,166 @@
+{
+  "workflowId": "behavior-support",
+  "version": "1.0.0",
+  "format": "ai-logic-json",
+  "layer1_categoryMetadata": {
+    "category": "Behavior Support",
+    "task": "Behavior Support",
+    "audience": ["DSP", "Supervisor", "Clinical reviewer"],
+    "purpose": "Guide AI questioning and generate a supervisor-facing behavior-support note using structured answers and escalation rules.",
+    "documentationGoals": [
+      "Capture the behavior observed and antecedent context",
+      "Capture the intervention used and the person's response",
+      "Capture risk behavior, injury risk, and follow-up needs",
+      "Generate a concise but defensible behavior narrative"
+    ],
+    "requiredCarePlanContext": [],
+    "regulatoryRiskLevel": "high",
+    "clinicalSensitivity": ["aggression", "elopement", "self-injury", "escalation"],
+    "questioningConstraints": {
+      "aiMayAskOnlyConfiguredQuestions": true,
+      "aiMayAskConfiguredFollowUpsOnly": true,
+      "aiMayNotInventClinicalConclusions": true,
+      "aiMustUseNeutralDocumentationLanguage": true
+    }
+  },
+  "layer2_questionRules": {
+    "sequence": [
+      "behavior_observed",
+      "outcome",
+      "intervention_used",
+      "engagement_after_support",
+      "observed_response",
+      "risk_protocols",
+      "alerts_and_escalations",
+      "free_note"
+    ],
+    "questions": [
+      {
+        "id": "behavior_observed",
+        "label": "What behavior was observed?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Needed redirection", "Refusal behavior", "Agitation or escalation", "Exit-seeking behavior", "Aggression", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "behavior_observed_other" }]
+      },
+      {
+        "id": "behavior_observed_other",
+        "label": "Describe the behavior observed.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "behavior_observed", "equals": "Other" }
+      },
+      {
+        "id": "outcome",
+        "label": "What was the outcome?",
+        "type": "single_select",
+        "required": true,
+        "options": ["De-escalated", "Partially de-escalated", "Re-engaged", "Continued escalation", "Stopped activity", "Resolved with support"]
+      },
+      {
+        "id": "intervention_used",
+        "label": "What intervention was used?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Verbal redirection", "Calming support", "Environmental change", "Behavior support plan followed", "Close supervision", "Other"],
+        "followUpRules": [{ "when": "Other", "ask": "intervention_used_other" }]
+      },
+      {
+        "id": "intervention_used_other",
+        "label": "Describe the intervention used.",
+        "type": "free_text",
+        "requiredWhen": { "questionId": "intervention_used", "equals": "Other" }
+      },
+      {
+        "id": "engagement_after_support",
+        "label": "How did the person engage after support?",
+        "type": "single_select",
+        "required": true,
+        "options": ["Re-engaged", "Redirectable", "Withdrawn", "Resistant", "Escalated further", "Calmed with support"]
+      },
+      {
+        "id": "observed_response",
+        "label": "What was the observed response?",
+        "type": "multi_select",
+        "required": true,
+        "options": ["Accepted redirection", "Calmed with support", "Required ongoing supervision", "Continued dysregulation", "No injury observed", "Other"],
+        "followUpRules": [{ "whenIncludes": "Other", "ask": "observed_response_other" }]
+      },
+      {
+        "id": "observed_response_other",
+        "label": "Describe the observed response.",
+        "type": "free_text",
+        "requiredWhenIncludes": { "questionId": "observed_response", "value": "Other" }
+      },
+      {
+        "id": "risk_protocols",
+        "label": "Which risk protocols were active?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["Line-of-sight supervision required", "Behavior support plan active", "Elopement precautions", "Aggression precautions", "Incident protocol active", "None"]
+      },
+      {
+        "id": "alerts_and_escalations",
+        "label": "Were any alerts or follow-up needs present?",
+        "type": "multi_select",
+        "required": false,
+        "options": ["None", "Aggression observed", "Elopement risk observed", "Injury concern", "Supervisor notification needed", "Incident follow-up needed"]
+      },
+      {
+        "id": "free_note",
+        "label": "Add any extra behavior-support note guidance.",
+        "type": "free_text",
+        "required": false
+      }
+    ],
+    "safetyTriggers": [
+      {
+        "id": "behavior_aggression_trigger",
+        "whenAnySelected": ["Aggression observed", "Injury concern"],
+        "sourceQuestionId": "alerts_and_escalations",
+        "flag": "behavior_high_risk",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed", "Incident follow-up needed"],
+        "requiredNoteDirective": "The generated note must mention the high-risk behavior concern, the intervention used, and the required incident or supervisor follow-up."
+      },
+      {
+        "id": "behavior_elopement_trigger",
+        "whenAnySelected": ["Elopement risk observed"],
+        "sourceQuestionId": "alerts_and_escalations",
+        "flag": "elopement_risk",
+        "severity": "high",
+        "requiredEscalations": ["Supervisor notification needed", "Incident follow-up needed"],
+        "requiredNoteDirective": "The generated note must mention the exit-seeking or elopement risk observed, staff response, and required follow-up."
+      }
+    ]
+  },
+  "layer3_noteGenerationContext": {
+    "inputSources": { "structuredAnswers": true, "carePlanRow": true, "shiftContext": true, "runtimeAlerts": true, "supervisorInstructions": true },
+    "compositionOrder": ["behavior_observed", "intervention_used", "engagement_after_support", "observed_response", "risk_protocols", "follow_up"],
+    "toneProfiles": {
+      "default": { "style": "professional, neutral, observational", "audience": "supervisor", "verbosity": "detailed" },
+      "concern_heavy": { "style": "direct, concern-forward, supervisory", "audience": "supervisor", "verbosity": "detailed" }
+    },
+    "systemPromptDirectives": [
+      "Use the structured answers as facts.",
+      "Do not invent support, symptoms, or interventions not provided in the answers or care-plan context.",
+      "Write in a supervisor-facing documentation style.",
+      "Include what behavior was observed, what staff did, and how the person responded.",
+      "If a safety flag is active, elevate it in the note and include required escalation language."
+    ],
+    "safetyFlagDirectives": {
+      "behavior_high_risk": {
+        "mustMention": ["high-risk behavior concern", "intervention used", "required incident or supervisor follow-up"],
+        "toneOverride": "concern_heavy"
+      },
+      "elopement_risk": {
+        "mustMention": ["exit-seeking or elopement risk", "staff response", "required follow-up"],
+        "toneOverride": "concern_heavy"
+      }
+    },
+    "outputSchema": {
+      "summaryType": "single_supervisor_paragraph",
+      "mustIncludeSections": ["support_rendered", "observed_response"],
+      "optionalSections": ["risk_protocols", "follow_up"]
+    }
+  }
+}

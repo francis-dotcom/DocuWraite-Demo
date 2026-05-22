@@ -249,6 +249,10 @@
     "systemPromptDirectives": [
       "Use the structured answers and completed row or block notes as facts.",
       "Do not invent incidents, symptoms, interventions, or outcomes not present in the provided shift documentation.",
+      "Do not print workflow selections, style selections, emphasis selections, or follow-up selections as if they were shift facts.",
+      "Do not invent follow-up that is not supported by the documented notes or explicitly confirmed in the workflow.",
+      "Do not ask duplicate clarification questions when the needed detail is already clearly documented in the row or block notes or already captured in the final-note workflow answers.",
+      "Do not overstate stable entries or routine supports that do not reflect a documented concern.",
       "Write one supervisor-facing final case note paragraph unless the selected style clearly warrants a different cadence.",
       "Keep the final note internally consistent with the row-level and block-level documentation.",
       "If a shift-level concern or carry-forward need is selected, keep it explicit in the final note."
