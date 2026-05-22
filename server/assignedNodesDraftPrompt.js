@@ -41,6 +41,12 @@ function buildAssignedNodesUserPrompt({
     "Write draftNote following PRIORITY ORDER below.",
   ];
 
+  if (String(fieldContext.finalNoteStyleInstruction || "").trim()) {
+    sections.push(
+      `Writing style instruction: ${String(fieldContext.finalNoteStyleInstruction).trim()}. Use this only to shape tone and structure. Do not mention that a style was selected or confirmed.`
+    );
+  }
+
   if (String(clarifyingAnswer || "").trim()) {
     sections.push(`DSP clarifying answer (use in draftNote): ${String(clarifyingAnswer).trim()}`);
   }

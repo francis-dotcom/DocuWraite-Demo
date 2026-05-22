@@ -2823,6 +2823,37 @@ function mapAssignedWorkflowAnswersForDraft(workflowSnapshot = {}) {
   };
 }
 
+function getFinalCaseNoteStyleInstruction(answers = {}) {
+  const selectedStyle = String(
+    getWorkflowAnswer(answers, "final_note_style") ||
+    getWorkflowAnswer(answers, "final-note-style") ||
+    ""
+  ).trim();
+  const customStyle = String(
+    getWorkflowAnswer(answers, "final_note_style_other") ||
+    getWorkflowAnswer(answers, "final-note-style-other") ||
+    ""
+  ).trim();
+
+  if (selectedStyle.toLowerCase() === "other" && customStyle) {
+    return customStyle;
+  }
+  return selectedStyle || customStyle;
+}
+
+function sanitizeAssignedResponsesForDraft(fieldContext = {}, assignedResponses = {}) {
+  if (String(fieldContext.workflowId || "").trim() !== "case-note-final") {
+    return assignedResponses;
+  }
+
+  return Object.fromEntries(
+    Object.entries(assignedResponses || {}).filter(([label]) => {
+      const normalizedLabel = normalizeInferenceText(label);
+      return !normalizedLabel.includes("what style should the final case note use");
+    })
+  );
+}
+
 const DEFAULT_DRAFT_CONTEXT_TOGGLES = {
   assignedAnswers: true,
   blockDescription: true,
@@ -2968,12 +2999,16 @@ function buildEnabledDraftSections(
   };
 
   if (resolved.assignedAnswers) {
+    const assignedAnswersContent = sanitizeAssignedResponsesForDraft(
+      fieldContext,
+      mappedAnswers.assignedResponses || {}
+    );
     sections.push(
       finalize(
         {
           key: "assignedAnswers",
           label: "Assigned question answers",
-          content: mappedAnswers.assignedResponses || {},
+          content: assignedAnswersContent,
         },
         "assignedAnswers"
       )
@@ -3320,11 +3355,6 @@ function DocuWraiteDraftContextQuestionModal({
               onSaveResponse={saveResponse}
             />
             <View style={styles.docuWraiteDraftContextModalFooter}>
-              <View style={styles.docuWraiteDraftContextModalPrimaryActionRow}>
-                <Pressable style={styles.docuWraiteWorkflowNext} onPress={() => saveResponse(textDraft)}>
-                  <Text style={styles.docuWraiteWorkflowNextText}>Continue</Text>
-                </Pressable>
-              </View>
               <View style={styles.docuWraiteDraftContextModalSecondaryActionRow}>
                 {canGoBack ? (
                   <Pressable
@@ -4688,11 +4718,24 @@ function escapeHtml(value = "") {
     .replace(/'/g, "&#39;");
 }
 
+function resolveDocumentationActorNames(session = {}, loggedInStaff = "") {
+  const caregiverName = String(session?.review?.reviewedBy || "").trim() || String(loggedInStaff || "").trim();
+  const accountOwnerName = String(loggedInStaff || "").trim();
+  const showAccountOwner = Boolean(accountOwnerName) && caregiverName !== accountOwnerName;
+
+  return {
+    caregiverName,
+    accountOwnerName,
+    showAccountOwner,
+  };
+}
+
 function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
   if (Platform.OS !== "web" || typeof window === "undefined") {
     return false;
   }
 
+  const actorNames = resolveDocumentationActorNames(session, loggedInStaff);
   const finalNote = String(session.shiftSummary || "").trim() || "No final shift note entered.";
   const generatedHandoverNote =
     String(session.handover?.generatedNote || "").trim() || "No generated handover note entered.";
@@ -4736,7 +4779,8 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
       <p><strong>Individual:</strong> ${escapeHtml(patientName)}</p>
       <p><strong>Program:</strong> ${escapeHtml(session.program)}</p>
       <p><strong>Service Date:</strong> ${escapeHtml(session.serviceDate)}</p>
-      <p><strong>Entered By:</strong> ${escapeHtml(loggedInStaff)}</p>
+      <p><strong>Caregiver:</strong> ${escapeHtml(actorNames.caregiverName)}</p>
+      ${actorNames.showAccountOwner ? `<p><strong>Account Owner:</strong> ${escapeHtml(actorNames.accountOwnerName)}</p>` : ""}
       <p><strong>Generated:</strong> ${escapeHtml(session.handover?.generatedAt || session.review?.validationTimestamp || "")}</p>
     </div>
     <div class="panel">
@@ -4767,13 +4811,14 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
   return true;
 }
 
-function buildSubmittedNoteLibraryRecord({ session, clientId, clientName, caregiverName, submittedAt }) {
+function buildSubmittedNoteLibraryRecord({ session, clientId, clientName, caregiverName, accountOwnerName = "", submittedAt }) {
   const timestamp = submittedAt || getCurrentEasternTimestamp();
   return {
     id: `submitted-note-${clientId}-${Date.now()}`,
     clientId,
     clientName,
     caregiverName,
+    accountOwnerName,
     serviceDate: session?.serviceDate || "",
     submittedAt: timestamp,
     title: session?.title || "Submitted Note",
@@ -4848,6 +4893,9 @@ function openSubmittedNotePdfInBrowser({ record }) {
     <div class="meta">
       <p><strong>Individual:</strong> ${escapeHtml(record.clientName || "")}</p>
       <p><strong>Caregiver:</strong> ${escapeHtml(record.caregiverName || "")}</p>
+      ${record.accountOwnerName && record.accountOwnerName !== record.caregiverName
+        ? `<p><strong>Account Owner:</strong> ${escapeHtml(record.accountOwnerName)}</p>`
+        : ""}
       <p><strong>Service Date:</strong> ${escapeHtml(record.serviceDate || "")}</p>
       <p><strong>Submitted:</strong> ${escapeHtml(record.submittedAt || "")}</p>
       <p><strong>Status:</strong> ${escapeHtml(record.signStatus || "")}</p>
@@ -7442,6 +7490,7 @@ function DocumentationEntryScreen({
           workflowSnapshot.fieldContext?.shiftIntelligence ||
           getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session),
         assignedWorkflowSteps: workflowSnapshot.localSteps || [],
+        finalNoteStyleInstruction: getFinalCaseNoteStyleInstruction(workflowSnapshot.answers || {}),
       };
       const currentNote = workflowSnapshot.currentNote || "";
       const aiLogicDraftPayload = buildAiLogicDraftPayload(workflowSnapshot, {
@@ -8623,6 +8672,7 @@ function DocumentationEntryScreen({
   const finalizeDocumentationSubmission = () => {
     if (isCaseNoteSession) {
       const timestamp = getCurrentEasternTimestamp();
+      const actorNames = resolveDocumentationActorNames(session, loggedInUser);
       const submittedRecord = buildSubmittedNoteLibraryRecord({
         session: {
           ...session,
@@ -8634,7 +8684,8 @@ function DocumentationEntryScreen({
         },
         clientId: clientProfile?.id || activeClientName,
         clientName: activePatientName,
-        caregiverName: loggedInUser,
+        caregiverName: actorNames.caregiverName,
+        accountOwnerName: actorNames.accountOwnerName,
         submittedAt: timestamp,
       });
       onSubmittedNotesLibraryUpdate((current) => [
@@ -23018,9 +23069,6 @@ const styles = StyleSheet.create({
   docuWraiteDraftContextModalFooter: {
     marginTop: 16,
     rowGap: 10,
-  },
-  docuWraiteDraftContextModalPrimaryActionRow: {
-    alignItems: "flex-start",
   },
   docuWraiteDraftContextModalSecondaryActionRow: {
     flexDirection: "row",
