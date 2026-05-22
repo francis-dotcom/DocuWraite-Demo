@@ -414,6 +414,19 @@ const handoverVitalFields = [
 ];
 
 const NOTES_LIBRARY_STORAGE_KEY = "docuwraite-notes-library-v1";
+const EASTERN_TIMEZONE = "America/New_York";
+
+function getCurrentEasternTimestamp(date = new Date()) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: EASTERN_TIMEZONE,
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
 
 function loadInitialNotesLibraryRecords() {
   const defaults = buildDefaultNotesLibraryRecords();
@@ -3307,22 +3320,29 @@ function DocuWraiteDraftContextQuestionModal({
               onSaveResponse={saveResponse}
             />
             <View style={styles.docuWraiteDraftContextModalFooter}>
-              {canGoBack ? (
-                <Pressable
-                  onPress={() => {
-                    runDraftContextQuestionLayoutAnimation();
-                    setTextDraft("");
-                    onBackResponse?.();
-                  }}
-                >
-                  <Text style={styles.docuWraiteWorkflowBack}>Back</Text>
+              <View style={styles.docuWraiteDraftContextModalPrimaryActionRow}>
+                <Pressable style={styles.docuWraiteWorkflowNext} onPress={() => saveResponse(textDraft)}>
+                  <Text style={styles.docuWraiteWorkflowNextText}>Continue</Text>
                 </Pressable>
-              ) : (
-                <View />
-              )}
-              <Pressable onPress={onMoveInline}>
-                <Text style={styles.docuWraiteWorkflowDismiss}>Dismiss</Text>
-              </Pressable>
+              </View>
+              <View style={styles.docuWraiteDraftContextModalSecondaryActionRow}>
+                {canGoBack ? (
+                  <Pressable
+                    onPress={() => {
+                      runDraftContextQuestionLayoutAnimation();
+                      setTextDraft("");
+                      onBackResponse?.();
+                    }}
+                  >
+                    <Text style={styles.docuWraiteWorkflowBack}>Back</Text>
+                  </Pressable>
+                ) : (
+                  <View />
+                )}
+                <Pressable onPress={onMoveInline}>
+                  <Text style={styles.docuWraiteWorkflowDismiss}>Dismiss</Text>
+                </Pressable>
+              </View>
             </View>
           </Animated.View>
         </View>
@@ -4748,7 +4768,7 @@ function openHandoverNoteInBrowser({ session, patientName, loggedInStaff }) {
 }
 
 function buildSubmittedNoteLibraryRecord({ session, clientId, clientName, caregiverName, submittedAt }) {
-  const timestamp = submittedAt || new Date().toLocaleString();
+  const timestamp = submittedAt || getCurrentEasternTimestamp();
   return {
     id: `submitted-note-${clientId}-${Date.now()}`,
     clientId,
@@ -6984,6 +7004,7 @@ function DocumentationEntryScreen({
   persistedClientWorkflowContexts = [],
   onSubmittedNotesLibraryUpdate = () => {},
   onSelectedSubmittedNoteIdChange = () => {},
+  onOpenSubmittedNotesLibrary = () => {},
 }) {
   const activePatientName = formatClientNameLastFirstInitials(
     clientProfile?.displayName ?? patientDisplayName
@@ -7527,6 +7548,7 @@ function DocumentationEntryScreen({
   };
 
   const openValidationQuiz = (trigger = "validate") => {
+    const timestamp = getCurrentEasternTimestamp();
     const questions = buildValidationQuizQuestions(session, {
       getWorkflowEyebrow,
       assistanceScoreOptions: AI_ASSISTANCE_SCORE_OPTIONS,
@@ -7542,7 +7564,7 @@ function DocumentationEntryScreen({
         statusMessage: "Validation complete. Generate and complete the handover note next.",
         review: {
           ...session.review,
-          validationTimestamp: "05/14/2026 1:06 AM",
+          validationTimestamp: timestamp,
         },
       });
       return;
@@ -7596,6 +7618,7 @@ function DocumentationEntryScreen({
     validationQuizAdvanceTimer.current = setTimeout(() => {
       validationQuizAdvanceTimer.current = null;
       if (validationQuizState.currentIndex >= validationQuizState.questions.length - 1) {
+        const timestamp = getCurrentEasternTimestamp();
         patchSession({
           validationWarnings: [],
           dspValidationQuizPassed: true,
@@ -7606,7 +7629,7 @@ function DocumentationEntryScreen({
           statusMessage: "Validation complete. Generate and complete the handover note next.",
           review: {
             ...session.review,
-            validationTimestamp: "05/14/2026 1:06 AM",
+            validationTimestamp: timestamp,
           },
         });
         closeValidationQuiz();
@@ -8376,12 +8399,13 @@ function DocumentationEntryScreen({
           caseNoteAttestation: attestationAnswers,
         });
       } else if (fieldId === "handover") {
+        const timestamp = getCurrentEasternTimestamp();
         patchSession({
           handover: {
             ...(session.handover || {}),
             required: true,
             generatedNote: note,
-            generatedAt: "05/14/2026 1:06 AM",
+            generatedAt: timestamp,
             submitted: false,
           },
           statusMessage: "",
@@ -8465,6 +8489,7 @@ function DocumentationEntryScreen({
   };
 
   const validateDocumentation = () => {
+    const timestamp = getCurrentEasternTimestamp();
     const warnings = buildValidationWarnings(session);
     const hasCaseNoteSummary = Boolean(String(session.shiftSummary || "").trim());
     const hasCaseNoteSourceNotes = Boolean(
@@ -8489,7 +8514,7 @@ function DocumentationEntryScreen({
             : "Validation found compliance warnings. Review before submission.",
       review: {
         ...session.review,
-        validationTimestamp: "05/14/2026 1:06 AM",
+        validationTimestamp: timestamp,
       },
     });
     runDocuWraiteReview("validate");
@@ -8563,7 +8588,7 @@ function DocumentationEntryScreen({
       return;
     }
 
-    const generatedAt = "05/14/2026 1:06 AM";
+    const generatedAt = getCurrentEasternTimestamp();
     const nextSession = {
       ...session,
       handover: {
@@ -8597,25 +8622,27 @@ function DocumentationEntryScreen({
 
   const finalizeDocumentationSubmission = () => {
     if (isCaseNoteSession) {
+      const timestamp = getCurrentEasternTimestamp();
       const submittedRecord = buildSubmittedNoteLibraryRecord({
         session: {
           ...session,
           review: {
             ...session.review,
             signStatus: "Submitted for QA Review",
-            validationTimestamp: "05/14/2026 1:06 AM",
+            validationTimestamp: timestamp,
           },
         },
         clientId: clientProfile?.id || activeClientName,
         clientName: activePatientName,
         caregiverName: loggedInUser,
-        submittedAt: "05/14/2026 1:06 AM",
+        submittedAt: timestamp,
       });
       onSubmittedNotesLibraryUpdate((current) => [
         submittedRecord,
         ...(current || []).filter((record) => String(record.id) !== String(submittedRecord.id)),
       ]);
       onSelectedSubmittedNoteIdChange(submittedRecord.id);
+      onOpenSubmittedNotesLibrary();
 
       const nextSession = createDocumentationSession({
         title: session.title,
@@ -8637,13 +8664,13 @@ function DocumentationEntryScreen({
     }
 
     patchSession({
-      validationWarnings: [],
-      statusMessage: "Documentation submitted for compliance review.",
       review: {
         ...session.review,
         signStatus: "Submitted for QA Review",
-        validationTimestamp: "05/14/2026 1:06 AM",
+        validationTimestamp: getCurrentEasternTimestamp(),
       },
+      validationWarnings: [],
+      statusMessage: "Documentation submitted for compliance review.",
       handover: {
         ...(session.handover || {}),
         required: true,
@@ -8718,7 +8745,7 @@ function DocumentationEntryScreen({
       statusMessage: "Submission blocked until validation warnings are resolved.",
       review: {
         ...session.review,
-        validationTimestamp: "05/14/2026 1:06 AM",
+        validationTimestamp: getCurrentEasternTimestamp(),
       },
     });
     runDocuWraiteReview("submit");
@@ -13310,6 +13337,7 @@ function CarePlanDocument({
   onOpenDecisionAssignment,
   onSubmittedNotesLibraryUpdate = () => {},
   onSelectedSubmittedNoteIdChange = () => {},
+  onOpenSubmittedNotesLibrary = () => {},
 }) {
   const profile = clientProfile || getMaryBetProfile();
   const [isEditingCarePlan, setIsEditingCarePlan] = useState(false);
@@ -13700,6 +13728,7 @@ function CarePlanDocument({
           persistedClientWorkflowContexts={persistedClientWorkflowContexts}
           onSubmittedNotesLibraryUpdate={onSubmittedNotesLibraryUpdate}
           onSelectedSubmittedNoteIdChange={onSelectedSubmittedNoteIdChange}
+          onOpenSubmittedNotesLibrary={onOpenSubmittedNotesLibrary}
         />
       ) : (
       <ScrollView
@@ -18283,6 +18312,7 @@ export default function App() {
                   onOpenDecisionAssignment={openDecisionAssignmentTarget}
                   onSubmittedNotesLibraryUpdate={setSubmittedNotesLibrary}
                   onSelectedSubmittedNoteIdChange={setSelectedSubmittedNoteId}
+                  onOpenSubmittedNotesLibrary={() => setSelectedModule("Notes Library")}
                 />
               ) : showDocumentationGuide ? (
                 <DocumentationGuideScreen
@@ -18318,6 +18348,7 @@ export default function App() {
                   persistedClientWorkflowContexts={persistedClientWorkflowContexts}
                   onSubmittedNotesLibraryUpdate={setSubmittedNotesLibrary}
                   onSelectedSubmittedNoteIdChange={setSelectedSubmittedNoteId}
+                  onOpenSubmittedNotesLibrary={() => setSelectedModule("Notes Library")}
                 />
               ) : (
                 <>
@@ -22983,6 +23014,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: docuWraiteColors.primaryMuted,
     textDecorationLine: "underline",
+  },
+  docuWraiteDraftContextModalFooter: {
+    marginTop: 16,
+    rowGap: 10,
+  },
+  docuWraiteDraftContextModalPrimaryActionRow: {
+    alignItems: "flex-start",
+  },
+  docuWraiteDraftContextModalSecondaryActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    columnGap: 16,
+    minHeight: 22,
   },
   docuWraiteCardTitle: {
     fontSize: 13,
