@@ -3229,6 +3229,7 @@ function DocuWraiteDraftContextQuestionBody({
           placeholder="Type your answer"
           placeholderTextColor="#888888"
           multiline
+          autoFocus={Platform.OS === "web"}
           style={styles.docuWraiteDraftContextQuestionTextInput}
         />
         <Pressable style={styles.docuWraiteWorkflowNext} onPress={() => onSaveResponse(textDraft)}>
@@ -3290,7 +3291,7 @@ function DocuWraiteDraftContextQuestionBody({
   );
 }
 
-function DraggableModalPanel({ children, style, pointerEvents = "auto" }) {
+function DraggableModalPanel({ children, style, pointerEvents = "auto", dragHandleOnly = false }) {
   const drag = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const dragResponder = useRef(
     PanResponder.create({
@@ -3315,6 +3316,9 @@ function DraggableModalPanel({ children, style, pointerEvents = "auto" }) {
     })
   ).current;
 
+  const panHandlers = dragResponder.panHandlers;
+  const resolvedChildren = typeof children === "function" ? children(panHandlers) : children;
+
   return (
     <Animated.View
       style={[
@@ -3323,15 +3327,16 @@ function DraggableModalPanel({ children, style, pointerEvents = "auto" }) {
         { transform: [{ translateX: drag.x }, { translateY: drag.y }] },
       ]}
       pointerEvents={pointerEvents}
-      {...dragResponder.panHandlers}
+      {...(dragHandleOnly ? {} : panHandlers)}
     >
-      {children}
+      {resolvedChildren}
     </Animated.View>
   );
 }
 
 /** Centered modal — first question or when reopened from inline. */
 function DocuWraiteDraftContextQuestionModal({
+  embedded = false,
   visible,
   toggles,
   fieldContext,
@@ -3369,64 +3374,87 @@ function DocuWraiteDraftContextQuestionModal({
   };
   const canGoBack = trail.filter((entry) => entry.answered).length > 0;
 
-  return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={onMoveInline}>
-      <View style={styles.docuWraiteDraftContextToastRoot} pointerEvents="box-none">
-        <Pressable style={styles.docuWraiteDraftContextToastBackdrop} onPress={onMoveInline} />
-        <View style={styles.docuWraiteDraftContextToastCenter} pointerEvents="box-none">
-          <DraggableModalPanel
-            style={[styles.docuWraiteDraftContextToastCard, { opacity }]}
-            pointerEvents="auto"
-          >
-            <View style={styles.docuWraiteDraftContextModalHeader}>
-              <View
-                style={[
-                  styles.docuWraiteDraftContextToastTitleWrap,
-                  styles.docuWraiteDraftContextModalDragHandle,
-                ]}
-              >
-                <Text style={styles.docuWraiteDraftContextQuestionsHeading}>
-                  Questions for ticked items
-                </Text>
-                <Text style={styles.docuWraiteDraftContextQuestionsHint}>
-                  {`${pendingTrees} item${pendingTrees === 1 ? "" : "s"} to answer before Generate note`}
-                </Text>
-              </View>
-              <Pressable hitSlop={8} onPress={onMoveInline} style={styles.docuWraiteDraftContextModalClose}>
-                <Text style={styles.docuWraiteDraftContextModalCloseText}>✕</Text>
-              </Pressable>
-            </View>
-            <DocuWraiteDraftContextQuestionBody
-              active={active}
-              pendingTrees={pendingTrees}
-              responses={responses}
-              textDraft={textDraft}
-              onTextDraftChange={setTextDraft}
-              onSaveResponse={saveResponse}
-            />
-            <View style={styles.docuWraiteDraftContextModalFooter}>
-              <View style={styles.docuWraiteDraftContextModalSecondaryActionRow}>
-                {canGoBack ? (
-                  <Pressable
-                    onPress={() => {
-                      runDraftContextQuestionLayoutAnimation();
-                      setTextDraft("");
-                      onBackResponse?.();
-                    }}
-                  >
-                    <Text style={styles.docuWraiteWorkflowBack}>Back</Text>
-                  </Pressable>
-                ) : (
-                  <View />
-                )}
-                <Pressable onPress={onMoveInline}>
-                  <Text style={styles.docuWraiteWorkflowDismiss}>Dismiss</Text>
+  const overlay = (
+    <View
+      style={[
+        styles.docuWraiteDraftContextToastRoot,
+        embedded ? styles.docuWraiteDraftContextEmbeddedInAssist : null,
+      ]}
+      pointerEvents="box-none"
+    >
+      <Pressable style={styles.docuWraiteDraftContextToastBackdrop} onPress={onMoveInline} />
+      <View style={styles.docuWraiteDraftContextToastCenter} pointerEvents="box-none">
+        <DraggableModalPanel
+          style={[styles.docuWraiteDraftContextToastCard, { opacity }]}
+          pointerEvents="auto"
+          dragHandleOnly
+        >
+          {(dragHandlePanHandlers) => (
+            <>
+              <View style={styles.docuWraiteDraftContextModalHeader}>
+                <View
+                  style={[
+                    styles.docuWraiteDraftContextToastTitleWrap,
+                    styles.docuWraiteDraftContextModalDragHandle,
+                  ]}
+                  {...dragHandlePanHandlers}
+                >
+                  <Text style={styles.docuWraiteDraftContextQuestionsHeading}>
+                    Questions for ticked items
+                  </Text>
+                  <Text style={styles.docuWraiteDraftContextQuestionsHint}>
+                    {`${pendingTrees} item${pendingTrees === 1 ? "" : "s"} to answer before Generate note`}
+                  </Text>
+                </View>
+                <Pressable hitSlop={8} onPress={onMoveInline} style={styles.docuWraiteDraftContextModalClose}>
+                  <Text style={styles.docuWraiteDraftContextModalCloseText}>✕</Text>
                 </Pressable>
               </View>
-            </View>
-          </DraggableModalPanel>
-        </View>
+              <DocuWraiteDraftContextQuestionBody
+                active={active}
+                pendingTrees={pendingTrees}
+                responses={responses}
+                textDraft={textDraft}
+                onTextDraftChange={setTextDraft}
+                onSaveResponse={saveResponse}
+              />
+              <View style={styles.docuWraiteDraftContextModalFooter}>
+                <View style={styles.docuWraiteDraftContextModalSecondaryActionRow}>
+                  {canGoBack ? (
+                    <Pressable
+                      onPress={() => {
+                        runDraftContextQuestionLayoutAnimation();
+                        setTextDraft("");
+                        onBackResponse?.();
+                      }}
+                    >
+                      <Text style={styles.docuWraiteWorkflowBack}>Back</Text>
+                    </Pressable>
+                  ) : (
+                    <View />
+                  )}
+                  <Pressable onPress={onMoveInline}>
+                    <Text style={styles.docuWraiteWorkflowDismiss}>Dismiss</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </>
+          )}
+        </DraggableModalPanel>
       </View>
+    </View>
+  );
+
+  if (embedded) {
+    if (!visible) {
+      return null;
+    }
+    return overlay;
+  }
+
+  return (
+    <Modal transparent visible={visible} animationType="none" onRequestClose={onMoveInline}>
+      {overlay}
     </Modal>
   );
 }
@@ -6797,6 +6825,7 @@ function DocumentationCommentField({
   onWorkflowDraftContextToggle,
   onWorkflowDraftContextQuestionModeChange,
   onWorkflowDraftContextSaveResponse,
+  draftContextQuestionModal,
   onAssistActivity,
   onAssignQuestions,
 }) {
@@ -6938,6 +6967,9 @@ function DocumentationCommentField({
                 </View>
               )}
             </DraggableModalPanel>
+            {draftContextQuestionModal ? (
+              <DocuWraiteDraftContextQuestionModal embedded {...draftContextQuestionModal} />
+            ) : null}
           </View>
         </Modal>
       ) : null}
@@ -8110,6 +8142,89 @@ function DocumentationEntryScreen({
     }
   };
 
+  const getDraftContextModalFieldContext = (workflowState) => ({
+    ...(workflowState?.fieldContext || {}),
+    shiftIntelligence:
+      workflowState?.fieldContext?.shiftIntelligence ||
+      getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session),
+  });
+
+  const getDraftContextQuestionModalProps = (fieldId) => {
+    if (
+      !docuWraiteWorkflow ||
+      docuWraiteWorkflow.fieldId !== fieldId ||
+      docuWraiteWorkflow.workflowId !== "assigned-nodes" ||
+      docuWraiteWorkflow.draftContextQuestionMode === "inline"
+    ) {
+      return null;
+    }
+
+    const fieldContext = getDraftContextModalFieldContext(docuWraiteWorkflow);
+    const pending = getFirstIncompleteDraftContextQuestion(
+      normalizeDraftContextToggles(docuWraiteWorkflow.draftContextToggles),
+      docuWraiteWorkflow.answers?.draftContextResponses || {},
+      fieldContext
+    );
+
+    if (!pending) {
+      return null;
+    }
+
+    return {
+      visible: true,
+      toggles: normalizeDraftContextToggles(docuWraiteWorkflow.draftContextToggles),
+      fieldContext,
+      responses: docuWraiteWorkflow.answers?.draftContextResponses || {},
+      onSaveResponse: (responseKey, value) => {
+        setDocuWraiteWorkflow((current) => {
+          if (!current || current.workflowId !== "assigned-nodes") {
+            return current;
+          }
+
+          return {
+            ...current,
+            answers: {
+              ...current.answers,
+              draftContextResponses: {
+                ...(current.answers?.draftContextResponses || {}),
+                [responseKey]: value,
+              },
+            },
+          };
+        });
+      },
+      onBackResponse: () => {
+        setDocuWraiteWorkflow((current) => {
+          if (!current || current.workflowId !== "assigned-nodes") {
+            return current;
+          }
+
+          return {
+            ...current,
+            answers: {
+              ...current.answers,
+              draftContextResponses: rewindDraftContextResponses(
+                normalizeDraftContextToggles(current.draftContextToggles),
+                current.answers?.draftContextResponses || {},
+                getDraftContextModalFieldContext(current)
+              ),
+            },
+          };
+        });
+      },
+      onMoveInline: () => {
+        runDraftContextQuestionLayoutAnimation();
+        setDocuWraiteWorkflow((current) => {
+          if (!current || current.workflowId !== "assigned-nodes") {
+            return current;
+          }
+
+          return { ...current, draftContextQuestionMode: "inline" };
+        });
+      },
+    };
+  };
+
   const getCommentAssistProps = (fieldId, fieldContext, value = "") => ({
     showHelpBubble: true,
     assist:
@@ -8452,6 +8567,9 @@ function DocumentationEntryScreen({
         };
       });
     },
+    draftContextQuestionModal: docuWraiteExpanded
+      ? getDraftContextQuestionModalProps(fieldId)
+      : null,
     onWorkflowInsert: (note) => {
       if (fieldId === "summary") {
         const isFinalCaseNoteWorkflow =
@@ -9561,85 +9679,14 @@ function DocumentationEntryScreen({
         </View>
       </Modal>
 
-      {docuWraiteWorkflow?.workflowId === "assigned-nodes" ? (
-        <DocuWraiteDraftContextQuestionModal
-          visible={
-            docuWraiteWorkflow.draftContextQuestionMode !== "inline" &&
-            Boolean(
-              getFirstIncompleteDraftContextQuestion(
-                normalizeDraftContextToggles(docuWraiteWorkflow.draftContextToggles),
-                docuWraiteWorkflow.answers?.draftContextResponses || {},
-                {
-                  ...(docuWraiteWorkflow.fieldContext || {}),
-                  shiftIntelligence:
-                    docuWraiteWorkflow.fieldContext?.shiftIntelligence ||
-                    getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session),
-                }
-              )
-            )
-          }
-          toggles={normalizeDraftContextToggles(docuWraiteWorkflow.draftContextToggles)}
-          fieldContext={{
-            ...(docuWraiteWorkflow.fieldContext || {}),
-            shiftIntelligence:
-              docuWraiteWorkflow.fieldContext?.shiftIntelligence ||
-              getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session),
-          }}
-          responses={docuWraiteWorkflow.answers?.draftContextResponses || {}}
-          onSaveResponse={(responseKey, value) => {
-            setDocuWraiteWorkflow((current) => {
-              if (!current || current.workflowId !== "assigned-nodes") {
-                return current;
-              }
-
-              return {
-                ...current,
-                answers: {
-                  ...current.answers,
-                  draftContextResponses: {
-                    ...(current.answers?.draftContextResponses || {}),
-                    [responseKey]: value,
-                  },
-                },
-              };
-            });
-          }}
-          onBackResponse={() => {
-            setDocuWraiteWorkflow((current) => {
-              if (!current || current.workflowId !== "assigned-nodes") {
-                return current;
-              }
-
-              return {
-                ...current,
-                answers: {
-                  ...current.answers,
-                  draftContextResponses: rewindDraftContextResponses(
-                    normalizeDraftContextToggles(current.draftContextToggles),
-                    current.answers?.draftContextResponses || {},
-                    {
-                      ...(current.fieldContext || {}),
-                      shiftIntelligence:
-                        current.fieldContext?.shiftIntelligence ||
-                        getShiftIntelligenceRuntime(clientProfile || getMaryBetProfile(), session),
-                    }
-                  ),
-                },
-              };
-            });
-          }}
-          onMoveInline={() => {
-            runDraftContextQuestionLayoutAnimation();
-            setDocuWraiteWorkflow((current) => {
-              if (!current || current.workflowId !== "assigned-nodes") {
-                return current;
-              }
-
-              return { ...current, draftContextQuestionMode: "inline" };
-            });
-          }}
-        />
-      ) : null}
+      {!docuWraiteExpanded && docuWraiteWorkflow?.workflowId === "assigned-nodes"
+        ? (() => {
+            const draftContextModalProps = getDraftContextQuestionModalProps(docuWraiteWorkflow.fieldId);
+            return draftContextModalProps ? (
+              <DocuWraiteDraftContextQuestionModal {...draftContextModalProps} />
+            ) : null;
+          })()
+        : null}
     </View>
   );
 }
@@ -22500,6 +22547,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 24,
+    ...(Platform.OS === "web" ? { position: "relative", overflow: "visible" } : {}),
+  },
+  docuWraiteDraftContextEmbeddedInAssist: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    elevation: 24,
   },
   docuWraiteAssistModalBackdrop: {
     ...StyleSheet.absoluteFillObject,
