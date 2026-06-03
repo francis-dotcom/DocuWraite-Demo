@@ -6,6 +6,7 @@ import {
   Image,
   LayoutAnimation,
   Modal,
+  PanResponder,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -46,6 +47,7 @@ import {
   searchClients,
 } from "./clientProfiles";
 import { getShiftIntelligenceRuntime, mergeResolvedClientProfile } from "./shiftIntelligence";
+import { buildShiftContext } from "./shiftContextManager";
 import {
   BRANCHING_FOLLOW_UP_BRANCHES,
   decisionNoteTypeMatches,
@@ -3288,6 +3290,46 @@ function DocuWraiteDraftContextQuestionBody({
   );
 }
 
+function DraggableModalPanel({ children, style, pointerEvents = "auto" }) {
+  const drag = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const dragResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3,
+      onPanResponderGrant: () => {
+        drag.setOffset({
+          x: drag.x.__getValue(),
+          y: drag.y.__getValue(),
+        });
+        drag.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: drag.x, dy: drag.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: () => {
+        drag.flattenOffset();
+      },
+      onPanResponderTerminate: () => {
+        drag.flattenOffset();
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      style={[
+        styles.draggableModalPanel,
+        style,
+        { transform: [{ translateX: drag.x }, { translateY: drag.y }] },
+      ]}
+      pointerEvents={pointerEvents}
+      {...dragResponder.panHandlers}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 /** Centered modal — first question or when reopened from inline. */
 function DocuWraiteDraftContextQuestionModal({
   visible,
@@ -3332,9 +3374,17 @@ function DocuWraiteDraftContextQuestionModal({
       <View style={styles.docuWraiteDraftContextToastRoot} pointerEvents="box-none">
         <Pressable style={styles.docuWraiteDraftContextToastBackdrop} onPress={onMoveInline} />
         <View style={styles.docuWraiteDraftContextToastCenter} pointerEvents="box-none">
-          <Animated.View style={[styles.docuWraiteDraftContextToastCard, { opacity }]} pointerEvents="auto">
+          <DraggableModalPanel
+            style={[styles.docuWraiteDraftContextToastCard, { opacity }]}
+            pointerEvents="auto"
+          >
             <View style={styles.docuWraiteDraftContextModalHeader}>
-              <View style={styles.docuWraiteDraftContextToastTitleWrap}>
+              <View
+                style={[
+                  styles.docuWraiteDraftContextToastTitleWrap,
+                  styles.docuWraiteDraftContextModalDragHandle,
+                ]}
+              >
                 <Text style={styles.docuWraiteDraftContextQuestionsHeading}>
                   Questions for ticked items
                 </Text>
@@ -3374,7 +3424,7 @@ function DocuWraiteDraftContextQuestionModal({
                 </Pressable>
               </View>
             </View>
-          </Animated.View>
+          </DraggableModalPanel>
         </View>
       </View>
     </Modal>
@@ -4986,7 +5036,7 @@ function SubmittedNotesLibraryScreen({
     <View style={styles.notesLibraryShell}>
       <Modal transparent visible={!!deleteTargetId} animationType="fade" onRequestClose={handleDeleteCancel}>
         <View style={styles.deleteModalOverlay}>
-          <View style={styles.deleteModalBox}>
+          <DraggableModalPanel style={styles.deleteModalBox}>
             <Text style={styles.deleteModalTitle}>Delete Note</Text>
             <Text style={styles.deleteModalBody}>Enter password to confirm deletion.</Text>
             <TextInput
@@ -5006,7 +5056,7 @@ function SubmittedNotesLibraryScreen({
                 <Text style={styles.deleteModalConfirmText}>Delete</Text>
               </Pressable>
             </View>
-          </View>
+          </DraggableModalPanel>
         </View>
       </Modal>
 
@@ -5720,7 +5770,7 @@ function DecisionDropdown({
           <View style={styles.decisionDropdownModalRoot}>
             <Pressable style={styles.decisionDropdownModalBackdrop} onPress={() => onToggleDropdown(null)} />
             {menuFrame ? (
-              <View
+              <DraggableModalPanel
                 style={[
                   styles.decisionDropdownMenu,
                   {
@@ -5749,7 +5799,7 @@ function DecisionDropdown({
                     </Pressable>
                   ))}
                 </ScrollView>
-              </View>
+              </DraggableModalPanel>
             ) : null}
           </View>
         </Modal>
@@ -6850,7 +6900,7 @@ function DocumentationCommentField({
         <Modal transparent visible animationType="fade" onRequestClose={onAssistDismiss}>
           <View style={styles.docuWraiteAssistModalRoot}>
             <Pressable style={styles.docuWraiteAssistModalBackdrop} onPress={onAssistDismiss} />
-            <View style={styles.docuWraiteAssistModalSheet}>
+            <DraggableModalPanel style={styles.docuWraiteAssistModalSheet}>
               {workflow ? (
                 <DocuWraiteGuidedWorkflowPanel
                   workflowId={workflow.workflowId}
@@ -6887,7 +6937,7 @@ function DocumentationCommentField({
                   </View>
                 </View>
               )}
-            </View>
+            </DraggableModalPanel>
           </View>
         </Modal>
       ) : null}
@@ -7499,10 +7549,11 @@ function DocumentationEntryScreen({
       };
       const currentNote = workflowSnapshot.currentNote || "";
       const aiLogicDraftPayload = buildAiLogicDraftPayload(workflowSnapshot, {
-        clientName: activePatientName,
-        date: session?.selectedDateLabel || session?.serviceDate || "",
-        shiftType: fieldContextForDraft.label || fieldContextForDraft.source || "",
-        staffName: session?.staffName || session?.dspName || session?.enteredBy || "",
+        ...buildShiftContext({
+          clientName: activePatientName,
+          session,
+          fieldContext: fieldContextForDraft,
+        }),
       });
       const enabledDraftSections = buildEnabledDraftSections(
         draftContextToggles,
@@ -9357,7 +9408,7 @@ function DocumentationEntryScreen({
       <Modal transparent visible={submitHandoverPromptVisible} animationType="fade" onRequestClose={() => setSubmitHandoverPromptVisible(false)}>
         <View style={styles.docValidationQuizRoot}>
           <Pressable style={styles.docValidationQuizBackdrop} onPress={() => setSubmitHandoverPromptVisible(false)} />
-          <View style={styles.docValidationQuizCard}>
+          <DraggableModalPanel style={styles.docValidationQuizCard}>
             <Text style={styles.docValidationQuizEyebrow}>Generate Handover Note?</Text>
             <Text style={styles.docValidationQuizPrompt}>
               Do you want DocuWraite to generate a detailed handover note for the next shift?
@@ -9386,14 +9437,14 @@ function DocumentationEntryScreen({
                 <Text style={styles.docCommentToolSecondaryText}>No, submit only</Text>
               </Pressable>
             </View>
-          </View>
+          </DraggableModalPanel>
         </View>
       </Modal>
 
       <Modal transparent visible={handoverVitalsPromptVisible} animationType="fade" onRequestClose={() => setHandoverVitalsPromptVisible(false)}>
         <View style={styles.docValidationQuizRoot}>
           <Pressable style={styles.docValidationQuizBackdrop} onPress={() => setHandoverVitalsPromptVisible(false)} />
-          <View style={styles.docValidationQuizCard}>
+          <DraggableModalPanel style={styles.docValidationQuizCard}>
             <Text style={styles.docValidationQuizEyebrow}>Vitals Before Handover?</Text>
             <Text style={styles.docValidationQuizPrompt}>
               Do vitals or readings need to be entered before generating the handover note?
@@ -9428,14 +9479,14 @@ function DocumentationEntryScreen({
                 <Text style={styles.docCommentToolSecondaryText}>Skip and generate</Text>
               </Pressable>
             </View>
-          </View>
+          </DraggableModalPanel>
         </View>
       </Modal>
 
       <Modal transparent visible={validationQuizState.visible} animationType="fade" onRequestClose={closeValidationQuiz}>
         <View style={styles.docValidationQuizRoot}>
           <Pressable style={styles.docValidationQuizBackdrop} onPress={closeValidationQuiz} />
-          <View style={styles.docValidationQuizCard}>
+          <DraggableModalPanel style={styles.docValidationQuizCard}>
             <Text style={styles.docValidationQuizEyebrow}>DSP Awareness Check</Text>
             <Text style={styles.docValidationQuizProgress}>
               {`Question ${Math.min(validationQuizState.currentIndex + 1, validationQuizState.questions.length)} of ${validationQuizState.questions.length}`}
@@ -9506,7 +9557,7 @@ function DocumentationEntryScreen({
                 <Text style={styles.docValidationQuizClose}>Close</Text>
               </Pressable>
             </View>
-          </View>
+          </DraggableModalPanel>
         </View>
       </Modal>
 
@@ -9910,7 +9961,7 @@ function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) 
         <View style={styles.intelPopoverRoot}>
           <Pressable style={styles.intelPopoverBackdrop} onPress={closeIntelCard} />
           {activeSection ? (
-            <View
+            <DraggableModalPanel
               style={[
                 styles.intelPopoverCard,
                 useCenteredIntelModal
@@ -9957,7 +10008,7 @@ function ShiftIntelligencePanel({ documentationSession, clientProfile = null }) 
                   renderList(activeSection.items, activeSection.accentColor)
                 )}
               </ScrollView>
-            </View>
+            </DraggableModalPanel>
           ) : null}
         </View>
       </Modal>
@@ -12417,7 +12468,7 @@ function DecisionEngineScreen({
         <View style={styles.decisionLibraryHelpModalRoot}>
           <Pressable style={styles.decisionLibraryHelpBackdrop} onPress={closeLibraryHelp} />
           {libraryHelpFrame ? (
-            <View
+            <DraggableModalPanel
               style={[
                 styles.decisionLibraryTooltipModal,
                 {
@@ -12429,7 +12480,7 @@ function DecisionEngineScreen({
             >
               <Text style={styles.decisionLibraryTooltipTitle}>{selectedLibraryLabel}</Text>
               <Text style={styles.decisionLibraryTooltipText}>{selectedLibraryHelp}</Text>
-            </View>
+            </DraggableModalPanel>
           ) : null}
         </View>
       </Modal>
@@ -18480,6 +18531,15 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  draggableModalPanel: {
+    ...(Platform.OS === "web"
+      ? {
+          cursor: "grab",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+        }
+      : {}),
+  },
   safeArea: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -22757,6 +22817,15 @@ const styles = StyleSheet.create({
     flex: 1,
     rowGap: 2,
     paddingRight: 8,
+  },
+  docuWraiteDraftContextModalDragHandle: {
+    ...(Platform.OS === "web"
+      ? {
+          cursor: "grab",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+        }
+      : {}),
   },
   docuWraiteDraftContextModalHeader: {
     flexDirection: "row",
